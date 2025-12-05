@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Filter, ListTodo, X, ChevronDown } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { Skeleton } from '../components/ui/Skeleton';
 
 const statusLabels = {
   TODO: 'לביצוע',
@@ -9,10 +11,10 @@ const statusLabels = {
 };
 
 const statusColors = {
-  TODO: 'bg-gray-100 text-gray-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  BLOCKED: 'bg-red-100 text-red-700',
-  DONE: 'bg-green-100 text-green-700',
+  TODO: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+  IN_PROGRESS: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  BLOCKED: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+  DONE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
 };
 
 const priorityLabels = {
@@ -22,9 +24,9 @@ const priorityLabels = {
 };
 
 const priorityColors = {
-  LOW: 'bg-gray-100 text-gray-600',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH: 'bg-orange-100 text-orange-700'
+  LOW: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
+  MEDIUM: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+  HIGH: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
 };
 
 function Stories() {
@@ -34,7 +36,9 @@ function Stories() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [editingStory, setEditingStory] = useState(null);
+  const toast = useToast();
   const [filters, setFilters] = useState({
     status: '',
     sprintId: '',
@@ -87,10 +91,14 @@ function Stories() {
       const story = await res.json();
       if (editingStory) {
         setStories(stories.map(s => s.id === story.id ? story : s));
+        toast.success('המשימה עודכנה בהצלחה');
       } else {
         setStories([story, ...stories]);
+        toast.success('המשימה נוצרה בהצלחה');
       }
       resetForm();
+    } else {
+      toast.error('שגיאה בשמירת המשימה');
     }
   };
 
@@ -104,6 +112,9 @@ function Stories() {
 
     if (res.ok) {
       setStories(stories.filter(s => s.id !== id));
+      toast.success('המשימה נמחקה');
+    } else {
+      toast.error('שגיאה במחיקת המשימה');
     }
   };
 
@@ -137,6 +148,17 @@ function Stories() {
     });
   };
 
+  const clearFilters = () => {
+    setFilters({
+      status: '',
+      sprintId: '',
+      rockId: '',
+      ownerId: ''
+    });
+  };
+
+  const activeFiltersCount = Object.values(filters).filter(Boolean).length;
+
   const filteredStories = stories.filter(story => {
     if (filters.status && story.status !== filters.status) return false;
     if (filters.sprintId && story.sprintId !== filters.sprintId) return false;
@@ -147,8 +169,25 @@ function Stories() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
+            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="grid gap-4">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-4">
+              <Skeleton className="h-5 w-48 mb-2" />
+              <Skeleton className="h-4 w-32 mb-3" />
+              <div className="flex gap-2">
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -156,114 +195,152 @@ function Stories() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">משימות</h1>
-          <p className="text-gray-500 mt-1">כל המשימות במערכת</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">משימות</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">כל המשימות במערכת</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all w-full sm:w-auto"
         >
           <Plus size={20} />
           <span>משימה חדשה</span>
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2 text-gray-500">
+      {/* Filters - Collapsible on Mobile */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        {/* Filter Toggle Button (Mobile) */}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="w-full flex items-center justify-between p-4 sm:hidden"
+        >
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
             <Filter size={18} />
-            <span>סינון:</span>
+            <span>סינון</span>
+            {activeFiltersCount > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                {activeFiltersCount}
+              </span>
+            )}
           </div>
-          <select
-            value={filters.status}
-            onChange={e => setFilters({...filters, status: e.target.value})}
-            className="px-3 py-1.5 border rounded-lg text-sm"
-          >
-            <option value="">כל הסטטוסים</option>
-            {Object.entries(statusLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          <select
-            value={filters.sprintId}
-            onChange={e => setFilters({...filters, sprintId: e.target.value})}
-            className="px-3 py-1.5 border rounded-lg text-sm"
-          >
-            <option value="">כל הספרינטים</option>
-            {sprints.map(sprint => (
-              <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-            ))}
-          </select>
-          <select
-            value={filters.rockId}
-            onChange={e => setFilters({...filters, rockId: e.target.value})}
-            className="px-3 py-1.5 border rounded-lg text-sm"
-          >
-            <option value="">כל אבני הדרך</option>
-            {rocks.map(rock => (
-              <option key={rock.id} value={rock.id}>{rock.code}</option>
-            ))}
-          </select>
-          <select
-            value={filters.ownerId}
-            onChange={e => setFilters({...filters, ownerId: e.target.value})}
-            className="px-3 py-1.5 border rounded-lg text-sm"
-          >
-            <option value="">כל האחראים</option>
-            {teamMembers.map(member => (
-              <option key={member.id} value={member.id}>{member.name}</option>
-            ))}
-          </select>
+          <ChevronDown size={18} className={`text-gray-400 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* Filter Content */}
+        <div className={`p-4 border-t dark:border-gray-700 sm:border-t-0 ${showFilters ? 'block' : 'hidden sm:block'}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
+            <div className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <Filter size={18} />
+              <span>סינון:</span>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:flex gap-3 flex-wrap">
+              <select
+                value={filters.status}
+                onChange={e => setFilters({...filters, status: e.target.value})}
+                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">כל הסטטוסים</option>
+                {Object.entries(statusLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              
+              <select
+                value={filters.sprintId}
+                onChange={e => setFilters({...filters, sprintId: e.target.value})}
+                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">כל הספרינטים</option>
+                {sprints.map(sprint => (
+                  <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                ))}
+              </select>
+              
+              <select
+                value={filters.rockId}
+                onChange={e => setFilters({...filters, rockId: e.target.value})}
+                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">כל אבני הדרך</option>
+                {rocks.map(rock => (
+                  <option key={rock.id} value={rock.id}>{rock.code}</option>
+                ))}
+              </select>
+              
+              <select
+                value={filters.ownerId}
+                onChange={e => setFilters({...filters, ownerId: e.target.value})}
+                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">כל האחראים</option>
+                {teamMembers.map(member => (
+                  <option key={member.id} value={member.id}>{member.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 font-medium"
+              >
+                נקה סינון
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b sticky top-0 bg-white">
-              <h2 className="text-xl font-bold">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="p-4 sm:p-6 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 flex items-center justify-between">
+              <h2 className="text-xl font-bold dark:text-white">
                 {editingStory ? 'עריכת משימה' : 'משימה חדשה'}
               </h2>
+              <button onClick={resetForm} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg">
+                <X size={20} />
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   כותרת
                 </label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   rows={3}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     סטטוס
                   </label>
                   <select
                     value={formData.status}
                     onChange={e => setFormData({...formData, status: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     {Object.entries(statusLabels).map(([key, label]) => (
                       <option key={key} value={key}>{label}</option>
@@ -271,13 +348,13 @@ function Stories() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     עדיפות
                   </label>
                   <select
                     value={formData.priority}
                     onChange={e => setFormData({...formData, priority: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     {Object.entries(priorityLabels).map(([key, label]) => (
                       <option key={key} value={key}>{label}</option>
@@ -287,59 +364,60 @@ function Stories() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   הערכה (נקודות)
                 </label>
                 <input
                   type="number"
                   value={formData.estimate}
                   onChange={e => setFormData({...formData, estimate: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ספרינט
-                </label>
-                <select
-                  value={formData.sprintId}
-                  onChange={e => setFormData({...formData, sprintId: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">ללא</option>
-                  {sprints.map(sprint => (
-                    <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    ספרינט
+                  </label>
+                  <select
+                    value={formData.sprintId}
+                    onChange={e => setFormData({...formData, sprintId: e.target.value})}
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ללא</option>
+                    {sprints.map(sprint => (
+                      <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    אבן דרך
+                  </label>
+                  <select
+                    value={formData.rockId}
+                    onChange={e => setFormData({...formData, rockId: e.target.value})}
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ללא</option>
+                    {rocks.map(rock => (
+                      <option key={rock.id} value={rock.id}>
+                        {rock.code} - {rock.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  אבן דרך
-                </label>
-                <select
-                  value={formData.rockId}
-                  onChange={e => setFormData({...formData, rockId: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">ללא</option>
-                  {rocks.map(rock => (
-                    <option key={rock.id} value={rock.id}>
-                      {rock.code} - {rock.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   אחראי
                 </label>
                 <select
                   value={formData.ownerId}
                   onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">ללא</option>
                   {teamMembers.map(member => (
@@ -348,17 +426,17 @@ function Stories() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
                 >
                   {editingStory ? 'שמור שינויים' : 'צור משימה'}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2.5 border dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
                 >
                   ביטול
                 </button>
@@ -368,84 +446,100 @@ function Stories() {
         </div>
       )}
 
-      {/* Stories List */}
+      {/* Stories List - Cards Layout */}
       {filteredStories.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-          <p className="text-gray-500">אין משימות</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
-          >
-            צור את המשימה הראשונה
-          </button>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 sm:p-12 text-center">
+          <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400">
+            {activeFiltersCount > 0 ? 'אין משימות התואמות לסינון' : 'אין משימות'}
+          </p>
+          {activeFiltersCount === 0 && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium"
+            >
+              צור את המשימה הראשונה
+            </button>
+          )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">כותרת</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סטטוס</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">עדיפות</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">ספרינט</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אבן דרך</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אחראי</th>
-                <th className="px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredStories.map((story) => (
-                <tr key={story.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <div className="font-medium text-gray-900">{story.title}</div>
-                      {story.description && (
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {story.description}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`text-xs px-2 py-1 rounded-full ${statusColors[story.status]}`}>
+        <div className="grid gap-4">
+          {filteredStories.map((story, index) => (
+            <div 
+              key={story.id} 
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-5 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all animate-slide-in-up"
+              style={{ animationDelay: `${index * 0.03}s` }}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                {/* Main Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white">{story.title}</h3>
+                    {story.estimate && (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                        {story.estimate} נק׳
+                      </span>
+                    )}
+                  </div>
+                  
+                  {story.description && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+                      {story.description}
+                    </p>
+                  )}
+                  
+                  {/* Tags */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${statusColors[story.status]}`}>
                       {statusLabels[story.status]}
                     </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`text-xs px-2 py-1 rounded-full ${priorityColors[story.priority]}`}>
+                    <span className={`text-xs px-2 py-1 rounded-lg ${priorityColors[story.priority]}`}>
                       {priorityLabels[story.priority]}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {story.sprint?.name || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {story.rock?.code || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {story.owner?.name || '-'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEdit(story)}
-                        className="p-1 text-gray-400 hover:text-blue-600"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(story.id)}
-                        className="p-1 text-gray-400 hover:text-red-600"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {story.sprint && (
+                      <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg">
+                        {story.sprint.name}
+                      </span>
+                    )}
+                    {story.rock && (
+                      <span className="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
+                        {story.rock.code}
+                      </span>
+                    )}
+                    {story.owner && (
+                      <span className="text-xs px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg">
+                        {story.owner.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 self-start">
+                  <button
+                    onClick={() => handleEdit(story)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(story.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Results Count */}
+      {filteredStories.length > 0 && (
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+          מציג {filteredStories.length} מתוך {stories.length} משימות
+        </p>
       )}
     </div>
   );

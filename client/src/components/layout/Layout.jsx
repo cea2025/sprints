@@ -88,21 +88,30 @@ function Layout() {
 
         {/* Theme Toggle */}
         <div className="px-4 py-3">
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            <span className="text-sm text-gray-600 dark:text-gray-300">
-              {theme === 'dark' ? 'מצב כהה' : 'מצב בהיר'}
-            </span>
-            <div className="p-1.5 rounded-lg bg-white dark:bg-gray-800 shadow">
-              {theme === 'dark' ? (
-                <Moon size={18} className="text-purple-500" />
-              ) : (
-                <Sun size={18} className="text-yellow-500" />
-              )}
-            </div>
-          </button>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-1 flex">
+            <button
+              onClick={() => theme !== 'light' && toggleTheme()}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                theme === 'light' 
+                  ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white' 
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <Sun size={16} className={theme === 'light' ? 'text-yellow-500' : ''} />
+              <span>בהיר</span>
+            </button>
+            <button
+              onClick={() => theme !== 'dark' && toggleTheme()}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                theme === 'dark' 
+                  ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white' 
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <Moon size={16} className={theme === 'dark' ? 'text-purple-500' : ''} />
+              <span>כהה</span>
+            </button>
+          </div>
         </div>
 
         {/* User section */}

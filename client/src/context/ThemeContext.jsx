@@ -11,15 +11,13 @@ export const useTheme = () => {
 };
 
 export function ThemeProvider({ children }) {
+  // Default to 'light' for users who prefer light mode
   const [theme, setTheme] = useState(() => {
     // Check localStorage first
     const saved = localStorage.getItem('theme');
     if (saved) return saved;
     
-    // Then check system preference
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
+    // Default to light mode (not system preference)
     return 'light';
   });
 
@@ -44,13 +42,22 @@ export function ThemeProvider({ children }) {
 
   const setLightTheme = () => setTheme('light');
   const setDarkTheme = () => setTheme('dark');
+  
+  const isDark = theme === 'dark';
+  const isLight = theme === 'light';
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setLightTheme, setDarkTheme }}>
+    <ThemeContext.Provider value={{ 
+      theme, 
+      toggleTheme, 
+      setLightTheme, 
+      setDarkTheme,
+      isDark,
+      isLight
+    }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
 export default ThemeProvider;
-
