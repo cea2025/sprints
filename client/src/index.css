@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+body {
+  font-family: 'Heebo', sans-serif;
+  direction: rtl;
+}
+
+/* Status colors */
+.status-todo {
+  @apply bg-gray-100 text-gray-700;
+}
+
+.status-in-progress {
+  @apply bg-blue-100 text-blue-700;
+}
+
+.status-blocked {
+  @apply bg-red-100 text-red-700;
+}
+
+.status-done {
+  @apply bg-green-100 text-green-700;
+}
+
+/* Priority colors */
+.priority-low {
+  @apply bg-gray-100 text-gray-600;
+}
+
+.priority-medium {
+  @apply bg-yellow-100 text-yellow-700;
+}
+
+.priority-high {
+  @apply bg-orange-100 text-orange-700;
+}
+
+/* Rock status colors */
+.rock-planned {
+  @apply bg-gray-100 text-gray-700;
+}
+
+.rock-in-progress {
+  @apply bg-blue-100 text-blue-700;
+}
+
+.rock-at-risk {
+  @apply bg-red-100 text-red-700;
+}
+
+.rock-done {
+  @apply bg-green-100 text-green-700;
+}

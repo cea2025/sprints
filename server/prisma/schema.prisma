@@ -1,0 +1,121 @@
+// Prisma Schema for Sprint Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum RockStatus {
+  PLANNED
+  IN_PROGRESS
+  AT_RISK
+  DONE
+}
+
+enum StoryStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String   @id @default(uuid())
+  googleId      String   @unique
+  email         String   @unique
+  name          String
+  picture       String?
+  isActive      Boolean  @default(true)
+  
+  teamMember    TeamMember?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  name      String
+  role      String
+  capacity  Int?     // points per sprint
+  isActive  Boolean  @default(true)
+  
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  ownedRocks   Rock[]
+  ownedStories Story[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Rock {
+  id          String     @id @default(uuid())
+  code        String     @unique  // "25-Q4-1"
+  name        String
+  description String?
+  year        Int
+  quarter     Int        // 1-4
+  status      RockStatus @default(PLANNED)
+  
+  ownerId     String?
+  owner       TeamMember? @relation(fields: [ownerId], references: [id])
+  
+  stories     Story[]
+  sprints     Sprint[]   @relation("SprintMainRock")
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Sprint {
+  id        String   @id @default(uuid())
+  name      String   @unique  // "25-Q1-S1"
+  goal      String?
+  startDate DateTime
+  endDate   DateTime
+  
+  mainRockId String?
+  mainRock   Rock?    @relation("SprintMainRock", fields: [mainRockId], references: [id])
+  
+  stories   Story[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Story {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  status      StoryStatus @default(TODO)
+  priority    Priority    @default(MEDIUM)
+  estimate    Int?        // points
+  
+  sprintId    String?
+  sprint      Sprint?     @relation(fields: [sprintId], references: [id])
+  
+  rockId      String?
+  rock        Rock?       @relation(fields: [rockId], references: [id])
+  
+  ownerId     String?
+  owner       TeamMember? @relation(fields: [ownerId], references: [id])
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
