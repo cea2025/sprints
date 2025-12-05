@@ -5,11 +5,13 @@ import {
   Zap, 
   ListTodo, 
   Users,
-  AlertCircle,
   CheckCircle2,
   Clock,
-  Ban
+  Ban,
+  TrendingUp,
+  ArrowLeft
 } from 'lucide-react';
+import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 
 // Hebrew translations
 const statusLabels = {
@@ -44,16 +46,27 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="space-y-8 animate-fade-in">
+        <div>
+          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
+          <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+        <SkeletonStatCards />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
+          <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => <SkeletonRockCard key={i} />)}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 text-red-600 p-4 rounded-lg">
-        שגיאה בטעינת הנתונים: {error}
+      <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-6 rounded-2xl border border-red-200 dark:border-red-800">
+        <p className="font-medium">שגיאה בטעינת הנתונים</p>
+        <p className="text-sm mt-1">{error}</p>
       </div>
     );
   }
@@ -63,9 +76,9 @@ function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">דשבורד</h1>
-        <p className="text-gray-500 mt-1">
+      <div className="animate-slide-in-up">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">דשבורד</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           רבעון {currentQuarter.quarter} / {currentQuarter.year}
         </p>
       </div>
@@ -77,45 +90,50 @@ function Dashboard() {
           value={overallStats.completedRocks}
           total={overallStats.totalRocks}
           icon={Mountain}
-          color="blue"
+          gradient="from-blue-500 to-blue-600"
+          delay={0}
         />
         <StatCard
           title="משימות"
           value={overallStats.totalStories}
           icon={ListTodo}
-          color="green"
+          gradient="from-emerald-500 to-emerald-600"
+          delay={1}
         />
         <StatCard
           title="חברי צוות"
           value={overallStats.activeTeamMembers}
           icon={Users}
-          color="purple"
+          gradient="from-purple-500 to-purple-600"
+          delay={2}
         />
         <StatCard
           title="ספרינט נוכחי"
           value={currentSprint?.name || 'אין'}
           icon={Zap}
-          color="orange"
+          gradient="from-orange-500 to-orange-600"
+          delay={3}
         />
       </div>
 
       {/* Current Sprint */}
       {currentSprint && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {currentSprint.name}
               </h2>
               {currentSprint.goal && (
-                <p className="text-gray-500 mt-1">{currentSprint.goal}</p>
+                <p className="text-gray-500 dark:text-gray-400 mt-1">{currentSprint.goal}</p>
               )}
             </div>
             <Link
               to={`/sprints/${currentSprint.id}`}
-              className="text-blue-600 hover:text-blue-700 font-medium"
+              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
             >
-              צפה בלוח →
+              <span>צפה בלוח</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </Link>
           </div>
 
@@ -131,7 +149,7 @@ function Dashboard() {
               <SprintStatCard
                 label="בתהליך"
                 value={currentSprint.stats.inProgress}
-                icon={Zap}
+                icon={TrendingUp}
                 color="blue"
               />
               <SprintStatCard
@@ -152,27 +170,31 @@ function Dashboard() {
       )}
 
       {/* Rocks */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             אבני דרך - Q{currentQuarter.quarter}
           </h2>
           <Link
             to="/rocks"
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
           >
-            כל אבני הדרך →
+            <span>כל אבני הדרך</span>
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           </Link>
         </div>
 
         {rocks.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
-            אין אבני דרך לרבעון הנוכחי
-          </p>
+          <div className="text-center py-12">
+            <Mountain className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              אין אבני דרך לרבעון הנוכחי
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {rocks.map((rock) => (
-              <RockCard key={rock.id} rock={rock} />
+            {rocks.map((rock, index) => (
+              <RockCard key={rock.id} rock={rock} index={index} />
             ))}
           </div>
         )}
@@ -181,26 +203,22 @@ function Dashboard() {
   );
 }
 
-function StatCard({ title, value, total, icon: Icon, color }) {
-  const colors = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    orange: 'bg-orange-100 text-orange-600',
-  };
-
+function StatCard({ title, value, total, icon: Icon, gradient, delay }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div 
+      className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
+      style={{ animationDelay: `${delay * 0.1}s` }}
+    >
       <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-lg ${colors[color]}`}>
-          <Icon size={24} />
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
+          <Icon size={24} className="text-white" />
         </div>
         <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {value}
             {total !== undefined && (
-              <span className="text-base font-normal text-gray-400">
+              <span className="text-base font-normal text-gray-400 dark:text-gray-500">
                 /{total}
               </span>
             )}
@@ -213,14 +231,14 @@ function StatCard({ title, value, total, icon: Icon, color }) {
 
 function SprintStatCard({ label, value, icon: Icon, color }) {
   const colors = {
-    gray: 'bg-gray-100 text-gray-600',
-    blue: 'bg-blue-100 text-blue-600',
-    red: 'bg-red-100 text-red-600',
-    green: 'bg-green-100 text-green-600',
+    gray: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+    blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    red: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+    green: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   };
 
   return (
-    <div className={`rounded-lg p-4 ${colors[color]}`}>
+    <div className={`rounded-xl p-4 ${colors[color]} transition-all hover:scale-105`}>
       <div className="flex items-center gap-2 mb-1">
         <Icon size={18} />
         <span className="text-sm font-medium">{label}</span>
@@ -230,44 +248,56 @@ function SprintStatCard({ label, value, icon: Icon, color }) {
   );
 }
 
-function RockCard({ rock }) {
+function RockCard({ rock, index }) {
   const statusColors = {
-    PLANNED: 'bg-gray-100 text-gray-700',
-    IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    AT_RISK: 'bg-red-100 text-red-700',
-    DONE: 'bg-green-100 text-green-700',
+    PLANNED: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+    IN_PROGRESS: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    AT_RISK: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+    DONE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  };
+
+  const progressColors = {
+    PLANNED: 'bg-gray-400',
+    IN_PROGRESS: 'bg-blue-500',
+    AT_RISK: 'bg-red-500',
+    DONE: 'bg-green-500',
   };
 
   return (
-    <div className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
+    <div 
+      className="border dark:border-gray-700 rounded-xl p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all animate-slide-in-up bg-white dark:bg-gray-800/50"
+      style={{ animationDelay: `${0.4 + index * 0.05}s` }}
+    >
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-mono text-gray-400">{rock.code}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[rock.status]}`}>
+            <span className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+              {rock.code}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[rock.status]}`}>
               {rockStatusLabels[rock.status]}
             </span>
           </div>
-          <h3 className="font-medium text-gray-900">{rock.name}</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">{rock.name}</h3>
         </div>
         {rock.owner && (
-          <span className="text-sm text-gray-500">{rock.owner.name}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{rock.owner.name}</span>
         )}
       </div>
 
       {/* Progress bar */}
       <div className="mt-3">
         <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-500">התקדמות</span>
-          <span className="font-medium">{rock.progress}%</span>
+          <span className="text-gray-500 dark:text-gray-400">התקדמות</span>
+          <span className="font-medium text-gray-900 dark:text-white">{rock.progress}%</span>
         </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-600 rounded-full transition-all"
+            className={`h-full ${progressColors[rock.status]} rounded-full transition-all duration-500`}
             style={{ width: `${rock.progress}%` }}
           />
         </div>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
           {rock.doneStories} מתוך {rock.totalStories} משימות
         </p>
       </div>

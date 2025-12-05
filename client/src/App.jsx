@@ -8,6 +8,8 @@ import Sprints from './pages/Sprints';
 import SprintBoard from './pages/SprintBoard';
 import Stories from './pages/Stories';
 import Team from './pages/Team';
+import { ToastProvider } from './components/ui/Toast';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Auth Context
 const AuthContext = createContext(null);
@@ -20,10 +22,13 @@ function ProtectedRoute({ children }) {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">טוען...</p>
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-blue-500 rounded-full animate-spin" style={{ animationDuration: '1.5s' }}></div>
+          </div>
+          <p className="mt-6 text-purple-200 font-medium animate-pulse">טוען...</p>
         </div>
       </div>
     );
@@ -62,28 +67,32 @@ function App() {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={
-            user ? <Navigate to="/" replace /> : <Login />
-          } />
-          
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="rocks" element={<Rocks />} />
-            <Route path="sprints" element={<Sprints />} />
-            <Route path="sprints/:id" element={<SprintBoard />} />
-            <Route path="stories" element={<Stories />} />
-            <Route path="team" element={<Team />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthContext.Provider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthContext.Provider value={{ user, setUser, loading, logout }}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={
+                user ? <Navigate to="/" replace /> : <Login />
+              } />
+              
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<Dashboard />} />
+                <Route path="rocks" element={<Rocks />} />
+                <Route path="sprints" element={<Sprints />} />
+                <Route path="sprints/:id" element={<SprintBoard />} />
+                <Route path="stories" element={<Stories />} />
+                <Route path="team" element={<Team />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </AuthContext.Provider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 

@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useAuth } from '../../App';
+import { useTheme } from '../../context/ThemeContext';
 import { 
   LayoutDashboard, 
   Mountain, 
@@ -8,12 +9,15 @@ import {
   Users, 
   LogOut,
   Menu,
-  X
+  X,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useState } from 'react';
 
 function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
@@ -25,19 +29,19 @@ function Layout() {
   ];
 
   const navLinkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
       isActive
-        ? 'bg-blue-100 text-blue-700 font-medium'
-        : 'text-gray-600 hover:bg-gray-100'
+        ? 'bg-gradient-to-l from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
     }`;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg bg-white shadow-md"
+          className="p-2 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
         >
           {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -45,61 +49,90 @@ function Layout() {
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 right-0 h-full w-64 bg-white shadow-lg z-40
-        transform transition-transform duration-200 ease-in-out
-        lg:translate-x-0
+        fixed top-0 right-0 h-full w-72 bg-white dark:bg-gray-800 shadow-2xl z-40
+        transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0 border-l border-gray-200 dark:border-gray-700
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-6 border-b">
-          <h1 className="text-2xl font-bold text-blue-600">ספרינטים</h1>
-          <p className="text-sm text-gray-500">ניהול משימות צוות</p>
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+              <Mountain className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ספרינטים
+              </h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">ניהול משימות צוות</p>
+            </div>
+          </div>
         </div>
 
         {/* Navigation */}
         <nav className="p-4 space-y-2">
-          {navigation.map((item) => (
+          {navigation.map((item, index) => (
             <NavLink
               key={item.href}
               to={item.href}
               className={navLinkClass}
               onClick={() => setSidebarOpen(false)}
               end={item.href === '/'}
+              style={{ animationDelay: `${index * 0.05}s` }}
             >
               <item.icon size={20} />
-              <span>{item.name}</span>
+              <span className="font-medium">{item.name}</span>
             </NavLink>
           ))}
         </nav>
 
+        {/* Theme Toggle */}
+        <div className="px-4 py-3">
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {theme === 'dark' ? 'מצב כהה' : 'מצב בהיר'}
+            </span>
+            <div className="p-1.5 rounded-lg bg-white dark:bg-gray-800 shadow">
+              {theme === 'dark' ? (
+                <Moon size={18} className="text-purple-500" />
+              ) : (
+                <Sun size={18} className="text-yellow-500" />
+              )}
+            </div>
+          </button>
+        </div>
+
         {/* User section */}
-        <div className="absolute bottom-0 right-0 left-0 p-4 border-t bg-gray-50">
+        <div className="absolute bottom-0 right-0 left-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex items-center gap-3 mb-3">
             {user?.picture ? (
               <img 
                 src={user.picture} 
                 alt={user.name}
-                className="w-10 h-10 rounded-full"
+                className="w-10 h-10 rounded-xl ring-2 ring-white dark:ring-gray-700 shadow-lg"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-blue-600 font-medium">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold">
                   {user?.name?.charAt(0)}
                 </span>
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {user?.name}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {user?.email}
               </p>
             </div>
           </div>
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl transition-colors font-medium"
           >
             <LogOut size={18} />
             <span>התנתק</span>
@@ -110,13 +143,13 @@ function Layout() {
       {/* Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden animate-fade-in"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main content */}
-      <main className="lg:mr-64 min-h-screen">
+      <main className="lg:mr-72 min-h-screen transition-all duration-300">
         <div className="p-6 lg:p-8">
           <Outlet />
         </div>

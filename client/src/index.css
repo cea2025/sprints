@@ -2,13 +2,188 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles */
-body {
-  font-family: 'Heebo', sans-serif;
-  direction: rtl;
+/* ==================== BASE STYLES ==================== */
+
+:root {
+  /* Light theme colors */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-color: #e2e8f0;
+  --accent-primary: #3b82f6;
+  --accent-secondary: #8b5cf6;
 }
 
-/* Status colors */
+[data-theme="dark"] {
+  /* Dark theme colors */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border-color: #334155;
+  --accent-primary: #60a5fa;
+  --accent-secondary: #a78bfa;
+}
+
+body {
+  font-family: 'Heebo', 'Inter', sans-serif;
+  direction: rtl;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ==================== ANIMATIONS ==================== */
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s ease-out;
+}
+
+/* Staggered animations */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+
+/* ==================== CUSTOM COMPONENTS ==================== */
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+[data-theme="dark"] .glass {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.gradient-danger {
+  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+}
+
+/* Shimmer effect for loading */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+[data-theme="dark"] .shimmer {
+  background: linear-gradient(
+    90deg,
+    #334155 25%,
+    #475569 50%,
+    #334155 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ==================== STATUS COLORS ==================== */
+
 .status-todo {
   @apply bg-gray-100 text-gray-700;
 }
@@ -53,4 +228,87 @@ body {
 
 .rock-done {
   @apply bg-green-100 text-green-700;
+}
+
+/* ==================== DARK MODE VARIANTS ==================== */
+
+[data-theme="dark"] .status-todo {
+  @apply bg-gray-800 text-gray-300;
+}
+
+[data-theme="dark"] .status-in-progress {
+  @apply bg-blue-900 text-blue-300;
+}
+
+[data-theme="dark"] .status-blocked {
+  @apply bg-red-900 text-red-300;
+}
+
+[data-theme="dark"] .status-done {
+  @apply bg-green-900 text-green-300;
+}
+
+/* ==================== DRAG & DROP ==================== */
+
+.draggable {
+  cursor: grab;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.draggable:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  transform: rotate(3deg) scale(1.02);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  opacity: 0.9;
+  z-index: 100;
+}
+
+.drop-target {
+  border: 2px dashed #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.drop-target-active {
+  border-color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+/* ==================== SCROLLBAR ==================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ==================== FOCUS STATES ==================== */
+
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+[data-theme="dark"] .focus-ring {
+  @apply focus:ring-offset-gray-900;
+}
+
+/* ==================== TRANSITIONS ==================== */
+
+.transition-theme {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
