@@ -100,7 +100,7 @@ router.post('/', async (req, res) => {
         year: parseInt(year),
         quarter: parseInt(quarter),
         status: status || 'PLANNED',
-        ownerId
+        ownerId: ownerId || null  // Convert empty string to null
       },
       include: {
         owner: true
@@ -132,7 +132,7 @@ router.put('/:id', async (req, res) => {
         year: year ? parseInt(year) : undefined,
         quarter: quarter ? parseInt(quarter) : undefined,
         status,
-        ownerId
+        ownerId: ownerId || null  // Convert empty string to null
       },
       include: {
         owner: true
