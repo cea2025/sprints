@@ -11,7 +11,7 @@
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "build:render": "npm install && cd server && npm install && npx prisma generate && cd ../client && npm install --include=dev && npm run build",
-    "start:render": "cd server && npx prisma db push && npm start",
+    "start:render": "cd server && npx prisma db push --accept-data-loss && npm start",
     "db:push": "cd server && npx prisma db push",
     "db:seed": "cd server && npx prisma db seed",
     "db:studio": "cd server && npx prisma studio"
