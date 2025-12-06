@@ -11,6 +11,13 @@ datasource db {
 
 // ==================== ENUMS ====================
 
+enum UserRole {
+  ADMIN      // Full access - manage users, all CRUD
+  MANAGER    // Create, edit, delete rocks/sprints/stories
+  MEMBER     // View all, edit own stories
+  VIEWER     // View only
+}
+
 enum RockStatus {
   PLANNED
   IN_PROGRESS
@@ -39,6 +46,7 @@ model User {
   email         String   @unique
   name          String
   picture       String?
+  role          UserRole @default(VIEWER)
   isActive      Boolean  @default(true)
   
   teamMember    TeamMember?

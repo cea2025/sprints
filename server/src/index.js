@@ -12,6 +12,7 @@ const sprintsRoutes = require('./routes/sprints');
 const storiesRoutes = require('./routes/stories');
 const teamRoutes = require('./routes/team');
 const dashboardRoutes = require('./routes/dashboard');
+const adminRoutes = require('./routes/admin');
 
 // Import passport config
 require('./config/passport');
@@ -54,6 +55,7 @@ app.use('/api/sprints', sprintsRoutes);
 app.use('/api/stories', storiesRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

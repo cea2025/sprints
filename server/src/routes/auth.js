@@ -47,6 +47,8 @@ router.get('/me', (req, res) => {
         email: req.user.email,
         name: req.user.name,
         picture: req.user.picture,
+        role: req.user.role,
+        isActive: req.user.isActive,
         teamMember: req.user.teamMember
       }
     });
