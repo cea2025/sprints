@@ -197,7 +197,8 @@ router.get('/stats', requireAdmin, async (req, res) => {
       usersByRole,
       totalRocks,
       totalSprints,
-      totalStories
+      totalStories,
+      totalAllowedEmails
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
@@ -207,7 +208,8 @@ router.get('/stats', requireAdmin, async (req, res) => {
       }),
       prisma.rock.count(),
       prisma.sprint.count(),
-      prisma.story.count()
+      prisma.story.count(),
+      prisma.allowedEmail.count()
     ]);
 
     res.json({
@@ -223,11 +225,202 @@ router.get('/stats', requireAdmin, async (req, res) => {
         rocks: totalRocks,
         sprints: totalSprints,
         stories: totalStories
-      }
+      },
+      allowedEmails: totalAllowedEmails
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'שגיאה בטעינת הסטטיסטיקות' });
+  }
+});
+
+// ==================== ALLOWED EMAILS (WHITELIST) ====================
+
+/**
+ * @route   GET /api/admin/allowed-emails
+ * @desc    Get all allowed emails
+ * @access  Admin only
+ */
+router.get('/allowed-emails', requirePermission('users:read'), async (req, res) => {
+  try {
+    const allowedEmails = await prisma.allowedEmail.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Check which emails have registered
+    const registeredEmails = await prisma.user.findMany({
+      where: {
+        email: {
+          in: allowedEmails.map(ae => ae.email)
+        }
+      },
+      select: { email: true, name: true, role: true, createdAt: true }
+    });
+
+    const registeredMap = registeredEmails.reduce((acc, user) => {
+      acc[user.email] = user;
+      return acc;
+    }, {});
+
+    const result = allowedEmails.map(ae => ({
+      ...ae,
+      isRegistered: !!registeredMap[ae.email],
+      registeredUser: registeredMap[ae.email] || null
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching allowed emails:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת רשימת המיילים' });
+  }
+});
+
+/**
+ * @route   POST /api/admin/allowed-emails
+ * @desc    Add new allowed email
+ * @access  Admin only
+ */
+router.post('/allowed-emails', requirePermission('users:create'), async (req, res) => {
+  try {
+    const { email, name, role, note } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'נדרש מייל' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'כתובת מייל לא תקינה' });
+    }
+
+    // Check if already exists
+    const existing = await prisma.allowedEmail.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'מייל זה כבר קיים ברשימה' });
+    }
+
+    const allowedEmail = await prisma.allowedEmail.create({
+      data: {
+        email: email.toLowerCase(),
+        name: name || null,
+        role: role || 'VIEWER',
+        note: note || null,
+        addedBy: req.user.id
+      }
+    });
+
+    res.status(201).json(allowedEmail);
+  } catch (error) {
+    console.error('Error adding allowed email:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת המייל' });
+  }
+});
+
+/**
+ * @route   PUT /api/admin/allowed-emails/:id
+ * @desc    Update allowed email
+ * @access  Admin only
+ */
+router.put('/allowed-emails/:id', requirePermission('users:update'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, role, note } = req.body;
+
+    const allowedEmail = await prisma.allowedEmail.update({
+      where: { id },
+      data: {
+        name: name || null,
+        role: role || 'VIEWER',
+        note: note || null
+      }
+    });
+
+    res.json(allowedEmail);
+  } catch (error) {
+    console.error('Error updating allowed email:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון המייל' });
+  }
+});
+
+/**
+ * @route   DELETE /api/admin/allowed-emails/:id
+ * @desc    Remove allowed email
+ * @access  Admin only
+ */
+router.delete('/allowed-emails/:id', requirePermission('users:delete'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.allowedEmail.delete({
+      where: { id }
+    });
+
+    res.json({ message: 'המייל הוסר מהרשימה' });
+  } catch (error) {
+    console.error('Error deleting allowed email:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת המייל' });
+  }
+});
+
+/**
+ * @route   POST /api/admin/allowed-emails/bulk
+ * @desc    Add multiple allowed emails at once
+ * @access  Admin only
+ */
+router.post('/allowed-emails/bulk', requirePermission('users:create'), async (req, res) => {
+  try {
+    const { emails } = req.body; // Array of { email, name?, role?, note? }
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ error: 'נדרשת רשימת מיילים' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validEmails = emails.filter(e => e.email && emailRegex.test(e.email));
+
+    if (validEmails.length === 0) {
+      return res.status(400).json({ error: 'לא נמצאו מיילים תקינים' });
+    }
+
+    // Get existing emails to skip
+    const existingEmails = await prisma.allowedEmail.findMany({
+      where: {
+        email: {
+          in: validEmails.map(e => e.email.toLowerCase())
+        }
+      },
+      select: { email: true }
+    });
+
+    const existingSet = new Set(existingEmails.map(e => e.email));
+    const newEmails = validEmails.filter(e => !existingSet.has(e.email.toLowerCase()));
+
+    if (newEmails.length === 0) {
+      return res.status(400).json({ error: 'כל המיילים כבר קיימים ברשימה' });
+    }
+
+    const created = await prisma.allowedEmail.createMany({
+      data: newEmails.map(e => ({
+        email: e.email.toLowerCase(),
+        name: e.name || null,
+        role: e.role || 'VIEWER',
+        note: e.note || null,
+        addedBy: req.user.id
+      }))
+    });
+
+    res.status(201).json({ 
+      message: `נוספו ${created.count} מיילים`,
+      added: created.count,
+      skipped: validEmails.length - newEmails.length
+    });
+  } catch (error) {
+    console.error('Error adding bulk emails:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת המיילים' });
   }
 });
 

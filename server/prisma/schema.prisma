@@ -127,3 +127,17 @@ model Story {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
+
+// ==================== ACCESS CONTROL ====================
+
+model AllowedEmail {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?  // Optional name for reference
+  role        UserRole @default(VIEWER) // Default role when user registers
+  addedBy     String?  // ID of admin who added this email
+  note        String?  // Optional note about this user
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
