@@ -86,7 +86,7 @@ function Dashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="אבני דרך"
+          title="סלעים"
           value={overallStats.completedRocks}
           total={overallStats.totalRocks}
           icon={Mountain}
@@ -173,7 +173,7 @@ function Dashboard() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            אבני דרך - Q{currentQuarter.quarter}
+            סלעים - Q{currentQuarter.quarter}
           </h2>
           <Link
             to="/rocks"
@@ -188,7 +188,7 @@ function Dashboard() {
           <div className="text-center py-12">
             <Mountain className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-500 dark:text-gray-400">
-              אין אבני דרך לרבעון הנוכחי
+              אין סלעים לרבעון הנוכחי
             </p>
           </div>
         ) : (

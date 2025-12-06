@@ -72,19 +72,19 @@ function Rocks() {
       const rock = await res.json();
       if (editingRock) {
         setRocks(rocks.map(r => r.id === rock.id ? rock : r));
-        toast.success('אבן הדרך עודכנה בהצלחה');
+        toast.success('הסלע עודכן בהצלחה');
       } else {
         setRocks([rock, ...rocks]);
-        toast.success('אבן הדרך נוצרה בהצלחה');
+        toast.success('הסלע נוצר בהצלחה');
       }
       resetForm();
     } else {
-      toast.error('שגיאה בשמירת אבן הדרך');
+      toast.error('שגיאה בשמירת הסלע');
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('האם למחוק את אבן הדרך?')) return;
+    if (!confirm('האם למחוק את הסלע?')) return;
     
     const res = await fetch(`/api/rocks/${id}`, {
       method: 'DELETE',
@@ -93,9 +93,9 @@ function Rocks() {
 
     if (res.ok) {
       setRocks(rocks.filter(r => r.id !== id));
-      toast.success('אבן הדרך נמחקה');
+      toast.success('הסלע נמחק');
     } else {
-      toast.error('שגיאה במחיקת אבן הדרך');
+      toast.error('שגיאה במחיקת הסלע');
     }
   };
 
@@ -148,7 +148,7 @@ function Rocks() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">סלעים</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">יעדים רבעוניים אסטרטגיים</p>
         </div>
         <button
@@ -156,7 +156,7 @@ function Rocks() {
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all w-full sm:w-auto"
         >
           <Plus size={20} />
-          <span>אבן דרך חדשה</span>
+          <span>סלע חדש</span>
         </button>
       </div>
 
@@ -166,7 +166,7 @@ function Rocks() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-4 sm:p-6 border-b dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800">
               <h2 className="text-xl font-bold dark:text-white">
-                {editingRock ? 'עריכת אבן דרך' : 'אבן דרך חדשה'}
+                {editingRock ? 'עריכת סלע' : 'סלע חדש'}
               </h2>
               <button onClick={resetForm} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg">
                 <X size={20} />
@@ -277,7 +277,7 @@ function Rocks() {
                   type="submit"
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
                 >
-                  {editingRock ? 'שמור שינויים' : 'צור אבן דרך'}
+                  {editingRock ? 'שמור שינויים' : 'צור סלע'}
                 </button>
                 <button
                   type="button"
@@ -296,12 +296,12 @@ function Rocks() {
       {rocks.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 sm:p-12 text-center">
           <Mountain className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">אין אבני דרך עדיין</p>
+          <p className="text-gray-500 dark:text-gray-400">אין סלעים עדיין</p>
           <button
             onClick={() => setShowForm(true)}
             className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium"
           >
-            צור את אבן הדרך הראשונה
+            צור את הסלע הראשון
           </button>
         </div>
       ) : (

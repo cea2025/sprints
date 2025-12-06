@@ -20,7 +20,7 @@ export default function Home() {
   const features = [
     {
       icon: Mountain,
-      title: 'אבני דרך (Rocks)',
+      title: 'סלעים (Rocks)',
       description: 'הגדר יעדים אסטרטגיים רבעוניים ועקוב אחר ההתקדמות שלהם'
     },
     {
@@ -82,7 +82,7 @@ export default function Home() {
         </h1>
         
         <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto mb-10">
-          מערכת לניהול אבני דרך, ספרינטים ומשימות.
+          מערכת לניהול סלעים, ספרינטים ומשימות.
           עקוב אחר ההתקדמות של הצוות שלך בזמן אמת.
         </p>
 

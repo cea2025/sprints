@@ -118,7 +118,7 @@ function Login() {
 
           <div className="space-y-6">
             {[
-              { icon: Mountain, title: 'אבני דרך', desc: 'הגדר יעדים רבעוניים אסטרטגיים' },
+              { icon: Mountain, title: 'סלעים', desc: 'הגדר יעדים רבעוניים אסטרטגיים' },
               { icon: Zap, title: 'ספרינטים', desc: 'נהל מחזורי עבודה של 1-2 שבועות' },
               { icon: Target, title: 'משימות', desc: 'עקוב אחר פריטי עבודה קונקרטיים' },
               { icon: Users, title: 'צוות', desc: 'נהל חברי צוות וקיבולת' },

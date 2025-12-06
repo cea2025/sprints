@@ -64,7 +64,7 @@ export const ROLE_LABELS = {
 
 export const ROLE_DESCRIPTIONS = {
   [ROLES.ADMIN]: 'גישה מלאה לכל המערכת כולל ניהול משתמשים',
-  [ROLES.MANAGER]: 'יצירה, עריכה ומחיקה של אבני דרך, ספרינטים ומשימות',
+  [ROLES.MANAGER]: 'יצירה, עריכה ומחיקה של סלעים, ספרינטים ומשימות',
   [ROLES.MEMBER]: 'צפייה בכל + עריכת משימות משלו',
   [ROLES.VIEWER]: 'צפייה בלבד'
 };

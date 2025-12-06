@@ -209,7 +209,7 @@ export default function Admin() {
           <StatCard title="משתמשים רשומים" value={stats.users.total} icon="👥" />
           <StatCard title="משתמשים פעילים" value={stats.users.active} icon="✅" />
           <StatCard title="מיילים מורשים" value={stats.allowedEmails || 0} icon="📧" />
-          <StatCard title="אבני דרך" value={stats.content.rocks} icon="🎯" />
+          <StatCard title="סלעים" value={stats.content.rocks} icon="🎯" />
           <StatCard title="משימות" value={stats.content.stories} icon="📋" />
         </div>
       )}

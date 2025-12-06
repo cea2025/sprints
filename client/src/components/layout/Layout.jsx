@@ -28,7 +28,7 @@ function Layout() {
 
   const navigation = [
     { name: 'דשבורד', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'אבני דרך', href: '/rocks', icon: Mountain },
+    { name: 'סלעים', href: '/rocks', icon: Mountain },
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
     { name: 'משימות', href: '/stories', icon: ListTodo },
     { name: 'צוות', href: '/team', icon: Users },
