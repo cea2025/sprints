@@ -32,26 +32,25 @@ function LoadingScreen() {
   );
 }
 
-// Protected Route Component
+// Protected Route Component - uses AuthContext
 function ProtectedRoute({ children }) {
-  const [authState, setAuthState] = useState({ user: null, loading: true });
+  const [authContext] = useState(() => {
+    // This will be populated by the parent App component
+    return null;
+  });
   
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        setAuthState({ user: data.user, loading: false });
-      })
-      .catch(() => {
-        setAuthState({ user: null, loading: false });
-      });
-  }, []);
+  // We need to access the context from the provider
+  return <ProtectedRouteInner>{children}</ProtectedRouteInner>;
+}
+
+function ProtectedRouteInner({ children }) {
+  const { user, loading } = useAuthFromContext();
   
-  if (authState.loading) {
+  if (loading) {
     return <LoadingScreen />;
   }
   
-  if (!authState.user) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
   
@@ -60,24 +59,17 @@ function ProtectedRoute({ children }) {
 
 // Public Route - redirects to dashboard if logged in
 function PublicRoute({ children }) {
-  const [authState, setAuthState] = useState({ user: null, loading: true });
+  return <PublicRouteInner>{children}</PublicRouteInner>;
+}
+
+function PublicRouteInner({ children }) {
+  const { user, loading } = useAuthFromContext();
   
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        setAuthState({ user: data.user, loading: false });
-      })
-      .catch(() => {
-        setAuthState({ user: null, loading: false });
-      });
-  }, []);
-  
-  if (authState.loading) {
+  if (loading) {
     return <LoadingScreen />;
   }
   
-  if (authState.user) {
+  if (user) {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -86,26 +78,22 @@ function PublicRoute({ children }) {
 
 // Catch-all Route - redirects based on auth state
 function CatchAllRoute() {
-  const [authState, setAuthState] = useState({ user: null, loading: true });
+  const { user, loading } = useAuthFromContext();
   
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        setAuthState({ user: data.user, loading: false });
-      })
-      .catch(() => {
-        setAuthState({ user: null, loading: false });
-      });
-  }, []);
-  
-  if (authState.loading) {
+  if (loading) {
     return <LoadingScreen />;
   }
   
-  // Redirect to dashboard if logged in, otherwise to home
-  return <Navigate to={authState.user ? "/dashboard" : "/"} replace />;
+  return <Navigate to={user ? "/dashboard" : "/"} replace />;
 }
+
+// Hook to use auth from context (must be used inside AuthContext.Provider)
+function useAuthFromContext() {
+  const context = React.useContext(AuthContext);
+  return context || { user: null, loading: true };
+}
+
+import React from 'react';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -120,6 +108,7 @@ function App() {
         setLoading(false);
       })
       .catch(() => {
+        setUser(null);
         setLoading(false);
       });
   }, []);
@@ -132,6 +121,15 @@ function App() {
     setUser(null);
   };
 
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <ThemeProvider>
+        <LoadingScreen />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <ToastProvider>
@@ -140,22 +138,16 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                <PublicRoute>
-                  <Home />
-                </PublicRoute>
+                user ? <Navigate to="/dashboard" replace /> : <Home />
               } />
               
               <Route path="/login" element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
+                user ? <Navigate to="/dashboard" replace /> : <Login />
               } />
               
               {/* Protected Routes - App Layout */}
               <Route element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
+                user ? <Layout /> : <Navigate to="/login" replace />
               }>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/rocks" element={<Rocks />} />
@@ -166,8 +158,10 @@ function App() {
                 <Route path="/admin" element={<Admin />} />
               </Route>
 
-              {/* Catch all - redirect based on auth state */}
-              <Route path="*" element={<CatchAllRoute />} />
+              {/* Catch all - redirect based on auth */}
+              <Route path="*" element={
+                <Navigate to={user ? "/dashboard" : "/"} replace />
+              } />
             </Routes>
           </BrowserRouter>
         </AuthContext.Provider>
@@ -177,3 +171,4 @@ function App() {
 }
 
 export default App;
+
