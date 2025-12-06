@@ -108,6 +108,18 @@ body {
   }
 }
 
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
 }
@@ -126,6 +138,10 @@ body {
 
 .animate-bounce-in {
   animation: bounce-in 0.5s ease-out;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-out;
 }
 
 /* Staggered animations */

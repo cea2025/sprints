@@ -26,15 +26,39 @@ router.get('/google/callback', (req, res, next) => {
   if (!isGoogleOAuthConfigured()) {
     return res.redirect('/login?error=oauth_not_configured');
   }
-  passport.authenticate('google', { 
-    failureRedirect: '/login?error=auth_failed' 
-  })(req, res, () => {
-    // Successful authentication
-    const redirectUrl = process.env.NODE_ENV === 'production' 
-      ? '/' 
-      : 'http://localhost:5173/';
-    res.redirect(redirectUrl);
-  });
+  
+  passport.authenticate('google', (err, user, info) => {
+    // Handle errors
+    if (err) {
+      console.error('OAuth error:', err);
+      return res.redirect('/login?error=server_error');
+    }
+    
+    // User not authorized (not in test users list or other Google restriction)
+    if (!user) {
+      const errorType = info?.message || 'unauthorized';
+      return res.redirect(`/login?error=${encodeURIComponent(errorType)}`);
+    }
+    
+    // Check if user is active
+    if (!user.isActive) {
+      return res.redirect('/login?error=account_disabled');
+    }
+    
+    // Login the user
+    req.logIn(user, (loginErr) => {
+      if (loginErr) {
+        console.error('Login error:', loginErr);
+        return res.redirect('/login?error=login_failed');
+      }
+      
+      // Successful authentication
+      const redirectUrl = process.env.NODE_ENV === 'production' 
+        ? '/dashboard' 
+        : 'http://localhost:5173/dashboard';
+      res.redirect(redirectUrl);
+    });
+  })(req, res, next);
 });
 
 // @route   GET /api/auth/me

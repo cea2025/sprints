@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Layout from './components/layout/Layout';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Rocks from './pages/Rocks';
@@ -15,26 +16,46 @@ import { AuthContext, useAuth } from './context/AuthContext';
 
 export { useAuth };
 
+// Loading Component
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="text-center">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-blue-500 rounded-full animate-spin" style={{ animationDuration: '1.5s' }}></div>
+        </div>
+        <p className="mt-6 text-purple-200 font-medium animate-pulse">טוען...</p>
+      </div>
+    </div>
+  );
+}
+
 // Protected Route Component
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-blue-500 rounded-full animate-spin" style={{ animationDuration: '1.5s' }}></div>
-          </div>
-          <p className="mt-6 text-purple-200 font-medium animate-pulse">טוען...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
   
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  
+  return children;
+}
+
+// Public Route - redirects to dashboard if logged in
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingScreen />;
+  }
+  
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
   }
   
   return children;
@@ -71,23 +92,38 @@ function App() {
         <AuthContext.Provider value={{ user, setUser, loading, logout }}>
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={
-                user ? <Navigate to="/" replace /> : <Login />
+              {/* Public Routes */}
+              <Route path="/" element={
+                <PublicRoute>
+                  <Home />
+                </PublicRoute>
               } />
               
-              <Route path="/" element={
+              <Route path="/login" element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              } />
+              
+              {/* Protected Routes - App Layout */}
+              <Route element={
                 <ProtectedRoute>
                   <Layout />
                 </ProtectedRoute>
               }>
-                <Route index element={<Dashboard />} />
-                <Route path="rocks" element={<Rocks />} />
-                <Route path="sprints" element={<Sprints />} />
-                <Route path="sprints/:id" element={<SprintBoard />} />
-                <Route path="stories" element={<Stories />} />
-                <Route path="team" element={<Team />} />
-                <Route path="admin" element={<Admin />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/rocks" element={<Rocks />} />
+                <Route path="/sprints" element={<Sprints />} />
+                <Route path="/sprints/:id" element={<SprintBoard />} />
+                <Route path="/stories" element={<Stories />} />
+                <Route path="/team" element={<Team />} />
+                <Route path="/admin" element={<Admin />} />
               </Route>
+
+              {/* Catch all - redirect to home or dashboard */}
+              <Route path="*" element={
+                user ? <Navigate to="/dashboard" replace /> : <Navigate to="/" replace />
+              } />
             </Routes>
           </BrowserRouter>
         </AuthContext.Provider>

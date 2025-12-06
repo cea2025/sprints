@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -14,7 +14,8 @@ import {
   X,
   Moon,
   Sun,
-  Shield
+  Shield,
+  CheckCircle
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -23,9 +24,10 @@ function Layout() {
   const { theme, toggleTheme } = useTheme();
   const { isAdmin, role } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
 
   const navigation = [
-    { name: 'דשבורד', href: '/', icon: LayoutDashboard },
+    { name: 'דשבורד', href: '/dashboard', icon: LayoutDashboard },
     { name: 'אבני דרך', href: '/rocks', icon: Mountain },
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
     { name: 'משימות', href: '/stories', icon: ListTodo },
@@ -33,6 +35,11 @@ function Layout() {
     // Admin link - only shown for admins
     ...(isAdmin ? [{ name: 'ניהול מערכת', href: '/admin', icon: Shield }] : []),
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   const navLinkClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
@@ -83,7 +90,7 @@ function Layout() {
               to={item.href}
               className={navLinkClass}
               onClick={() => setSidebarOpen(false)}
-              end={item.href === '/'}
+              end={item.href === '/dashboard'}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
               <item.icon size={20} />
@@ -153,7 +160,7 @@ function Layout() {
             </div>
           </div>
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl transition-colors font-medium"
           >
             <LogOut size={18} />

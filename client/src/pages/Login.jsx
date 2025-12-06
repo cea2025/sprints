@@ -1,8 +1,75 @@
-import { Mountain, Zap, Target, Users, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Mountain, Zap, Target, Users, ArrowLeft, ArrowRight, AlertTriangle, XCircle } from 'lucide-react';
+
+// Error messages mapping
+const ERROR_MESSAGES = {
+  'oauth_not_configured': {
+    title: 'המערכת לא מוגדרת',
+    message: 'התחברות עם Google לא הוגדרה במערכת. פנה למנהל המערכת.',
+    type: 'warning'
+  },
+  'auth_failed': {
+    title: 'ההתחברות נכשלה',
+    message: 'אירעה שגיאה בתהליך ההתחברות. נסה שוב.',
+    type: 'error'
+  },
+  'unauthorized': {
+    title: 'אינך מורשה',
+    message: 'אינך מורשה להתחבר למערכת זו. פנה למנהל המערכת כדי לקבל גישה.',
+    type: 'error'
+  },
+  'account_disabled': {
+    title: 'החשבון מושבת',
+    message: 'החשבון שלך הושבת. פנה למנהל המערכת לקבלת מידע נוסף.',
+    type: 'error'
+  },
+  'server_error': {
+    title: 'שגיאת שרת',
+    message: 'אירעה שגיאה בשרת. נסה שוב מאוחר יותר.',
+    type: 'error'
+  },
+  'login_failed': {
+    title: 'ההתחברות נכשלה',
+    message: 'לא ניתן היה להשלים את ההתחברות. נסה שוב.',
+    type: 'error'
+  },
+  'access_denied': {
+    title: 'גישה נדחתה',
+    message: 'הגישה לחשבון Google נדחתה. ייתכן שלא אישרת את ההרשאות הנדרשות.',
+    type: 'warning'
+  }
+};
 
 function Login() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const errorCode = searchParams.get('error');
+    if (errorCode) {
+      // Get error message or use default
+      const errorInfo = ERROR_MESSAGES[errorCode] || {
+        title: 'שגיאה',
+        message: 'אירעה שגיאה בתהליך ההתחברות. נסה שוב.',
+        type: 'error'
+      };
+      setError(errorInfo);
+      
+      // Clear error from URL after showing it
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('error');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const handleGoogleLogin = () => {
+    setError(null);
     window.location.href = '/api/auth/google';
+  };
+
+  const dismissError = () => {
+    setError(null);
   };
 
   return (
@@ -23,6 +90,17 @@ function Login() {
             backgroundSize: '50px 50px'
           }}
         />
+      </div>
+
+      {/* Back to Home Link */}
+      <div className="absolute top-6 right-6 z-20">
+        <Link 
+          to="/"
+          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl text-white text-sm transition-all border border-white/20"
+        >
+          <span>חזרה לדף הבית</span>
+          <ArrowRight size={16} />
+        </Link>
       </div>
 
       {/* Content */}
@@ -65,6 +143,44 @@ function Login() {
         {/* Right side - Login Card */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
           <div className="w-full max-w-md animate-scale-in">
+            {/* Error Alert */}
+            {error && (
+              <div className={`mb-6 p-4 rounded-2xl border backdrop-blur-xl animate-shake ${
+                error.type === 'error' 
+                  ? 'bg-red-500/20 border-red-500/30' 
+                  : 'bg-yellow-500/20 border-yellow-500/30'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-lg ${
+                    error.type === 'error' ? 'bg-red-500/30' : 'bg-yellow-500/30'
+                  }`}>
+                    {error.type === 'error' 
+                      ? <XCircle className="w-5 h-5 text-red-300" />
+                      : <AlertTriangle className="w-5 h-5 text-yellow-300" />
+                    }
+                  </div>
+                  <div className="flex-1">
+                    <h3 className={`font-bold ${
+                      error.type === 'error' ? 'text-red-200' : 'text-yellow-200'
+                    }`}>
+                      {error.title}
+                    </h3>
+                    <p className={`text-sm mt-1 ${
+                      error.type === 'error' ? 'text-red-300' : 'text-yellow-300'
+                    }`}>
+                      {error.message}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={dismissError}
+                    className="text-white/50 hover:text-white transition-colors"
+                  >
+                    <XCircle size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Glass Card */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
               {/* Logo for mobile */}
