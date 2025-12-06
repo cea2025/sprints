@@ -149,8 +149,8 @@ function Layout() {
               </p>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {user?.email}
-                </p>
+                {user?.email}
+              </p>
               </div>
               {role && (
                 <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[role]}`}>
@@ -179,7 +179,7 @@ function Layout() {
 
       {/* Main content */}
       <main className="lg:mr-72 min-h-screen transition-all duration-300">
-        <div className="p-6 lg:p-8">
+        <div className="p-4 pt-16 sm:p-6 sm:pt-16 lg:p-8 lg:pt-8">
           <Outlet />
         </div>
       </main>
