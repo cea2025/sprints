@@ -1,6 +1,8 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { useAuth } from '../../App';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { usePermissions } from '../../hooks/usePermissions';
+import { ROLE_LABELS, ROLE_COLORS } from '../../constants/roles';
 import { 
   LayoutDashboard, 
   Mountain, 
@@ -11,13 +13,15 @@ import {
   Menu,
   X,
   Moon,
-  Sun
+  Sun,
+  Shield
 } from 'lucide-react';
 import { useState } from 'react';
 
 function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { isAdmin, role } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
@@ -26,6 +30,8 @@ function Layout() {
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
     { name: 'משימות', href: '/stories', icon: ListTodo },
     { name: 'צוות', href: '/team', icon: Users },
+    // Admin link - only shown for admins
+    ...(isAdmin ? [{ name: 'ניהול מערכת', href: '/admin', icon: Shield }] : []),
   ];
 
   const navLinkClass = ({ isActive }) =>
@@ -134,9 +140,16 @@ function Layout() {
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {user?.name}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                {user?.email}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  {user?.email}
+                </p>
+              </div>
+              {role && (
+                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[role]}`}>
+                  {ROLE_LABELS[role]}
+                </span>
+              )}
             </div>
           </div>
           <button

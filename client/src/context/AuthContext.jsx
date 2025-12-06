@@ -1,0 +1,20 @@
+/**
+ * Auth Context
+ * 
+ * Provides authentication state and methods throughout the app.
+ */
+
+import { createContext, useContext } from 'react';
+
+export const AuthContext = createContext(null);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export default AuthContext;
+

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -8,13 +8,12 @@ import Sprints from './pages/Sprints';
 import SprintBoard from './pages/SprintBoard';
 import Stories from './pages/Stories';
 import Team from './pages/Team';
+import Admin from './pages/Admin';
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthContext, useAuth } from './context/AuthContext';
 
-// Auth Context
-const AuthContext = createContext(null);
-
-export const useAuth = () => useContext(AuthContext);
+export { useAuth };
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
@@ -87,6 +86,7 @@ function App() {
                 <Route path="sprints/:id" element={<SprintBoard />} />
                 <Route path="stories" element={<Stories />} />
                 <Route path="team" element={<Team />} />
+                <Route path="admin" element={<Admin />} />
               </Route>
             </Routes>
           </BrowserRouter>
