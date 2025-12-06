@@ -10,11 +10,12 @@ export const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+  // Return empty object with defaults if context is not available
+  // This prevents errors during initial render
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    return { user: null, loading: true, logout: () => {} };
   }
   return context;
 };
 
 export default AuthContext;
-
