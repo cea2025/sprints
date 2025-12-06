@@ -142,7 +142,7 @@ router.post('/', async (req, res) => {
         goal,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        mainRockId
+        mainRockId: mainRockId || null  // Convert empty string to null
       },
       include: {
         mainRock: true
@@ -172,7 +172,7 @@ router.put('/:id', async (req, res) => {
         goal,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
-        mainRockId
+        mainRockId: mainRockId || null  // Convert empty string to null
       },
       include: {
         mainRock: true

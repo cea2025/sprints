@@ -78,9 +78,9 @@ router.post('/', async (req, res) => {
         status: status || 'TODO',
         priority: priority || 'MEDIUM',
         estimate: estimate ? parseInt(estimate) : null,
-        sprintId,
-        rockId,
-        ownerId
+        sprintId: sprintId || null,    // Convert empty string to null
+        rockId: rockId || null,        // Convert empty string to null
+        ownerId: ownerId || null       // Convert empty string to null
       },
       include: {
         owner: true,
@@ -110,9 +110,9 @@ router.put('/:id', async (req, res) => {
         status,
         priority,
         estimate: estimate !== undefined ? (estimate ? parseInt(estimate) : null) : undefined,
-        sprintId,
-        rockId,
-        ownerId
+        sprintId: sprintId || null,    // Convert empty string to null
+        rockId: rockId || null,        // Convert empty string to null
+        ownerId: ownerId || null       // Convert empty string to null
       },
       include: {
         owner: true,
