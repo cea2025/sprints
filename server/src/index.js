@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const passport = require('passport');
 const path = require('path');
+const { Pool } = require('pg');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -38,19 +40,39 @@ if (process.env.NODE_ENV !== 'production') {
 // Parse JSON bodies
 app.use(express.json());
 
-// Session configuration
-app.use(session({
+// Session configuration with PostgreSQL store
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  proxy: process.env.NODE_ENV === 'production',
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
     maxAge: 365 * 24 * 60 * 60 * 1000 // 1 year - stay logged in until manual logout
   }
-}));
+};
+
+// Use PostgreSQL session store in production
+if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  
+  sessionConfig.store = new pgSession({
+    pool: pool,
+    tableName: 'session', // Table name for sessions
+    createTableIfMissing: true // Auto-create table if it doesn't exist
+  });
+  sessionConfig.proxy = true;
+  
+  console.log('✅ Using PostgreSQL session store');
+} else {
+  console.log('⚠️ Using MemoryStore for sessions (development only)');
+}
+
+app.use(session(sessionConfig));
 
 // Initialize Passport
 app.use(passport.initialize());
