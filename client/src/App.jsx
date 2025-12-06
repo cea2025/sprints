@@ -84,6 +84,29 @@ function PublicRoute({ children }) {
   return children;
 }
 
+// Catch-all Route - redirects based on auth state
+function CatchAllRoute() {
+  const [authState, setAuthState] = useState({ user: null, loading: true });
+  
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setAuthState({ user: data.user, loading: false });
+      })
+      .catch(() => {
+        setAuthState({ user: null, loading: false });
+      });
+  }, []);
+  
+  if (authState.loading) {
+    return <LoadingScreen />;
+  }
+  
+  // Redirect to dashboard if logged in, otherwise to home
+  return <Navigate to={authState.user ? "/dashboard" : "/"} replace />;
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -143,8 +166,8 @@ function App() {
                 <Route path="/admin" element={<Admin />} />
               </Route>
 
-              {/* Catch all - redirect to home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Catch all - redirect based on auth state */}
+              <Route path="*" element={<CatchAllRoute />} />
             </Routes>
           </BrowserRouter>
         </AuthContext.Provider>
