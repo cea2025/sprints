@@ -20,13 +20,20 @@ require('./config/passport');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for Render (needed for secure cookies behind proxy)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // ==================== MIDDLEWARE ====================
 
-// CORS - allow frontend to connect
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}));
+// CORS - allow frontend to connect (only needed in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true
+  }));
+}
 
 // Parse JSON bodies
 app.use(express.json());
@@ -36,8 +43,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
+  proxy: process.env.NODE_ENV === 'production',
   cookie: {
     secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
