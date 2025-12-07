@@ -339,7 +339,7 @@ function MemberCard({ member, onEdit, onToggleActive, inactive, index }) {
             </div>
             <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
               <span className="font-medium text-purple-700 dark:text-purple-400">{member._count.ownedStories}</span>
-              <span className="text-purple-600 dark:text-purple-400">משימות</span>
+              <span className="text-purple-600 dark:text-purple-400">אבני דרך</span>
             </div>
           </>
         )}

@@ -32,7 +32,7 @@ function Layout() {
     { name: 'מטרות-על', href: '/objectives', icon: Target },
     { name: 'סלעים', href: '/rocks', icon: Mountain },
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
-    { name: 'משימות', href: '/stories', icon: ListTodo },
+    { name: 'אבני דרך', href: '/stories', icon: ListTodo },
     { name: 'צוות', href: '/team', icon: Users },
     // Admin link - only shown for admins
     ...(isAdmin ? [{ name: 'ניהול מערכת', href: '/admin', icon: Shield }] : []),
@@ -79,7 +79,7 @@ function Layout() {
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 ספרינטים
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ניהול משימות צוות</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">ניהול אבני דרך צוות</p>
             </div>
           </div>
         </div>

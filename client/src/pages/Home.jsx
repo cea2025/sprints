@@ -26,12 +26,12 @@ export default function Home() {
     {
       icon: Zap,
       title: 'ספרינטים',
-      description: 'נהל ספרינטים דו-שבועיים עם משימות ברורות וממוקדות'
+      description: 'נהל ספרינטים דו-שבועיים עם אבני דרך ברורות וממוקדות'
     },
     {
       icon: Users,
       title: 'ניהול צוות',
-      description: 'הקצה משימות לחברי צוות ועקוב אחר הקיבולת שלהם'
+      description: 'הקצה אבני דרך לחברי צוות ועקוב אחר הקיבולת שלהם'
     },
     {
       icon: BarChart3,
@@ -70,7 +70,7 @@ export default function Home() {
       <section className="relative z-10 max-w-6xl mx-auto px-6 pt-16 pb-24 text-center">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-purple-200 text-sm mb-8 border border-white/10">
           <Sparkles size={16} />
-          <span>מערכת ניהול משימות לצוותים</span>
+          <span>מערכת ניהול אבני דרך לצוותים</span>
         </div>
         
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
@@ -82,7 +82,7 @@ export default function Home() {
         </h1>
         
         <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto mb-10">
-          מערכת לניהול סלעים, ספרינטים ומשימות.
+          מערכת לניהול סלעים, ספרינטים ואבני דרך.
           עקוב אחר ההתקדמות של הצוות שלך בזמן אמת.
         </p>
 

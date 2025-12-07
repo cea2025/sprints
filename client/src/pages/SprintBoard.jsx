@@ -74,9 +74,9 @@ function SprintBoard() {
           s.id === storyId ? updatedStory : s
         )
       });
-      toast.success(`המשימה הועברה ל${columns.find(c => c.id === newStatus)?.title}`);
+      toast.success(`אבן הדרך הועברה ל${columns.find(c => c.id === newStatus)?.title}`);
     } else {
-      toast.error('שגיאה בעדכון המשימה');
+      toast.error('שגיאה בעדכון אבן הדרך');
     }
   };
 
@@ -144,9 +144,9 @@ function SprintBoard() {
         rockId: '',
         ownerId: ''
       });
-      toast.success('המשימה נוצרה בהצלחה!');
+      toast.success('אבן הדרך נוצרה בהצלחה!');
     } else {
-      toast.error('שגיאה ביצירת המשימה');
+      toast.error('שגיאה ביצירת אבן הדרך');
     }
   };
 
@@ -203,7 +203,7 @@ function SprintBoard() {
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all transform hover:-translate-y-0.5"
         >
           <Plus size={20} />
-          <span className="font-medium">משימה חדשה</span>
+          <span className="font-medium">אבן דרך חדשה</span>
         </button>
       </div>
 
@@ -212,7 +212,7 @@ function SprintBoard() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg animate-scale-in">
             <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-xl font-bold dark:text-white">משימה חדשה</h2>
+              <h2 className="text-xl font-bold dark:text-white">אבן דרך חדשה</h2>
               <button
                 onClick={() => setShowForm(false)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -314,7 +314,7 @@ function SprintBoard() {
                   type="submit"
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
                 >
-                  צור משימה
+                  צור אבן דרך
                 </button>
                 <button
                   type="button"

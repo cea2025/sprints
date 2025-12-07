@@ -112,7 +112,7 @@ function Login() {
               ספרינטים
             </h1>
             <p className="text-xl text-purple-200 mb-12">
-              מערכת ניהול משימות צוות מתקדמת
+              מערכת ניהול אבני דרך צוות מתקדמת
             </p>
           </div>
 
@@ -120,7 +120,7 @@ function Login() {
             {[
               { icon: Mountain, title: 'סלעים', desc: 'הגדר יעדים רבעוניים אסטרטגיים' },
               { icon: Zap, title: 'ספרינטים', desc: 'נהל מחזורי עבודה של 1-2 שבועות' },
-              { icon: Target, title: 'משימות', desc: 'עקוב אחר פריטי עבודה קונקרטיים' },
+              { icon: Target, title: 'אבני דרך', desc: 'עקוב אחר פריטי עבודה קונקרטיים' },
               { icon: Users, title: 'צוות', desc: 'נהל חברי צוות וקיבולת' },
             ].map((feature, index) => (
               <div 
@@ -197,7 +197,7 @@ function Login() {
                   ברוכים הבאים! 👋
                 </h2>
                 <p className="text-purple-200">
-                  התחבר כדי להמשיך לניהול המשימות שלך
+                  התחבר כדי להמשיך לניהול אבני הדרך שלך
           </p>
         </div>
 

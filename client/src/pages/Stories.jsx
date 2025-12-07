@@ -91,19 +91,19 @@ function Stories() {
       const story = await res.json();
       if (editingStory) {
         setStories(stories.map(s => s.id === story.id ? story : s));
-        toast.success('המשימה עודכנה בהצלחה');
+        toast.success('אבן הדרך עודכנה בהצלחה');
       } else {
         setStories([story, ...stories]);
-        toast.success('המשימה נוצרה בהצלחה');
+        toast.success('אבן הדרך נוצרה בהצלחה');
       }
       resetForm();
     } else {
-      toast.error('שגיאה בשמירת המשימה');
+      toast.error('שגיאה בשמירת אבן הדרך');
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('האם למחוק את המשימה?')) return;
+    if (!confirm('האם למחוק את אבן הדרך?')) return;
     
     const res = await fetch(`/api/stories/${id}`, {
       method: 'DELETE',
@@ -112,9 +112,9 @@ function Stories() {
 
     if (res.ok) {
       setStories(stories.filter(s => s.id !== id));
-      toast.success('המשימה נמחקה');
+      toast.success('אבן הדרך נמחקה');
     } else {
-      toast.error('שגיאה במחיקת המשימה');
+      toast.error('שגיאה במחיקת אבן הדרך');
     }
   };
 
@@ -197,15 +197,15 @@ function Stories() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">משימות</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">כל המשימות במערכת</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">כל אבני הדרך במערכת</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all w-full sm:w-auto"
         >
           <Plus size={20} />
-          <span>משימה חדשה</span>
+          <span>אבן דרך חדשה</span>
         </button>
       </div>
 
@@ -300,7 +300,7 @@ function Stories() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-4 sm:p-6 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 flex items-center justify-between">
               <h2 className="text-xl font-bold dark:text-white">
-                {editingStory ? 'עריכת משימה' : 'משימה חדשה'}
+                {editingStory ? 'עריכת אבן דרך' : 'אבן דרך חדשה'}
               </h2>
               <button onClick={resetForm} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg">
                 <X size={20} />
@@ -431,7 +431,7 @@ function Stories() {
                   type="submit"
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
                 >
-                  {editingStory ? 'שמור שינויים' : 'צור משימה'}
+                  {editingStory ? 'שמור שינויים' : 'צור אבן דרך'}
                 </button>
                 <button
                   type="button"
@@ -451,14 +451,14 @@ function Stories() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 sm:p-12 text-center">
           <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400">
-            {activeFiltersCount > 0 ? 'אין משימות התואמות לסינון' : 'אין משימות'}
+            {activeFiltersCount > 0 ? 'אין אבני דרך התואמות לסינון' : 'אין אבני דרך'}
           </p>
           {activeFiltersCount === 0 && (
             <button
               onClick={() => setShowForm(true)}
               className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium"
             >
-              צור את המשימה הראשונה
+              צור את אבן הדרך הראשונה
             </button>
           )}
         </div>
@@ -543,7 +543,7 @@ function Stories() {
       {/* Results Count */}
       {filteredStories.length > 0 && (
         <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-          מציג {filteredStories.length} מתוך {stories.length} משימות
+          מציג {filteredStories.length} מתוך {stories.length} אבני דרך
         </p>
       )}
     </div>

@@ -94,7 +94,7 @@ function Dashboard() {
           delay={0}
         />
         <StatCard
-          title="משימות"
+          title="אבני דרך"
           value={overallStats.totalStories}
           icon={ListTodo}
           gradient="from-emerald-500 to-emerald-600"
@@ -298,7 +298,7 @@ function RockCard({ rock, index }) {
           />
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          {rock.doneStories} מתוך {rock.totalStories} משימות
+          {rock.doneStories} מתוך {rock.totalStories} אבני דרך
         </p>
       </div>
     </div>
