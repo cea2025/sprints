@@ -1,24 +1,28 @@
 /**
- * Admin Page - User Management
+ * Admin Page - System Management
  * 
  * Only accessible by ADMIN users.
- * Manages users, roles, allowed emails, and system statistics.
+ * Manages organizations, users, roles, and allowed emails.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
 import { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS } from '../constants/roles';
-import { Plus, Trash2, Mail, UserPlus, Users, CheckCircle, XCircle } from 'lucide-react';
+import { 
+  Plus, Trash2, Mail, UserPlus, Users, CheckCircle, XCircle, 
+  Building2, Upload, Edit2, Globe, Image 
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function Admin() {
   const navigate = useNavigate();
   const { isAdmin } = usePermissions();
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('organizations');
   const [users, setUsers] = useState([]);
   const [allowedEmails, setAllowedEmails] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,6 +32,13 @@ export default function Admin() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEmail, setNewEmail] = useState({ email: '', name: '', role: 'VIEWER', note: '' });
   const [addingEmail, setAddingEmail] = useState(false);
+
+  // New organization form
+  const [showOrgForm, setShowOrgForm] = useState(false);
+  const [newOrg, setNewOrg] = useState({ name: '', slug: '', logo: '' });
+  const [addingOrg, setAddingOrg] = useState(false);
+  const [editingOrg, setEditingOrg] = useState(null);
+  const fileInputRef = useRef(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -39,11 +50,26 @@ export default function Admin() {
   // Fetch data
   useEffect(() => {
     if (isAdmin) {
+      fetchOrganizations();
       fetchUsers();
       fetchAllowedEmails();
       fetchStats();
     }
   }, [isAdmin]);
+
+  const fetchOrganizations = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/organizations`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setOrganizations(data);
+      }
+    } catch (err) {
+      console.error('Error fetching organizations:', err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -88,6 +114,81 @@ export default function Admin() {
     }
   };
 
+  // Organization handlers
+  const generateSlug = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0590-\u05FF]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50) || 'organization';
+  };
+
+  const handleOrgNameChange = (name) => {
+    setNewOrg({
+      ...newOrg,
+      name,
+      slug: editingOrg ? newOrg.slug : generateSlug(name)
+    });
+  };
+
+  const createOrganization = async (e) => {
+    e.preventDefault();
+    if (!newOrg.name || !newOrg.slug) return;
+
+    setAddingOrg(true);
+    try {
+      const url = editingOrg 
+        ? `${API_URL}/api/organizations/${editingOrg.id}`
+        : `${API_URL}/api/organizations`;
+      
+      const res = await fetch(url, {
+        method: editingOrg ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newOrg)
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'שגיאה ביצירת הארגון');
+      }
+
+      setNewOrg({ name: '', slug: '', logo: '' });
+      setShowOrgForm(false);
+      setEditingOrg(null);
+      fetchOrganizations();
+      fetchStats();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setAddingOrg(false);
+    }
+  };
+
+  const editOrganization = (org) => {
+    setEditingOrg(org);
+    setNewOrg({
+      name: org.name,
+      slug: org.slug,
+      logo: org.logo || ''
+    });
+    setShowOrgForm(true);
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Convert to base64 (simple approach - for production use cloud storage)
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewOrg({ ...newOrg, logo: reader.result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // User handlers
   const updateUserRole = async (userId, newRole) => {
     try {
       const res = await fetch(`${API_URL}/api/admin/users/${userId}/role`, {
@@ -133,6 +234,7 @@ export default function Admin() {
     }
   };
 
+  // Email handlers
   const addAllowedEmail = async (e) => {
     e.preventDefault();
     if (!newEmail.email) return;
@@ -198,7 +300,7 @@ export default function Admin() {
             ניהול מערכת
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            ניהול משתמשים והרשאות
+            ניהול ארגונים, משתמשים והרשאות
           </p>
         </div>
       </div>
@@ -206,9 +308,9 @@ export default function Admin() {
       {/* Statistics */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard title="משתמשים רשומים" value={stats.users.total} icon="👥" />
-          <StatCard title="משתמשים פעילים" value={stats.users.active} icon="✅" />
-          <StatCard title="מיילים מורשים" value={stats.allowedEmails || 0} icon="📧" />
+          <StatCard title="ארגונים" value={organizations.length} icon="🏢" />
+          <StatCard title="משתמשים" value={stats.users.total} icon="👥" />
+          <StatCard title="פעילים" value={stats.users.active} icon="✅" />
           <StatCard title="סלעים" value={stats.content.rocks} icon="🎯" />
           <StatCard title="אבני דרך" value={stats.content.stories} icon="📋" />
         </div>
@@ -216,23 +318,34 @@ export default function Admin() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-4">
+        <nav className="flex gap-4 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('organizations')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+              activeTab === 'organizations'
+                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+            }`}
+          >
+            <Building2 size={18} className="inline ml-2" />
+            ארגונים ({organizations.length})
+          </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === 'users'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
             }`}
           >
             <Users size={18} className="inline ml-2" />
-            משתמשים רשומים ({users.length})
+            משתמשים ({users.length})
           </button>
           <button
             onClick={() => setActiveTab('allowed')}
-            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === 'allowed'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-green-500 text-green-600 dark:text-green-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
             }`}
           >
@@ -241,6 +354,192 @@ export default function Admin() {
           </button>
         </nav>
       </div>
+
+      {/* Organizations Tab */}
+      {activeTab === 'organizations' && (
+        <div className="space-y-4">
+          {/* Add Organization Form */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+            {!showOrgForm ? (
+              <button
+                onClick={() => setShowOrgForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Plus size={18} />
+                צור ארגון חדש
+              </button>
+            ) : (
+              <form onSubmit={createOrganization} className="space-y-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  {editingOrg ? 'עריכת ארגון' : 'ארגון חדש'}
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      שם הארגון *
+                    </label>
+                    <input
+                      type="text"
+                      value={newOrg.name}
+                      onChange={(e) => handleOrgNameChange(e.target.value)}
+                      placeholder="שם החברה"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <Globe size={14} className="inline ml-1" />
+                      Slug (כתובת URL) *
+                    </label>
+                    <div className="flex items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">/</span>
+                      <input
+                        type="text"
+                        value={newOrg.slug}
+                        onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                        placeholder="company-name"
+                        required
+                        pattern="[a-z0-9-]+"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white font-mono text-sm"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">אותיות קטנות, מספרים ומקפים בלבד</p>
+                  </div>
+                </div>
+
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <Image size={14} className="inline ml-1" />
+                    לוגו (אופציונלי)
+                  </label>
+                  <div className="flex items-center gap-4">
+                    {newOrg.logo ? (
+                      <div className="relative">
+                        <img 
+                          src={newOrg.logo} 
+                          alt="Logo preview" 
+                          className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewOrg({ ...newOrg, logo: '' })}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-600">
+                        <Building2 className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        <Upload size={16} />
+                        העלה תמונה
+                      </button>
+                      <p className="text-xs text-gray-500 mt-1">PNG, JPG עד 2MB</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={addingOrg}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                  >
+                    {editingOrg ? <Edit2 size={18} /> : <Plus size={18} />}
+                    {addingOrg ? 'שומר...' : (editingOrg ? 'עדכן' : 'צור ארגון')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOrgForm(false);
+                      setEditingOrg(null);
+                      setNewOrg({ name: '', slug: '', logo: '' });
+                    }}
+                    className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    ביטול
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          {/* Organizations List */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                ארגונים במערכת
+              </h2>
+            </div>
+
+            {organizations.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Building2 size={48} className="mx-auto mb-4 opacity-30" />
+                <p>אין ארגונים עדיין</p>
+                <p className="text-sm mt-2">צור את הארגון הראשון</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {organizations.map(org => (
+                  <div key={org.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <div className="flex items-center gap-4">
+                      {org.logo ? (
+                        <img 
+                          src={org.logo} 
+                          alt={org.name} 
+                          className="w-12 h-12 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold">
+                          {org.name.charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{org.name}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">/{org.slug}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        org.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                        org.role === 'MANAGER' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {org.role === 'ADMIN' ? 'מנהל' : 
+                         org.role === 'MANAGER' ? 'מנהל פרויקט' : 
+                         org.role === 'MEMBER' ? 'חבר' : 'צופה'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => editOrganization(org)}
+                      className="p-2 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Users Tab */}
       {activeTab === 'users' && (
@@ -365,7 +664,7 @@ export default function Admin() {
             {!showAddForm ? (
               <button
                 onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
               >
                 <UserPlus size={18} />
                 הוסף מייל מורשה
