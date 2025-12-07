@@ -264,9 +264,9 @@ function Stories() {
                 onChange={e => setFilters({...filters, rockId: e.target.value})}
                 className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
               >
-                <option value="">כל אבני הדרך</option>
+                <option value="">כל הסלעים</option>
                 {rocks.map(rock => (
-                  <option key={rock.id} value={rock.id}>{rock.code}</option>
+                  <option key={rock.id} value={rock.id}>{rock.code} - {rock.name}</option>
                 ))}
               </select>
               
@@ -503,7 +503,12 @@ function Stories() {
                     )}
                     {story.rock && (
                       <span className="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
-                        {story.rock.code}
+                        {story.rock.code} - {story.rock.name}
+                      </span>
+                    )}
+                    {story.rock?.objective && (
+                      <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg">
+                        🎯 {story.rock.objective.name}
                       </span>
                     )}
                     {story.owner && (

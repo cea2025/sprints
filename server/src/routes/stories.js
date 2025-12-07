@@ -25,7 +25,11 @@ router.get('/', async (req, res) => {
       include: {
         owner: true,
         sprint: true,
-        rock: true
+        rock: {
+          include: {
+            objective: true
+          }
+        }
       },
       orderBy: [
         { status: 'asc' },
