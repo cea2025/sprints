@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
-import { Battery, BatteryCompact } from '../components/ui/Battery';
+import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
+import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import { Target, Plus, Edit2, Trash2, User } from 'lucide-react';
 
 export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -16,6 +19,9 @@ export default function Objectives() {
   });
   
   const { loading, request } = useApi();
+
+  // חיפוש בשדות
+  const filteredObjectives = useSearch(objectives, ['code', 'name', 'description', 'owner.name'], searchTerm);
 
   useEffect(() => {
     fetchObjectives();
@@ -99,9 +105,10 @@ export default function Objectives() {
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-10 w-32" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
       </div>
@@ -112,24 +119,41 @@ export default function Objectives() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">מטרות-על</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            מטרות אסטרטגיות שמאגדות סלעים
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg">
+            <Target className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">מטרות-על</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              מטרות אסטרטגיות שמאגדות סלעים
+            </p>
+          </div>
         </div>
         <button
           onClick={openNewModal}
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/25"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-5 h-5" />
           <span>מטרת-על חדשה</span>
         </button>
       </div>
 
-      {/* Objectives Grid */}
+      {/* Search */}
+      <SearchFilter
+        value={searchTerm}
+        onChange={setSearchTerm}
+        placeholder="חיפוש לפי קוד, שם, תיאור או אחראי..."
+      />
+
+      {/* Results count */}
+      {searchTerm && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          נמצאו {filteredObjectives.length} תוצאות
+        </p>
+      )}
+
+      {/* Objectives List */}
       {objectives.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
           <div className="text-4xl mb-4">🎯</div>
@@ -146,68 +170,87 @@ export default function Objectives() {
             צור מטרת-על
           </button>
         </div>
+      ) : filteredObjectives.length === 0 ? (
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <div className="text-4xl mb-4">🔍</div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            לא נמצאו תוצאות
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400">
+            נסה לשנות את מילות החיפוש
+          </p>
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {objectives.map((objective) => (
+        <div className="space-y-3">
+          {filteredObjectives.map((objective) => (
             <div
               key={objective.id}
-              className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-lg transition-all"
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all"
             >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-lg mb-2">
-                    {objective.code}
-                  </span>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    {objective.name}
-                  </h3>
+              <div className="flex items-start gap-4">
+                {/* Icon */}
+                <div className="hidden sm:flex p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                  <Target className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleEdit(objective)}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(objective.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
 
-              {/* Description */}
-              {objective.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
-                  {objective.description}
-                </p>
-              )}
-
-              {/* Progress */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">התקדמות כוללת</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{objective.rocksCount || 0} סלעים</span>
-                </div>
-                <Battery progress={objective.progress || 0} size="md" showLabel={true} />
-              </div>
-
-              {/* Owner */}
-              {objective.owner && (
-                <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center text-xs font-medium">
-                    {objective.owner.name?.charAt(0)}
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-lg">
+                          {objective.code}
+                        </span>
+                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                          {objective.name}
+                        </h3>
+                      </div>
+                      {objective.description && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
+                          {objective.description}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleEdit(objective)}
+                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(objective.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{objective.owner.name}</span>
+
+                  {/* Footer */}
+                  <div className="flex items-center gap-4 mt-3 flex-wrap">
+                    {/* Progress */}
+                    <div className="flex items-center gap-2">
+                      <Battery progress={objective.progress || 0} size="sm" />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {objective.rocksCount || 0} סלעים
+                      </span>
+                    </div>
+
+                    {/* Owner */}
+                    {objective.owner && (
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {objective.owner.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>

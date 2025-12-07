@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
+import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import { ListTodo, Plus, Edit2, Trash2 } from 'lucide-react';
 
 export default function Stories() {
   const [stories, setStories] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     sprintId: '',
     rockId: '',
@@ -26,6 +29,9 @@ export default function Stories() {
   });
 
   const { loading, request } = useApi();
+
+  // חיפוש בשדות
+  const filteredStories = useSearch(stories, ['title', 'description', 'owner.name', 'sprint.name', 'rock.code', 'rock.name'], searchTerm);
 
   useEffect(() => {
     fetchStories();
@@ -176,22 +182,32 @@ export default function Stories() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            משימות ויחידות עבודה בתוך ספרינטים
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl shadow-lg">
+            <ListTodo className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              משימות ויחידות עבודה בתוך ספרינטים
+            </p>
+          </div>
         </div>
         <button
           onClick={openNewModal}
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg shadow-orange-500/25"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-5 h-5" />
           <span>אבן דרך חדשה</span>
         </button>
       </div>
+
+      {/* Search */}
+      <SearchFilter
+        value={searchTerm}
+        onChange={setSearchTerm}
+        placeholder="חיפוש לפי כותרת, תיאור, אחראי, ספרינט או סלע..."
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -228,7 +244,7 @@ export default function Stories() {
         </select>
 
         <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">
-          {stories.length} אבני דרך
+          {filteredStories.length} אבני דרך
         </span>
       </div>
 
@@ -249,9 +265,19 @@ export default function Stories() {
             צור אבן דרך
           </button>
         </div>
+      ) : filteredStories.length === 0 ? (
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <div className="text-4xl mb-4">🔍</div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            לא נמצאו תוצאות
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400">
+            נסה לשנות את מילות החיפוש
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {stories.map((story) => (
+          {filteredStories.map((story) => (
             <div
               key={story.id}
               className={`bg-white dark:bg-gray-800 rounded-xl border ${
