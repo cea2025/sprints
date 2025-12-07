@@ -118,9 +118,9 @@ model Rock {
   status          RockStatus @default(PLANNED)
   
   // שדות רבעון
-  yearOfRecord    Int        // שנת יעד מקורית (2025)
-  originalQuarter Int        // רבעון יעד מקורי (1-4)
-  currentQuarter  Int        // רבעון נוכחי - מתעדכן כשגולש
+  yearOfRecord    Int        @default(2025)  // שנת יעד מקורית
+  originalQuarter Int        @default(4)     // רבעון יעד מקורי (1-4)
+  currentQuarter  Int        @default(4)     // רבעון נוכחי - מתעדכן כשגולש
   
   // נקודות ובריאות
   committedPoints Int        @default(0)  // התחייבות לרבעון הנוכחי
