@@ -196,7 +196,8 @@ function SprintBoard() {
   }
 
   const getStoriesByColumn = (column) => {
-    return (sprint.stories || []).filter(column.filter);
+    const stories = sprint?.stories || [];
+    return Array.isArray(stories) ? stories.filter(column.filter) : [];
   };
 
   return (

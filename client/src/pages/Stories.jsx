@@ -43,22 +43,22 @@ export default function Stories() {
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
-    if (data) setStories(data);
+    if (data && Array.isArray(data)) setStories(data);
   };
 
   const fetchSprints = async () => {
     const data = await request('/api/sprints', { showToast: false });
-    if (data) setSprints(data);
+    if (data && Array.isArray(data)) setSprints(data);
   };
 
   const fetchRocks = async () => {
     const data = await request('/api/rocks', { showToast: false });
-    if (data) setRocks(data);
+    if (data && Array.isArray(data)) setRocks(data);
   };
 
   const fetchTeamMembers = async () => {
     const data = await request('/api/team', { showToast: false });
-    if (data) setTeamMembers(data);
+    if (data && Array.isArray(data)) setTeamMembers(data);
   };
 
   const handleSubmit = async (e) => {

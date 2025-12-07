@@ -58,7 +58,7 @@ function Dashboard() {
     );
   }
 
-  const { currentQuarter, currentSprint, rocks, objectives, overallStats } = data;
+  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {} } = data || {};
 
   return (
     <div className="space-y-8">
@@ -66,7 +66,7 @@ function Dashboard() {
       <div className="animate-slide-in-up">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">דשבורד</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          רבעון {currentQuarter.quarter} / {currentQuarter.year}
+          רבעון {currentQuarter?.quarter || 4} / {currentQuarter?.year || 2025}
         </p>
       </div>
 

@@ -24,12 +24,12 @@ export default function Objectives() {
 
   const fetchObjectives = async () => {
     const data = await request('/api/objectives');
-    if (data) setObjectives(data);
+    if (data && Array.isArray(data)) setObjectives(data);
   };
 
   const fetchTeamMembers = async () => {
     const data = await request('/api/team', { showToast: false });
-    if (data) setTeamMembers(data);
+    if (data && Array.isArray(data)) setTeamMembers(data);
   };
 
   const handleSubmit = async (e) => {

@@ -47,12 +47,12 @@ export default function Sprints() {
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
-    if (data) setSprints(data);
+    if (data && Array.isArray(data)) setSprints(data);
   };
 
   const fetchRocks = async () => {
     const data = await request(`/api/rocks?year=${filters.year}&quarter=${filters.quarter}`, { showToast: false });
-    if (data) setRocks(data);
+    if (data && Array.isArray(data)) setRocks(data);
   };
 
   const handleSubmit = async (e) => {
