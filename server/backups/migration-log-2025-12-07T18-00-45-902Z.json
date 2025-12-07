@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-12-07T18:00:45.912Z",
+  "organization": {
+    "id": "cec8c2ea-301c-4931-8968-9469b95b97e1",
+    "name": "הארגון שלי",
+    "slug": "my-organization",
+    "logo": null,
+    "isActive": true,
+    "settings": {
+      "theme": "auto",
+      "language": "he"
+    },
+    "createdAt": "2025-12-07T18:00:28.649Z",
+    "updatedAt": "2025-12-07T18:00:28.649Z",
+    "createdBy": null
+  },
+  "verification": {
+    "orgMembers": 11,
+    "teamMembers": 9,
+    "objectives": 12,
+    "rocks": 60,
+    "sprints": 3,
+    "stories": 4,
+    "allowedEmails": 13
+  }
+}
