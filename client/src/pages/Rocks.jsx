@@ -338,7 +338,7 @@ function Rocks() {
               </div>
 
               {/* Points & Owner */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     נקודות התחייבות
@@ -365,21 +365,23 @@ function Rocks() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    מטרת-על
-                  </label>
-                  <select
-                    value={formData.objectiveId}
-                    onChange={e => setFormData({...formData, objectiveId: e.target.value})}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ללא</option>
-                    {objectives.map(obj => (
-                      <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
-                    ))}
-                  </select>
-                </div>
+              </div>
+
+              {/* Objective - Full Width */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  מטרת-על
+                </label>
+                <select
+                  value={formData.objectiveId}
+                  onChange={e => setFormData({...formData, objectiveId: e.target.value})}
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">ללא</option>
+                  {objectives.map(obj => (
+                    <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
