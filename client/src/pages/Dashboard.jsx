@@ -9,24 +9,11 @@ import {
   Clock,
   Ban,
   TrendingUp,
-  ArrowLeft
+  ArrowLeft,
+  Target
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
-
-// Hebrew translations
-const statusLabels = {
-  TODO: 'לביצוע',
-  IN_PROGRESS: 'בתהליך',
-  BLOCKED: 'חסום',
-  DONE: 'הושלם'
-};
-
-const rockStatusLabels = {
-  PLANNED: 'מתוכנן',
-  IN_PROGRESS: 'בתהליך',
-  AT_RISK: 'בסיכון',
-  DONE: 'הושלם'
-};
+import { Battery, BatteryCompact } from '../components/ui/Battery';
 
 function Dashboard() {
   const [data, setData] = useState(null);
@@ -71,7 +58,7 @@ function Dashboard() {
     );
   }
 
-  const { currentQuarter, currentSprint, rocks, overallStats } = data;
+  const { currentQuarter, currentSprint, rocks, objectives, overallStats } = data;
 
   return (
     <div className="space-y-8">
@@ -101,9 +88,9 @@ function Dashboard() {
           delay={1}
         />
         <StatCard
-          title="חברי צוות"
-          value={overallStats.activeTeamMembers}
-          icon={Users}
+          title="מטרות-על"
+          value={overallStats.totalObjectives}
+          icon={Target}
           gradient="from-purple-500 to-purple-600"
           delay={2}
         />
@@ -129,10 +116,10 @@ function Dashboard() {
               )}
             </div>
             <Link
-              to={`/sprints/${currentSprint.id}`}
+              to="/stories"
               className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
             >
-              <span>צפה בלוח</span>
+              <span>צפה באבני דרך</span>
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </Link>
           </div>
@@ -179,7 +166,7 @@ function Dashboard() {
             to="/rocks"
             className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
           >
-            <span>כל אבני הדרך</span>
+            <span>כל הסלעים</span>
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           </Link>
         </div>
@@ -199,6 +186,46 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Objectives */}
+      {objectives && objectives.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              מטרות-על
+            </h2>
+            <Link
+              to="/objectives"
+              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium group"
+            >
+              <span>כל המטרות</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {objectives.slice(0, 4).map((obj) => (
+              <div
+                key={obj.id}
+                className="border dark:border-gray-700 rounded-xl p-4 hover:border-purple-300 dark:hover:border-purple-600 transition-all"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded font-medium">
+                    {obj.code}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {obj.rocksCount} סלעים
+                  </span>
+                </div>
+                <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+                  {obj.name}
+                </h3>
+                <Battery progress={obj.progress || 0} size="sm" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -249,34 +276,27 @@ function SprintStatCard({ label, value, icon: Icon, color }) {
 }
 
 function RockCard({ rock, index }) {
-  const statusColors = {
-    PLANNED: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
-    IN_PROGRESS: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-    AT_RISK: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-    DONE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  };
-
-  const progressColors = {
-    PLANNED: 'bg-gray-400',
-    IN_PROGRESS: 'bg-blue-500',
-    AT_RISK: 'bg-red-500',
-    DONE: 'bg-green-500',
-  };
-
   return (
     <div 
       className="border dark:border-gray-700 rounded-xl p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all animate-slide-in-up bg-white dark:bg-gray-800/50"
       style={{ animationDelay: `${0.4 + index * 0.05}s` }}
     >
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
               {rock.code}
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[rock.status]}`}>
-              {rockStatusLabels[rock.status]}
-            </span>
+            {rock.isCarriedOver && (
+              <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full font-medium">
+                ↪ גלש מ-Q{rock.carriedFromQuarter}
+              </span>
+            )}
+            {rock.objective && (
+              <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded">
+                🎯 {rock.objective.code}
+              </span>
+            )}
           </div>
           <h3 className="font-medium text-gray-900 dark:text-white">{rock.name}</h3>
         </div>
@@ -285,21 +305,18 @@ function RockCard({ rock, index }) {
         )}
       </div>
 
-      {/* Progress bar */}
+      {/* Progress with Battery */}
       <div className="mt-3">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-500 dark:text-gray-400">התקדמות</span>
-          <span className="font-medium text-gray-900 dark:text-white">{rock.progress}%</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-500 dark:text-gray-400">התקדמות</span>
+          <span className="text-xs text-gray-400">
+            {rock.doneStories}/{rock.totalStories} אבני דרך
+            {rock.blockedStories > 0 && (
+              <span className="text-red-500 mr-2">({rock.blockedStories} חסומות)</span>
+            )}
+          </span>
         </div>
-        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${progressColors[rock.status]} rounded-full transition-all duration-500`}
-            style={{ width: `${rock.progress}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          {rock.doneStories} מתוך {rock.totalStories} אבני דרך
-        </p>
+        <Battery progress={rock.progress || 0} size="md" />
       </div>
     </div>
   );

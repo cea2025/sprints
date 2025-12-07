@@ -77,7 +77,6 @@ async function main() {
   console.log('🪨 Starting to seed rocks...\n');
 
   let created = 0;
-  let updated = 0;
 
   for (const rock of rocks) {
     try {
@@ -91,12 +90,10 @@ async function main() {
           code: rock.code,
           name: rock.name,
           description: rock.description,
-          yearOfRecord: 2025,
-          originalQuarter: 4,
-          currentQuarter: 4,
-          status: 'PLANNED',
-          health: 'GREEN',
-          committedPoints: 0
+          year: 2025,
+          quarter: 4,
+          progress: 0,
+          isCarriedOver: false
         }
       });
       
@@ -118,4 +115,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

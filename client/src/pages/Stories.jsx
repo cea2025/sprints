@@ -1,120 +1,91 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Filter, ListTodo, X, ChevronDown } from 'lucide-react';
-import { useToast } from '../components/ui/Toast';
+import { useApi } from '../hooks/useApi';
+import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 
-const statusLabels = {
-  TODO: 'לביצוע',
-  IN_PROGRESS: 'בתהליך',
-  BLOCKED: 'חסום',
-  DONE: 'הושלם'
-};
-
-const statusColors = {
-  TODO: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
-  IN_PROGRESS: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-  BLOCKED: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  DONE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-};
-
-const priorityLabels = {
-  LOW: 'נמוכה',
-  MEDIUM: 'בינונית',
-  HIGH: 'גבוהה'
-};
-
-const priorityColors = {
-  LOW: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-  MEDIUM: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
-  HIGH: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-};
-
-function Stories() {
+export default function Stories() {
   const [stories, setStories] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [editingStory, setEditingStory] = useState(null);
-  const toast = useToast();
   const [filters, setFilters] = useState({
-    status: '',
     sprintId: '',
     rockId: '',
-    ownerId: ''
+    isBlocked: ''
   });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingStory, setEditingStory] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'TODO',
-    priority: 'MEDIUM',
-    estimate: '',
+    progress: 0,
+    isBlocked: false,
     sprintId: '',
     rockId: '',
     ownerId: ''
   });
 
+  const { loading, request } = useApi();
+
   useEffect(() => {
-    Promise.all([
-      fetch('/api/stories', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/sprints', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/rocks', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/team', { credentials: 'include' }).then(r => r.json())
-    ])
-      .then(([storiesData, sprintsData, rocksData, teamData]) => {
-        setStories(storiesData);
-        setSprints(sprintsData);
-        setRocks(rocksData);
-        setTeamMembers(teamData);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    fetchStories();
+    fetchSprints();
+    fetchRocks();
+    fetchTeamMembers();
+  }, [filters]);
+
+  const fetchStories = async () => {
+    let url = '/api/stories';
+    const params = new URLSearchParams();
+    if (filters.sprintId) params.append('sprintId', filters.sprintId);
+    if (filters.rockId) params.append('rockId', filters.rockId);
+    if (filters.isBlocked) params.append('isBlocked', filters.isBlocked);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const data = await request(url, { showToast: false });
+    if (data) setStories(data);
+  };
+
+  const fetchSprints = async () => {
+    const data = await request('/api/sprints', { showToast: false });
+    if (data) setSprints(data);
+  };
+
+  const fetchRocks = async () => {
+    const data = await request('/api/rocks', { showToast: false });
+    if (data) setRocks(data);
+  };
+
+  const fetchTeamMembers = async () => {
+    const data = await request('/api/team', { showToast: false });
+    if (data) setTeamMembers(data);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const url = editingStory 
-      ? `/api/stories/${editingStory.id}` 
-      : '/api/stories';
+
+    if (!formData.sprintId) {
+      alert('ספרינט הוא שדה חובה');
+      return;
+    }
+    if (!formData.ownerId) {
+      alert('אחראי הוא שדה חובה');
+      return;
+    }
+
+    const url = editingStory ? `/api/stories/${editingStory.id}` : '/api/stories';
     const method = editingStory ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const result = await request(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(formData)
+      body: formData,
+      successMessage: editingStory ? 'אבן דרך עודכנה בהצלחה' : 'אבן דרך נוצרה בהצלחה'
     });
 
-    if (res.ok) {
-      const story = await res.json();
-      if (editingStory) {
-        setStories(stories.map(s => s.id === story.id ? story : s));
-        toast.success('אבן הדרך עודכנה בהצלחה');
-      } else {
-        setStories([story, ...stories]);
-        toast.success('אבן הדרך נוצרה בהצלחה');
-      }
+    if (result) {
+      setIsModalOpen(false);
       resetForm();
-    } else {
-      toast.error('שגיאה בשמירת אבן הדרך');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('האם למחוק את אבן הדרך?')) return;
-    
-    const res = await fetch(`/api/stories/${id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-
-    if (res.ok) {
-      setStories(stories.filter(s => s.id !== id));
-      toast.success('אבן הדרך נמחקה');
-    } else {
-      toast.error('שגיאה במחיקת אבן הדרך');
+      fetchStories();
     }
   };
 
@@ -123,69 +94,78 @@ function Stories() {
     setFormData({
       title: story.title,
       description: story.description || '',
-      status: story.status,
-      priority: story.priority,
-      estimate: story.estimate || '',
-      sprintId: story.sprintId || '',
+      progress: story.progress || 0,
+      isBlocked: story.isBlocked || false,
+      sprintId: story.sprintId,
       rockId: story.rockId || '',
-      ownerId: story.ownerId || ''
+      ownerId: story.ownerId
     });
-    setShowForm(true);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('האם למחוק את אבן הדרך?')) return;
+
+    const result = await request(`/api/stories/${id}`, {
+      method: 'DELETE',
+      successMessage: 'אבן דרך נמחקה בהצלחה'
+    });
+
+    if (result) fetchStories();
+  };
+
+  const handleProgressUpdate = async (storyId, progress) => {
+    const result = await request(`/api/stories/${storyId}/progress`, {
+      method: 'PUT',
+      body: { progress },
+      successMessage: 'התקדמות עודכנה'
+    });
+
+    if (result) {
+      setStories(stories.map(s => 
+        s.id === storyId ? { ...s, progress } : s
+      ));
+    }
+  };
+
+  const handleBlockToggle = async (story) => {
+    const result = await request(`/api/stories/${story.id}/block`, {
+      method: 'PUT',
+      successMessage: story.isBlocked ? 'אבן דרך שוחררה' : 'אבן דרך סומנה כחסומה'
+    });
+
+    if (result) {
+      setStories(stories.map(s => 
+        s.id === story.id ? { ...s, isBlocked: !s.isBlocked } : s
+      ));
+    }
   };
 
   const resetForm = () => {
-    setShowForm(false);
     setEditingStory(null);
     setFormData({
       title: '',
       description: '',
-      status: 'TODO',
-      priority: 'MEDIUM',
-      estimate: '',
-      sprintId: '',
-      rockId: '',
+      progress: 0,
+      isBlocked: false,
+      sprintId: filters.sprintId || '',
+      rockId: filters.rockId || '',
       ownerId: ''
     });
   };
 
-  const clearFilters = () => {
-    setFilters({
-      status: '',
-      sprintId: '',
-      rockId: '',
-      ownerId: ''
-    });
+  const openNewModal = () => {
+    resetForm();
+    setIsModalOpen(true);
   };
 
-  const activeFiltersCount = Object.values(filters).filter(Boolean).length;
-
-  const filteredStories = stories.filter(story => {
-    if (filters.status && story.status !== filters.status) return false;
-    if (filters.sprintId && story.sprintId !== filters.sprintId) return false;
-    if (filters.rockId && story.rockId !== filters.rockId) return false;
-    if (filters.ownerId && story.ownerId !== filters.ownerId) return false;
-    return true;
-  });
-
-  if (loading) {
+  if (loading && stories.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
-            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          </div>
-        </div>
-        <div className="grid gap-4">
+        <Skeleton className="h-8 w-32" />
+        <div className="space-y-4">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-4">
-              <Skeleton className="h-5 w-48 mb-2" />
-              <Skeleton className="h-4 w-32 mb-3" />
-              <div className="flex gap-2">
-                <Skeleton className="h-6 w-16 rounded-full" />
-                <Skeleton className="h-6 w-20 rounded-full" />
-              </div>
-            </div>
+            <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
       </div>
@@ -195,344 +175,176 @@ function Stories() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">כל אבני הדרך במערכת</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">אבני דרך</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            משימות ויחידות עבודה בתוך ספרינטים
+          </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all w-full sm:w-auto"
+          onClick={openNewModal}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg shadow-orange-500/25"
         >
-          <Plus size={20} />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
           <span>אבן דרך חדשה</span>
         </button>
       </div>
 
-      {/* Filters - Collapsible on Mobile */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        {/* Filter Toggle Button (Mobile) */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="w-full flex items-center justify-between p-4 sm:hidden"
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <select
+          value={filters.sprintId}
+          onChange={e => setFilters({...filters, sprintId: e.target.value})}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white text-sm"
         >
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-            <Filter size={18} />
-            <span>סינון</span>
-            {activeFiltersCount > 0 && (
-              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
-                {activeFiltersCount}
-              </span>
-            )}
-          </div>
-          <ChevronDown size={18} className={`text-gray-400 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-        </button>
+          <option value="">כל הספרינטים</option>
+          {sprints.map(sprint => (
+            <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+          ))}
+        </select>
 
-        {/* Filter Content */}
-        <div className={`p-4 border-t dark:border-gray-700 sm:border-t-0 ${showFilters ? 'block' : 'hidden sm:block'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
-            <div className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400">
-              <Filter size={18} />
-              <span>סינון:</span>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:flex gap-3 flex-wrap">
-              <select
-                value={filters.status}
-                onChange={e => setFilters({...filters, status: e.target.value})}
-                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">כל הסטטוסים</option>
-                {Object.entries(statusLabels).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              
-              <select
-                value={filters.sprintId}
-                onChange={e => setFilters({...filters, sprintId: e.target.value})}
-                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">כל הספרינטים</option>
-                {sprints.map(sprint => (
-                  <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-                ))}
-              </select>
-              
-              <select
-                value={filters.rockId}
-                onChange={e => setFilters({...filters, rockId: e.target.value})}
-                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">כל הסלעים</option>
-                {rocks.map(rock => (
-                  <option key={rock.id} value={rock.id}>{rock.code} - {rock.name}</option>
-                ))}
-              </select>
-              
-              <select
-                value={filters.ownerId}
-                onChange={e => setFilters({...filters, ownerId: e.target.value})}
-                className="px-3 py-2 border dark:border-gray-600 rounded-xl text-sm dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">כל האחראים</option>
-                {teamMembers.map(member => (
-                  <option key={member.id} value={member.id}>{member.name}</option>
-                ))}
-              </select>
-            </div>
+        <select
+          value={filters.rockId}
+          onChange={e => setFilters({...filters, rockId: e.target.value})}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="">כל הסלעים</option>
+          {rocks.map(rock => (
+            <option key={rock.id} value={rock.id}>{rock.code} - {rock.name}</option>
+          ))}
+        </select>
 
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={clearFilters}
-                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 font-medium"
-              >
-                נקה סינון
-              </button>
-            )}
-          </div>
-        </div>
+        <select
+          value={filters.isBlocked}
+          onChange={e => setFilters({...filters, isBlocked: e.target.value})}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="">כל הסטטוסים</option>
+          <option value="true">חסומות בלבד</option>
+          <option value="false">לא חסומות</option>
+        </select>
+
+        <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">
+          {stories.length} אבני דרך
+        </span>
       </div>
 
-      {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
-            <div className="p-4 sm:p-6 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 flex items-center justify-between">
-              <h2 className="text-xl font-bold dark:text-white">
-                {editingStory ? 'עריכת אבן דרך' : 'אבן דרך חדשה'}
-              </h2>
-              <button onClick={resetForm} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  כותרת
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  תיאור
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    סטטוס
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={e => setFormData({...formData, status: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    {Object.entries(statusLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    עדיפות
-                  </label>
-                  <select
-                    value={formData.priority}
-                    onChange={e => setFormData({...formData, priority: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    {Object.entries(priorityLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  הערכה (נקודות)
-                </label>
-                <input
-                  type="number"
-                  value={formData.estimate}
-                  onChange={e => setFormData({...formData, estimate: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    ספרינט
-                  </label>
-                  <select
-                    value={formData.sprintId}
-                    onChange={e => setFormData({...formData, sprintId: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ללא</option>
-                    {sprints.map(sprint => (
-                      <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    סלע
-                  </label>
-                  <select
-                    value={formData.rockId}
-                    onChange={e => setFormData({...formData, rockId: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ללא</option>
-                    {rocks.map(rock => (
-                      <option key={rock.id} value={rock.id}>
-                        {rock.code} - {rock.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  אחראי
-                </label>
-                <select
-                  value={formData.ownerId}
-                  onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">ללא</option>
-                  {teamMembers.map(member => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                >
-                  {editingStory ? 'שמור שינויים' : 'צור אבן דרך'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2.5 border dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
-                >
-                  ביטול
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Stories List - Cards Layout */}
-      {filteredStories.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 sm:p-12 text-center">
-          <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">
-            {activeFiltersCount > 0 ? 'אין אבני דרך התואמות לסינון' : 'אין אבני דרך'}
+      {/* Stories List */}
+      {stories.length === 0 ? (
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <div className="text-4xl mb-4">📋</div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            אין אבני דרך
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
+            צור את אבן הדרך הראשונה שלך
           </p>
-          {activeFiltersCount === 0 && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium"
-            >
-              צור את אבן הדרך הראשונה
-            </button>
-          )}
+          <button
+            onClick={openNewModal}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            צור אבן דרך
+          </button>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {filteredStories.map((story, index) => (
-            <div 
-              key={story.id} 
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-5 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all animate-slide-in-up"
-              style={{ animationDelay: `${index * 0.03}s` }}
+        <div className="space-y-3">
+          {stories.map((story) => (
+            <div
+              key={story.id}
+              className={`bg-white dark:bg-gray-800 rounded-xl border ${
+                story.isBlocked 
+                  ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10' 
+                  : 'border-gray-200 dark:border-gray-700'
+              } p-4 hover:shadow-md transition-all`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                {/* Main Content */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                {/* Title & Description */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-medium text-gray-900 dark:text-white">{story.title}</h3>
-                    {story.estimate && (
-                      <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                        {story.estimate} נק׳
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className={`font-medium ${
+                      story.isBlocked 
+                        ? 'text-red-800 dark:text-red-300' 
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {story.title}
+                    </h3>
+                    {story.isBlocked && (
+                      <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium rounded-full flex items-center gap-1">
+                        <span>🚫</span> חסום
                       </span>
                     )}
                   </div>
-                  
                   {story.description && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate mb-2">
                       {story.description}
                     </p>
                   )}
-                  
-                  {/* Tags */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${statusColors[story.status]}`}>
-                      {statusLabels[story.status]}
-                    </span>
-                    <span className={`text-xs px-2 py-1 rounded-lg ${priorityColors[story.priority]}`}>
-                      {priorityLabels[story.priority]}
-                    </span>
+                  <div className="flex flex-wrap gap-2 text-xs">
                     {story.sprint && (
-                      <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg">
-                        {story.sprint.name}
+                      <span className="px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+                        🏃 {story.sprint.name}
                       </span>
                     )}
                     {story.rock && (
-                      <span className="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
-                        {story.rock.code} - {story.rock.name}
-                      </span>
-                    )}
-                    {story.rock?.objective && (
-                      <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg">
-                        🎯 {story.rock.objective.name}
+                      <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
+                        🪨 {story.rock.code}
+                        {story.rock.objective && (
+                          <span className="mr-1 opacity-75">({story.rock.objective.code})</span>
+                        )}
                       </span>
                     )}
                     {story.owner && (
-                      <span className="text-xs px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg">
+                      <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                        <div className="w-5 h-5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center text-[10px] font-medium">
+                          {story.owner.name?.charAt(0)}
+                        </div>
                         {story.owner.name}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1 self-start">
-                  <button
-                    onClick={() => handleEdit(story)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(story.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                {/* Progress & Actions */}
+                <div className="flex items-center gap-4">
+                  <BatteryCompact 
+                    progress={story.progress || 0} 
+                    isBlocked={story.isBlocked} 
+                  />
+                  
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleBlockToggle(story)}
+                      title={story.isBlocked ? 'שחרר חסימה' : 'סמן כחסום'}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        story.isBlocked
+                          ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+                          : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleEdit(story)}
+                      className="p-1.5 text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(story.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -540,14 +352,148 @@ function Stories() {
         </div>
       )}
 
-      {/* Results Count */}
-      {filteredStories.length > 0 && (
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-          מציג {filteredStories.length} מתוך {stories.length} אבני דרך
-        </p>
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+              {editingStory ? 'עריכת אבן דרך' : 'אבן דרך חדשה'}
+            </h2>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  כותרת <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  placeholder="שם אבן הדרך"
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תיאור
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
+                  placeholder="תיאור אבן הדרך..."
+                  rows={2}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white resize-none"
+                />
+              </div>
+
+              {/* Sprint - Required */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  ספרינט <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.sprintId}
+                  onChange={e => setFormData({...formData, sprintId: e.target.value})}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="">בחר ספרינט</option>
+                  {sprints.map(sprint => (
+                    <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Owner - Required */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  אחראי <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.ownerId}
+                  onChange={e => setFormData({...formData, ownerId: e.target.value})}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="">בחר אחראי</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Rock - Optional */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  סלע (אופציונלי)
+                </label>
+                <select
+                  value={formData.rockId}
+                  onChange={e => setFormData({...formData, rockId: e.target.value})}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">ללא שיוך לסלע</option>
+                  {rocks.map(rock => (
+                    <option key={rock.id} value={rock.id}>{rock.code} - {rock.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Progress */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  התקדמות
+                </label>
+                <ProgressInput
+                  value={formData.progress}
+                  onChange={progress => setFormData({...formData, progress})}
+                  disabled={formData.isBlocked}
+                  isBlocked={formData.isBlocked}
+                />
+              </div>
+
+              {/* Blocked */}
+              <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="isBlocked"
+                  checked={formData.isBlocked}
+                  onChange={e => setFormData({...formData, isBlocked: e.target.checked})}
+                  className="w-5 h-5 rounded text-red-600 focus:ring-red-500"
+                />
+                <label htmlFor="isBlocked" className="flex-1 cursor-pointer">
+                  <span className="font-medium text-red-800 dark:text-red-300">חסום</span>
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    סמן אם אבן הדרך תקועה ולא ניתן להתקדם
+                  </p>
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'שומר...' : (editingStory ? 'עדכן' : 'צור')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
 }
-
-export default Stories;

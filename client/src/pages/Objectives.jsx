@@ -1,89 +1,55 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Target, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { useToast } from '../components/ui/Toast';
-import { SkeletonCard } from '../components/ui/Skeleton';
+import { useApi } from '../hooks/useApi';
+import { Battery, BatteryCompact } from '../components/ui/Battery';
+import { Skeleton } from '../components/ui/Skeleton';
 
-const healthColors = {
-  GREEN: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  YELLOW: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
-  RED: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-};
-
-function Objectives() {
+export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
-  const [expandedObjective, setExpandedObjective] = useState(null);
-  const toast = useToast();
-  
-  const currentYear = new Date().getFullYear();
   const [formData, setFormData] = useState({
     code: '',
     name: '',
     description: '',
-    timeframe: currentYear.toString(),
-    targetValue: '',
-    metric: '',
     ownerId: ''
   });
+  
+  const { loading, request } = useApi();
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/objectives', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/team', { credentials: 'include' }).then(r => r.json())
-    ])
-      .then(([objectivesData, teamData]) => {
-        setObjectives(objectivesData);
-        setTeamMembers(teamData);
-      })
-      .finally(() => setLoading(false));
+    fetchObjectives();
+    fetchTeamMembers();
   }, []);
+
+  const fetchObjectives = async () => {
+    const data = await request('/api/objectives');
+    if (data) setObjectives(data);
+  };
+
+  const fetchTeamMembers = async () => {
+    const data = await request('/api/team', { showToast: false });
+    if (data) setTeamMembers(data);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     const url = editingObjective 
-      ? `/api/objectives/${editingObjective.id}` 
+      ? `/api/objectives/${editingObjective.id}`
       : '/api/objectives';
     const method = editingObjective ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const result = await request(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(formData)
+      body: formData,
+      successMessage: editingObjective ? 'מטרת-על עודכנה בהצלחה' : 'מטרת-על נוצרה בהצלחה'
     });
 
-    if (res.ok) {
-      const objective = await res.json();
-      if (editingObjective) {
-        setObjectives(objectives.map(o => o.id === objective.id ? objective : o));
-        toast.success('מטרת-על עודכנה בהצלחה');
-      } else {
-        setObjectives([objective, ...objectives]);
-        toast.success('מטרת-על נוצרה בהצלחה');
-      }
+    if (result) {
+      setIsModalOpen(false);
       resetForm();
-    } else {
-      toast.error('שגיאה בשמירת מטרת-על');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('האם למחוק את מטרת-העל?')) return;
-    
-    const res = await fetch(`/api/objectives/${id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-
-    if (res.ok) {
-      setObjectives(objectives.filter(o => o.id !== id));
-      toast.success('מטרת-על נמחקה');
-    } else {
-      toast.error('שגיאה במחיקת מטרת-על');
+      fetchObjectives();
     }
   };
 
@@ -93,46 +59,50 @@ function Objectives() {
       code: objective.code,
       name: objective.name,
       description: objective.description || '',
-      timeframe: objective.timeframe,
-      targetValue: objective.targetValue || '',
-      metric: objective.metric || '',
       ownerId: objective.ownerId || ''
     });
-    setShowForm(true);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('האם למחוק את מטרת-העל?')) return;
+
+    const result = await request(`/api/objectives/${id}`, {
+      method: 'DELETE',
+      successMessage: 'מטרת-על נמחקה בהצלחה'
+    });
+
+    if (result) {
+      fetchObjectives();
+    }
   };
 
   const resetForm = () => {
-    setShowForm(false);
     setEditingObjective(null);
     setFormData({
       code: '',
       name: '',
       description: '',
-      timeframe: currentYear.toString(),
-      targetValue: '',
-      metric: '',
       ownerId: ''
     });
   };
 
-  const getProgressColor = (progress) => {
-    if (progress >= 75) return 'bg-green-500';
-    if (progress >= 50) return 'bg-blue-500';
-    if (progress >= 25) return 'bg-yellow-500';
-    return 'bg-gray-400';
+  const openNewModal = () => {
+    resetForm();
+    setIsModalOpen(true);
   };
 
-  if (loading) {
+  if (loading && objectives.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
-            <div className="h-4 w-56 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          </div>
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-32" />
         </div>
-        <div className="grid gap-4">
-          {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
         </div>
       </div>
     );
@@ -141,74 +111,142 @@ function Objectives() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">מטרות-על</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">יעדים שנתיים וחצי-שנתיים אסטרטגיים</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">מטרות-על</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            מטרות אסטרטגיות שמאגדות סלעים
+          </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all w-full sm:w-auto"
+          onClick={openNewModal}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/25"
         >
-          <Plus size={20} />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
           <span>מטרת-על חדשה</span>
         </button>
       </div>
 
-      {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
-            <div className="p-4 sm:p-6 border-b dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800">
-              <h2 className="text-xl font-bold dark:text-white">
-                {editingObjective ? 'עריכת מטרת-על' : 'מטרת-על חדשה'}
-              </h2>
-              <button onClick={resetForm} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Objectives Grid */}
+      {objectives.length === 0 ? (
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+          <div className="text-4xl mb-4">🎯</div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            אין עדיין מטרות-על
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
+            צור את מטרת-העל הראשונה שלך
+          </p>
+          <button
+            onClick={openNewModal}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            צור מטרת-על
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {objectives.map((objective) => (
+            <div
+              key={objective.id}
+              className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-lg transition-all"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    קוד
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={e => setFormData({...formData, code: e.target.value})}
-                    placeholder="25-OBJ-1"
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                    required
-                  />
+                  <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-lg mb-2">
+                    {objective.code}
+                  </span>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {objective.name}
+                  </h3>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    מסגרת זמן
-                  </label>
-                  <select
-                    value={formData.timeframe}
-                    onChange={e => setFormData({...formData, timeframe: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleEdit(objective)}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                   >
-                    <option value={`${currentYear}`}>{currentYear} (שנה מלאה)</option>
-                    <option value={`H1-${currentYear}`}>H1-{currentYear} (חציון 1)</option>
-                    <option value={`H2-${currentYear}`}>H2-{currentYear} (חציון 2)</option>
-                    <option value={`${currentYear + 1}`}>{currentYear + 1} (שנה מלאה)</option>
-                  </select>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(objective.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
+              </div>
+
+              {/* Description */}
+              {objective.description && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+                  {objective.description}
+                </p>
+              )}
+
+              {/* Progress */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">התקדמות כוללת</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{objective.rocksCount || 0} סלעים</span>
+                </div>
+                <Battery progress={objective.progress || 0} size="md" showLabel={true} />
+              </div>
+
+              {/* Owner */}
+              {objective.owner && (
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center text-xs font-medium">
+                    {objective.owner.name?.charAt(0)}
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{objective.owner.name}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+              {editingObjective ? 'עריכת מטרת-על' : 'מטרת-על חדשה'}
+            </h2>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  קוד <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={e => setFormData({...formData, code: e.target.value})}
+                  placeholder="OBJ-01"
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">מזהה ייחודי למטרה</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  שם
+                  שם <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="שם המטרה"
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="שם מטרת-העל"
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
               </div>
@@ -220,36 +258,10 @@ function Objectives() {
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  rows={2}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="תיאור מטרת-העל..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white resize-none"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    מדד (KR)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.metric}
-                    onChange={e => setFormData({...formData, metric: e.target.value})}
-                    placeholder="לדוג': אחוז שימור לקוחות"
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    יעד
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.targetValue}
-                    onChange={e => setFormData({...formData, targetValue: e.target.value})}
-                    placeholder="90"
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
               </div>
 
               <div>
@@ -259,7 +271,7 @@ function Objectives() {
                 <select
                   value={formData.ownerId}
                   onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">ללא</option>
                   {teamMembers.map(member => (
@@ -268,143 +280,26 @@ function Objectives() {
                 </select>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                >
-                  {editingObjective ? 'שמור שינויים' : 'צור מטרת-על'}
-                </button>
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2.5 border dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
+                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'שומר...' : (editingObjective ? 'עדכן' : 'צור')}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* Objectives List */}
-      {objectives.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 sm:p-12 text-center">
-          <Target className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">אין מטרות-על עדיין</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-4 text-purple-600 dark:text-purple-400 hover:text-purple-700 font-medium"
-          >
-            צור את מטרת-העל הראשונה
-          </button>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {objectives.map((objective, index) => (
-            <div 
-              key={objective.id} 
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-slide-in-up hover:shadow-md transition-all"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              {/* Main Info */}
-              <div className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                        {objective.code}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                        {objective.timeframe}
-                      </span>
-                      {objective.rocksCount > 0 && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">
-                          {objective.rocksCount} סלעים
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="font-medium text-gray-900 dark:text-white text-lg mb-1">{objective.name}</h3>
-                    {objective.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">{objective.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
-                      {objective.metric && (
-                        <span>
-                          {objective.metric}{objective.targetValue ? `: ${objective.targetValue}` : ''}
-                        </span>
-                      )}
-                      {objective.owner && (
-                        <span>אחראי: {objective.owner.name}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 self-start">
-                    <button
-                      onClick={() => setExpandedObjective(expandedObjective === objective.id ? null : objective.id)}
-                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      {expandedObjective === objective.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(objective)}
-                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(objective.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-gray-500 dark:text-gray-400">התקדמות</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{objective.progress || 0}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${getProgressColor(objective.progress || 0)} rounded-full transition-all duration-500`}
-                      style={{ width: `${objective.progress || 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Expanded - Rocks List */}
-              {expandedObjective === objective.id && objective.rocks && objective.rocks.length > 0 && (
-                <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">סלעים מקושרים:</h4>
-                  <div className="space-y-2">
-                    {objective.rocks.map(rock => (
-                      <div key={rock.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-gray-400">{rock.code}</span>
-                          <span className="text-sm text-gray-900 dark:text-white">{rock.name}</span>
-                        </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${healthColors[rock.health] || healthColors.GREEN}`}>
-                          Q{rock.currentQuarter}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
-
-export default Objectives;
-

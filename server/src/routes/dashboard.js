@@ -17,9 +17,12 @@ router.get('/', async (req, res) => {
     const currentQuarter = Math.ceil((today.getMonth() + 1) / 3);
     const currentYear = today.getFullYear();
 
-    // Get current or next sprint (by state or date)
+    // Get current sprint (by date or most recent)
     let currentSprint = await prisma.sprint.findFirst({
-      where: { state: 'ACTIVE' },
+      where: {
+        startDate: { lte: today },
+        endDate: { gte: today }
+      },
       include: {
         sprintRocks: {
           include: {
@@ -33,28 +36,6 @@ router.get('/', async (req, res) => {
         }
       }
     });
-
-    // If no active sprint, try by date
-    if (!currentSprint) {
-      currentSprint = await prisma.sprint.findFirst({
-        where: {
-          startDate: { lte: today },
-          endDate: { gte: today }
-        },
-        include: {
-          sprintRocks: {
-            include: {
-              rock: true
-            }
-          },
-          stories: {
-            include: {
-              owner: true
-            }
-          }
-        }
-      });
-    }
 
     // If no current sprint, get next upcoming
     if (!currentSprint) {
@@ -78,27 +59,43 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Calculate sprint stats
+    // If still no sprint, get most recent
+    if (!currentSprint) {
+      currentSprint = await prisma.sprint.findFirst({
+        orderBy: { startDate: 'desc' },
+        include: {
+          sprintRocks: {
+            include: {
+              rock: true
+            }
+          },
+          stories: {
+            include: {
+              owner: true
+            }
+          }
+        }
+      });
+    }
+
+    // Calculate sprint stats based on new progress/blocked model
     let sprintStats = null;
     if (currentSprint) {
+      const stories = currentSprint.stories;
       sprintStats = {
-        total: currentSprint.stories.length,
-        todo: currentSprint.stories.filter(s => s.status === 'TODO').length,
-        inProgress: currentSprint.stories.filter(s => s.status === 'IN_PROGRESS').length,
-        blocked: currentSprint.stories.filter(s => s.status === 'BLOCKED').length,
-        done: currentSprint.stories.filter(s => s.status === 'DONE').length,
-        totalPoints: currentSprint.stories.reduce((sum, s) => sum + (s.estimate || 0), 0),
-        donePoints: currentSprint.stories
-          .filter(s => s.status === 'DONE')
-          .reduce((sum, s) => sum + (s.estimate || 0), 0)
+        total: stories.length,
+        todo: stories.filter(s => s.progress === 0 && !s.isBlocked).length,
+        inProgress: stories.filter(s => s.progress > 0 && s.progress < 100 && !s.isBlocked).length,
+        blocked: stories.filter(s => s.isBlocked).length,
+        done: stories.filter(s => s.progress === 100).length
       };
     }
 
-    // Get current quarter rocks with progress (using new fields)
+    // Get current quarter rocks with progress
     const rocks = await prisma.rock.findMany({
       where: {
-        yearOfRecord: currentYear,
-        currentQuarter: currentQuarter
+        year: currentYear,
+        quarter: currentQuarter
       },
       include: {
         owner: true,
@@ -106,8 +103,8 @@ router.get('/', async (req, res) => {
         stories: {
           select: {
             id: true,
-            status: true,
-            estimate: true
+            progress: true,
+            isBlocked: true
           }
         }
       },
@@ -115,91 +112,73 @@ router.get('/', async (req, res) => {
     });
 
     const rocksWithProgress = rocks.map(rock => {
-      const donePoints = rock.stories
-        .filter(s => s.status === 'DONE')
-        .reduce((sum, s) => sum + (s.estimate || 0), 0);
       const totalStories = rock.stories.length;
-      const doneStories = rock.stories.filter(s => s.status === 'DONE').length;
-      const progress = rock.committedPoints > 0 
-        ? Math.round((donePoints / rock.committedPoints) * 100) 
+      const doneStories = rock.stories.filter(s => s.progress === 100).length;
+      // Calculate progress from stories if rock has no manual progress
+      const calculatedProgress = totalStories > 0
+        ? Math.round(rock.stories.reduce((sum, s) => sum + s.progress, 0) / totalStories)
         : 0;
+      const effectiveProgress = rock.progress > 0 ? rock.progress : calculatedProgress;
       
       return {
         id: rock.id,
         code: rock.code,
         name: rock.name,
-        status: rock.status,
-        health: rock.health,
+        progress: effectiveProgress,
         owner: rock.owner,
         objective: rock.objective,
-        committedPoints: rock.committedPoints,
-        donePoints,
-        progress,
         totalStories,
         doneStories,
-        isCarryOver: rock.originalQuarter !== rock.currentQuarter
+        blockedStories: rock.stories.filter(s => s.isBlocked).length,
+        isCarriedOver: rock.isCarriedOver,
+        carriedFromQuarter: rock.carriedFromQuarter
       };
     });
 
-    // Get objectives for current year
+    // Get objectives
     const objectives = await prisma.objective.findMany({
-      where: {
-        timeframe: {
-          contains: currentYear.toString()
-        }
-      },
       include: {
         owner: true,
         rocks: {
+          where: {
+            year: currentYear,
+            quarter: currentQuarter
+          },
           select: {
             id: true,
-            status: true,
-            committedPoints: true,
-            stories: {
-              where: { status: 'DONE' },
-              select: { estimate: true }
-            }
+            progress: true
           }
         }
       }
     });
 
     const objectivesWithProgress = objectives.map(obj => {
-      const totalCommitted = obj.rocks.reduce((sum, r) => sum + r.committedPoints, 0);
-      const totalDone = obj.rocks.reduce((sum, r) => {
-        return sum + r.stories.reduce((s, story) => s + (story.estimate || 0), 0);
-      }, 0);
+      const rocksCount = obj.rocks.length;
+      const progress = rocksCount > 0
+        ? Math.round(obj.rocks.reduce((sum, r) => sum + (r.progress || 0), 0) / rocksCount)
+        : 0;
       
       return {
         id: obj.id,
         code: obj.code,
         name: obj.name,
-        timeframe: obj.timeframe,
-        targetValue: obj.targetValue,
-        metric: obj.metric,
         owner: obj.owner,
-        rocksCount: obj.rocks.length,
-        progress: totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0
+        rocksCount,
+        progress
       };
     });
 
     // Get overall stats
     const totalRocks = await prisma.rock.count({
-      where: { yearOfRecord: currentYear, currentQuarter: currentQuarter }
+      where: { year: currentYear, quarter: currentQuarter }
     });
     
     const completedRocks = await prisma.rock.count({
-      where: { yearOfRecord: currentYear, currentQuarter: currentQuarter, status: 'DONE' }
+      where: { year: currentYear, quarter: currentQuarter, progress: 100 }
     });
 
     const totalStories = await prisma.story.count();
-    const totalObjectives = await prisma.objective.count({
-      where: {
-        timeframe: {
-          contains: currentYear.toString()
-        }
-      }
-    });
+    const totalObjectives = await prisma.objective.count();
     const activeTeamMembers = await prisma.teamMember.count({
       where: { isActive: true }
     });
@@ -215,8 +194,6 @@ router.get('/', async (req, res) => {
         goal: currentSprint.goal,
         startDate: currentSprint.startDate,
         endDate: currentSprint.endDate,
-        state: currentSprint.state,
-        capacityPoints: currentSprint.capacityPoints,
         rocks: currentSprint.sprintRocks.map(sr => sr.rock),
         stats: sprintStats
       } : null,

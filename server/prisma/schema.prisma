@@ -1,5 +1,5 @@
 // Prisma Schema for Sprint Management System
-// Updated with Objectives, M:N Sprint-Rock, and quarterly tracking
+// Simplified with progress tracking
 
 generator client {
   provider = "prisma-client-js"
@@ -17,38 +17,6 @@ enum UserRole {
   MANAGER    // Create, edit, delete rocks/sprints/stories
   MEMBER     // View all, edit own stories
   VIEWER     // View only
-}
-
-enum RockStatus {
-  PLANNED
-  IN_PROGRESS
-  AT_RISK
-  DONE
-}
-
-enum RockHealth {
-  GREEN      // On track
-  YELLOW     // At risk
-  RED        // Off track
-}
-
-enum SprintState {
-  PLANNED
-  ACTIVE
-  CLOSED
-}
-
-enum StoryStatus {
-  TODO
-  IN_PROGRESS
-  BLOCKED
-  DONE
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
 }
 
 // ==================== MODELS ====================
@@ -86,17 +54,14 @@ model TeamMember {
   updatedAt DateTime @updatedAt
 }
 
-// ==================== OBJECTIVE (NEW) ====================
-// מטרת-על שנתית/חצי-שנתית שמאגדת כמה סלעים
+// ==================== OBJECTIVE ====================
+// מטרת-על - ללא תאריך, רק מאגדת סלעים
 
 model Objective {
   id          String   @id @default(uuid())
-  code        String   @unique  // "25-OBJ-1"
+  code        String   @unique  // "OBJ-01"
   name        String
   description String?
-  timeframe   String   // "2025" / "H1-2025" / "H2-2025"
-  targetValue Int?     // KR target (optional)
-  metric      String?  // מדד ה-KR (תיאור)
   
   ownerId     String?
   owner       TeamMember? @relation(fields: [ownerId], references: [id])
@@ -107,24 +72,25 @@ model Objective {
   updatedAt   DateTime @updatedAt
 }
 
-// ==================== ROCK (UPDATED) ====================
-// סלע - יעד רבעוני עם תמיכה בגלישה בין רבעונים
+// ==================== ROCK ====================
+// סלע - יעד רבעוני
 
 model Rock {
-  id              String     @id @default(uuid())
-  code            String     @unique  // "25-Q4-1" (זהות קבועה)
+  id              String   @id @default(uuid())
+  code            String   @unique  // "2025-Q4-01"
   name            String
   description     String?
-  status          RockStatus @default(PLANNED)
   
-  // שדות רבעון
-  yearOfRecord    Int        @default(2025)  // שנת יעד מקורית
-  originalQuarter Int        @default(4)     // רבעון יעד מקורי (1-4)
-  currentQuarter  Int        @default(4)     // רבעון נוכחי - מתעדכן כשגולש
+  // רבעון ושנה
+  year            Int      @default(2025)
+  quarter         Int      @default(4)  // 1-4
   
-  // נקודות ובריאות
-  committedPoints Int        @default(0)  // התחייבות לרבעון הנוכחי
-  health          RockHealth @default(GREEN)
+  // התקדמות (0-100)
+  progress        Int      @default(0)
+  
+  // גלישה מרבעון קודם
+  isCarriedOver   Boolean  @default(false)
+  carriedFromQuarter Int?  // מאיזה רבעון גלש
   
   // קשרים
   ownerId         String?
@@ -135,23 +101,27 @@ model Rock {
   
   stories         Story[]
   sprintRocks     SprintRock[]
-  quarterLogs     RockQuarterLog[]
   
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
-// ==================== SPRINT (UPDATED) ====================
-// ספרינט - תקופת עבודה קצובה
+// ==================== SPRINT ====================
+// ספרינט - תקופת עבודה קצובה (בדרך כלל שבועיים)
 
 model Sprint {
-  id             String      @id @default(uuid())
-  name           String      @unique  // "25-Q1-S1"
+  id             String   @id @default(uuid())
+  name           String   @unique  // Auto: "2026-Q2-S5"
   goal           String?
+  
+  // מזהי ספרינט
+  year           Int      @default(2025)
+  quarter        Int      @default(4)  // 1-4
+  sprintNumber   Int      @default(1)  // 1-6
+  
+  // תאריכים
   startDate      DateTime
   endDate        DateTime
-  capacityPoints Int         @default(0)  // קיבולת נקודות לספרינט
-  state          SprintState @default(PLANNED)
   
   // קשרים M:N עם סלעים
   sprintRocks    SprintRock[]
@@ -161,8 +131,7 @@ model Sprint {
   updatedAt      DateTime @updatedAt
 }
 
-// ==================== SPRINT-ROCK (NEW - M:N) ====================
-// טבלת קשר בין ספרינטים לסלעים
+// ==================== SPRINT-ROCK (M:N) ====================
 
 model SprintRock {
   id        String  @id @default(uuid())
@@ -178,45 +147,33 @@ model SprintRock {
   @@unique([sprintId, rockId])
 }
 
-// ==================== STORY ====================
+// ==================== STORY (אבן דרך) ====================
 
 model Story {
-  id          String      @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
   description String?
-  status      StoryStatus @default(TODO)
-  priority    Priority    @default(MEDIUM)
-  estimate    Int?        // points
   
-  sprintId    String?
-  sprint      Sprint?     @relation(fields: [sprintId], references: [id])
+  // התקדמות (0-100) - ניתן לעדכון ידני
+  progress    Int      @default(0)
   
+  // חסום - כאשר true, ההתקדמות תקועה
+  isBlocked   Boolean  @default(false)
+  
+  // ספרינט - חובה
+  sprintId    String
+  sprint      Sprint   @relation(fields: [sprintId], references: [id])
+  
+  // סלע - אופציונלי
   rockId      String?
-  rock        Rock?       @relation(fields: [rockId], references: [id])
+  rock        Rock?    @relation(fields: [rockId], references: [id])
   
-  ownerId     String?
-  owner       TeamMember? @relation(fields: [ownerId], references: [id])
+  // אחראי - חובה
+  ownerId     String
+  owner       TeamMember @relation(fields: [ownerId], references: [id])
   
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-}
-
-// ==================== ROCK QUARTER LOG (OPTIONAL) ====================
-// לוג היסטורי לרבעון - צילום מצב בסוף כל רבעון
-
-model RockQuarterLog {
-  id              String   @id @default(uuid())
-  
-  rockId          String
-  rock            Rock     @relation(fields: [rockId], references: [id], onDelete: Cascade)
-  
-  year            Int
-  quarter         Int      // 1-4
-  committedPoints Int
-  donePoints      Int
-  wasCarryOver    Boolean  @default(false)  // האם גלש מרבעון קודם
-  
-  closedAt        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ==================== ACCESS CONTROL ====================
@@ -224,10 +181,10 @@ model RockQuarterLog {
 model AllowedEmail {
   id          String   @id @default(uuid())
   email       String   @unique
-  name        String?  // Optional name for reference
-  role        UserRole @default(VIEWER) // Default role when user registers
-  addedBy     String?  // ID of admin who added this email
-  note        String?  // Optional note about this user
+  name        String?
+  role        UserRole @default(VIEWER)
+  addedBy     String?
+  note        String?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

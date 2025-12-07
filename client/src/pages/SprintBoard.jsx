@@ -1,27 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowRight, Plus, User, GripVertical, X } from 'lucide-react';
+import { ArrowRight, Plus, GripVertical, X } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { SkeletonKanban } from '../components/ui/Skeleton';
+import { BatteryCompact, ProgressInput } from '../components/ui/Battery';
 
+// Columns based on progress ranges
 const columns = [
-  { id: 'TODO', title: 'לביצוע', color: 'gray', gradient: 'from-gray-400 to-gray-500' },
-  { id: 'IN_PROGRESS', title: 'בתהליך', color: 'blue', gradient: 'from-blue-400 to-blue-600' },
-  { id: 'BLOCKED', title: 'חסום', color: 'red', gradient: 'from-red-400 to-red-600' },
-  { id: 'DONE', title: 'הושלם', color: 'green', gradient: 'from-green-400 to-green-600' }
+  { id: 'todo', title: 'לביצוע', color: 'gray', gradient: 'from-gray-400 to-gray-500', filter: s => s.progress === 0 && !s.isBlocked },
+  { id: 'inProgress', title: 'בתהליך', color: 'blue', gradient: 'from-blue-400 to-blue-600', filter: s => s.progress > 0 && s.progress < 100 && !s.isBlocked },
+  { id: 'blocked', title: 'חסום', color: 'red', gradient: 'from-red-400 to-red-600', filter: s => s.isBlocked },
+  { id: 'done', title: 'הושלם', color: 'green', gradient: 'from-green-400 to-green-600', filter: s => s.progress === 100 }
 ];
-
-const priorityLabels = {
-  LOW: 'נמוכה',
-  MEDIUM: 'בינונית',
-  HIGH: 'גבוהה'
-};
-
-const priorityColors = {
-  LOW: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
-  MEDIUM: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
-  HIGH: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-};
 
 function SprintBoard() {
   const { id } = useParams();
@@ -37,9 +27,8 @@ function SprintBoard() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'TODO',
-    priority: 'MEDIUM',
-    estimate: '',
+    progress: 0,
+    isBlocked: false,
     rockId: '',
     ownerId: ''
   });
@@ -58,12 +47,12 @@ function SprintBoard() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleStatusChange = async (storyId, newStatus) => {
-    const res = await fetch(`/api/stories/${storyId}/status`, {
-      method: 'PATCH',
+  const handleProgressChange = async (storyId, progress, isBlocked = false) => {
+    const res = await fetch(`/api/stories/${storyId}/progress`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ status: newStatus })
+      body: JSON.stringify({ progress, isBlocked })
     });
 
     if (res.ok) {
@@ -74,17 +63,42 @@ function SprintBoard() {
           s.id === storyId ? updatedStory : s
         )
       });
-      toast.success(`אבן הדרך הועברה ל${columns.find(c => c.id === newStatus)?.title}`);
+      toast.success('התקדמות עודכנה');
     } else {
-      toast.error('שגיאה בעדכון אבן הדרך');
+      toast.error('שגיאה בעדכון');
     }
+  };
+
+  // Map column drops to progress changes
+  const handleColumnDrop = async (storyId, columnId) => {
+    let progress = 0;
+    let isBlocked = false;
+
+    switch (columnId) {
+      case 'todo':
+        progress = 0;
+        isBlocked = false;
+        break;
+      case 'inProgress':
+        progress = 50;
+        isBlocked = false;
+        break;
+      case 'blocked':
+        isBlocked = true;
+        break;
+      case 'done':
+        progress = 100;
+        isBlocked = false;
+        break;
+    }
+
+    await handleProgressChange(storyId, progress, isBlocked);
   };
 
   // Drag & Drop handlers
   const handleDragStart = (e, story) => {
     setDraggedStory(story);
     e.dataTransfer.effectAllowed = 'move';
-    // Add a slight delay to show the dragging state
     setTimeout(() => {
       e.target.classList.add('opacity-50');
     }, 0);
@@ -110,13 +124,18 @@ function SprintBoard() {
     e.preventDefault();
     setDragOverColumn(null);
     
-    if (draggedStory && draggedStory.status !== columnId) {
-      handleStatusChange(draggedStory.id, columnId);
+    if (draggedStory) {
+      handleColumnDrop(draggedStory.id, columnId);
     }
   };
 
   const handleAddStory = async (e) => {
     e.preventDefault();
+
+    if (!formData.ownerId) {
+      toast.error('אחראי הוא שדה חובה');
+      return;
+    }
     
     const res = await fetch('/api/stories', {
       method: 'POST',
@@ -138,15 +157,15 @@ function SprintBoard() {
       setFormData({
         title: '',
         description: '',
-        status: 'TODO',
-        priority: 'MEDIUM',
-        estimate: '',
+        progress: 0,
+        isBlocked: false,
         rockId: '',
         ownerId: ''
       });
       toast.success('אבן הדרך נוצרה בהצלחה!');
     } else {
-      toast.error('שגיאה ביצירת אבן הדרך');
+      const error = await res.json();
+      toast.error(error.error || 'שגיאה ביצירת אבן הדרך');
     }
   };
 
@@ -176,8 +195,8 @@ function SprintBoard() {
     );
   }
 
-  const getStoriesByStatus = (status) => {
-    return sprint.stories.filter(s => s.status === status);
+  const getStoriesByColumn = (column) => {
+    return (sprint.stories || []).filter(column.filter);
   };
 
   return (
@@ -200,7 +219,7 @@ function SprintBoard() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all transform hover:-translate-y-0.5"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg hover:shadow-orange-500/25 transition-all transform hover:-translate-y-0.5"
         >
           <Plus size={20} />
           <span className="font-medium">אבן דרך חדשה</span>
@@ -223,13 +242,13 @@ function SprintBoard() {
             <form onSubmit={handleAddStory} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  כותרת
+                  כותרת <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
                   required
                 />
               </div>
@@ -241,78 +260,60 @@ function SprintBoard() {
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
+                  rows={2}
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    עדיפות
-                  </label>
-                  <select
-                    value={formData.priority}
-                    onChange={e => setFormData({...formData, priority: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
-                  >
-                    <option value="LOW">נמוכה</option>
-                    <option value="MEDIUM">בינונית</option>
-                    <option value="HIGH">גבוהה</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    הערכה (נקודות)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.estimate}
-                    onChange={e => setFormData({...formData, estimate: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  אחראי <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.ownerId}
+                  onChange={e => setFormData({...formData, ownerId: e.target.value})}
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
+                  required
+                >
+                  <option value="">בחר אחראי</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    סלע
-                  </label>
-                  <select
-                    value={formData.rockId}
-                    onChange={e => setFormData({...formData, rockId: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
-                  >
-                    <option value="">ללא</option>
-                    {rocks.map(rock => (
-                      <option key={rock.id} value={rock.id}>
-                        {rock.code} - {rock.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    אחראי
-                  </label>
-                  <select
-                    value={formData.ownerId}
-                    onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all"
-                  >
-                    <option value="">ללא</option>
-                    {teamMembers.map(member => (
-                      <option key={member.id} value={member.id}>{member.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  סלע (אופציונלי)
+                </label>
+                <select
+                  value={formData.rockId}
+                  onChange={e => setFormData({...formData, rockId: e.target.value})}
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
+                >
+                  <option value="">ללא שיוך לסלע</option>
+                  {rocks.map(rock => (
+                    <option key={rock.id} value={rock.id}>
+                      {rock.code} - {rock.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  התקדמות התחלתית
+                </label>
+                <ProgressInput
+                  value={formData.progress}
+                  onChange={progress => setFormData({...formData, progress})}
+                />
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
                 >
                   צור אבן דרך
                 </button>
@@ -336,7 +337,7 @@ function SprintBoard() {
             key={column.id} 
             className={`
               bg-gray-100 dark:bg-gray-800/50 rounded-2xl p-4 transition-all duration-200
-              ${dragOverColumn === column.id ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900' : ''}
+              ${dragOverColumn === column.id ? 'ring-2 ring-orange-500 ring-offset-2 dark:ring-offset-gray-900' : ''}
             `}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
@@ -348,17 +349,18 @@ function SprintBoard() {
                 <h3 className="font-bold text-gray-700 dark:text-gray-200">{column.title}</h3>
               </div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 px-2 py-0.5 rounded-lg">
-                {getStoriesByStatus(column.id).length}
+                {getStoriesByColumn(column).length}
               </span>
             </div>
             
             <div className="space-y-3 min-h-[200px]">
-              {getStoriesByStatus(column.id).map((story) => (
+              {getStoriesByColumn(column).map((story) => (
                 <StoryCard
                   key={story.id}
                   story={story}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  onProgressChange={handleProgressChange}
                 />
               ))}
             </div>
@@ -369,52 +371,87 @@ function SprintBoard() {
   );
 }
 
-function StoryCard({ story, onDragStart, onDragEnd }) {
+function StoryCard({ story, onDragStart, onDragEnd, onProgressChange }) {
+  const [editingProgress, setEditingProgress] = useState(false);
+  const [tempProgress, setTempProgress] = useState(story.progress);
+
+  const handleProgressSubmit = () => {
+    if (tempProgress !== story.progress) {
+      onProgressChange(story.id, tempProgress);
+    }
+    setEditingProgress(false);
+  };
+
   return (
     <div 
       draggable
       onDragStart={(e) => onDragStart(e, story)}
       onDragEnd={onDragEnd}
-      className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group"
+      className={`bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group ${
+        story.isBlocked ? 'border-2 border-red-400 dark:border-red-500' : ''
+      }`}
     >
       <div className="flex items-start justify-between mb-2">
-        <h4 className="font-medium text-gray-900 dark:text-white text-sm flex-1">{story.title}</h4>
+        <h4 className={`font-medium text-sm flex-1 ${
+          story.isBlocked ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'
+        }`}>
+          {story.title}
+        </h4>
         <GripVertical size={16} className="text-gray-300 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
       </div>
       
       {story.description && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{story.description}</p>
       )}
+
+      {/* Progress */}
+      <div className="mb-3">
+        {editingProgress ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={tempProgress}
+              onChange={e => setTempProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+              onBlur={handleProgressSubmit}
+              onKeyDown={e => e.key === 'Enter' && handleProgressSubmit()}
+              className="w-16 px-2 py-1 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-600 dark:text-white text-center"
+              autoFocus
+            />
+            <span className="text-xs text-gray-400">%</span>
+          </div>
+        ) : (
+          <div 
+            onClick={() => setEditingProgress(true)}
+            className="cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            <BatteryCompact progress={story.progress || 0} isBlocked={story.isBlocked} />
+          </div>
+        )}
+      </div>
       
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-lg ${priorityColors[story.priority]}`}>
-            {priorityLabels[story.priority]}
-          </span>
-          {story.estimate && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-600 px-1.5 py-0.5 rounded">
-              {story.estimate} נק׳
+        <div className="flex items-center gap-2 flex-wrap">
+          {story.isBlocked && (
+            <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg">
+              🚫 חסום
+            </span>
+          )}
+          {story.rock && (
+            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+              {story.rock.code}
             </span>
           )}
         </div>
         {story.owner && (
           <div className="flex items-center gap-1">
-            {story.owner.picture ? (
-              <img src={story.owner.picture} alt={story.owner.name} className="w-5 h-5 rounded-full" />
-            ) : (
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                <span className="text-[10px] text-white font-bold">{story.owner.name?.charAt(0)}</span>
-              </div>
-            )}
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+              <span className="text-[10px] text-white font-bold">{story.owner.name?.charAt(0)}</span>
+            </div>
           </div>
         )}
       </div>
-      
-      {story.rock && (
-        <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-lg inline-block">
-          {story.rock.code}
-        </div>
-      )}
     </div>
   );
 }

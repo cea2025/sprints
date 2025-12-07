@@ -8,15 +8,14 @@ const router = express.Router();
 router.use(isAuthenticated);
 
 // @route   GET /api/rocks
-// @desc    Get all rocks with progress calculation
+// @desc    Get all rocks with progress
 router.get('/', async (req, res) => {
   try {
-    const { yearOfRecord, currentQuarter, status, objectiveId } = req.query;
+    const { year, quarter, objectiveId } = req.query;
     
     const where = {};
-    if (yearOfRecord) where.yearOfRecord = parseInt(yearOfRecord);
-    if (currentQuarter) where.currentQuarter = parseInt(currentQuarter);
-    if (status) where.status = status;
+    if (year) where.year = parseInt(year);
+    if (quarter) where.quarter = parseInt(quarter);
     if (objectiveId) where.objectiveId = objectiveId;
 
     const rocks = await prisma.rock.findMany({
@@ -27,41 +26,35 @@ router.get('/', async (req, res) => {
         stories: {
           select: {
             id: true,
-            status: true,
-            estimate: true
-          }
-        },
-        sprintRocks: {
-          include: {
-            sprint: true
+            progress: true,
+            isBlocked: true
           }
         }
       },
       orderBy: [
-        { yearOfRecord: 'desc' },
-        { currentQuarter: 'desc' },
+        { year: 'desc' },
+        { quarter: 'desc' },
         { code: 'asc' }
       ]
     });
 
-    // Add progress calculation based on points
+    // Calculate progress from stories if not set manually
     const rocksWithProgress = rocks.map(rock => {
-      const donePoints = rock.stories
-        .filter(s => s.status === 'DONE')
-        .reduce((sum, s) => sum + (s.estimate || 0), 0);
-      
-      const totalStories = rock.stories.length;
-      const doneStories = rock.stories.filter(s => s.status === 'DONE').length;
-      const progress = rock.committedPoints > 0 
-        ? Math.round((donePoints / rock.committedPoints) * 100) 
-        : 0;
+      let calculatedProgress = 0;
+      if (rock.stories.length > 0) {
+        calculatedProgress = Math.round(
+          rock.stories.reduce((sum, s) => sum + (s.progress || 0), 0) / rock.stories.length
+        );
+      }
       
       return {
         ...rock,
-        donePoints,
-        progress,
-        totalStories,
-        doneStories
+        calculatedProgress,
+        // Use manual progress if set, otherwise calculated
+        effectiveProgress: rock.progress > 0 ? rock.progress : calculatedProgress,
+        totalStories: rock.stories.length,
+        completedStories: rock.stories.filter(s => s.progress === 100).length,
+        blockedStories: rock.stories.filter(s => s.isBlocked).length
       };
     });
 
@@ -73,7 +66,7 @@ router.get('/', async (req, res) => {
 });
 
 // @route   GET /api/rocks/:id
-// @desc    Get single rock with all details
+// @desc    Get single rock
 router.get('/:id', async (req, res) => {
   try {
     const rock = await prisma.rock.findUnique({
@@ -87,17 +80,6 @@ router.get('/:id', async (req, res) => {
             sprint: true
           },
           orderBy: { createdAt: 'desc' }
-        },
-        sprintRocks: {
-          include: {
-            sprint: true
-          }
-        },
-        quarterLogs: {
-          orderBy: [
-            { year: 'desc' },
-            { quarter: 'desc' }
-          ]
         }
       }
     });
@@ -106,12 +88,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Rock not found' });
     }
 
-    // Calculate done points
-    const donePoints = rock.stories
-      .filter(s => s.status === 'DONE')
-      .reduce((sum, s) => sum + (s.estimate || 0), 0);
-
-    res.json({ ...rock, donePoints });
+    res.json(rock);
   } catch (error) {
     console.error('Error fetching rock:', error);
     res.status(500).json({ error: 'Failed to fetch rock' });
@@ -122,23 +99,16 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new rock
 router.post('/', async (req, res) => {
   try {
-    const { 
-      code, name, description, status,
-      yearOfRecord, originalQuarter, currentQuarter,
-      committedPoints, health, ownerId, objectiveId 
-    } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId } = req.body;
 
     const rock = await prisma.rock.create({
       data: {
         code,
         name,
         description,
-        status: status || 'PLANNED',
-        yearOfRecord: parseInt(yearOfRecord),
-        originalQuarter: parseInt(originalQuarter),
-        currentQuarter: currentQuarter ? parseInt(currentQuarter) : parseInt(originalQuarter),
-        committedPoints: committedPoints ? parseInt(committedPoints) : 0,
-        health: health || 'GREEN',
+        year: parseInt(year),
+        quarter: parseInt(quarter),
+        progress: progress ? parseInt(progress) : 0,
         ownerId: ownerId || null,
         objectiveId: objectiveId || null
       },
@@ -162,11 +132,7 @@ router.post('/', async (req, res) => {
 // @desc    Update a rock
 router.put('/:id', async (req, res) => {
   try {
-    const { 
-      code, name, description, status,
-      yearOfRecord, originalQuarter, currentQuarter,
-      committedPoints, health, ownerId, objectiveId 
-    } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter } = req.body;
 
     const rock = await prisma.rock.update({
       where: { id: req.params.id },
@@ -174,14 +140,13 @@ router.put('/:id', async (req, res) => {
         code,
         name,
         description,
-        status,
-        yearOfRecord: yearOfRecord ? parseInt(yearOfRecord) : undefined,
-        originalQuarter: originalQuarter ? parseInt(originalQuarter) : undefined,
-        currentQuarter: currentQuarter ? parseInt(currentQuarter) : undefined,
-        committedPoints: committedPoints !== undefined ? parseInt(committedPoints) : undefined,
-        health,
+        year: year ? parseInt(year) : undefined,
+        quarter: quarter ? parseInt(quarter) : undefined,
+        progress: progress !== undefined ? parseInt(progress) : undefined,
         ownerId: ownerId || null,
-        objectiveId: objectiveId || null
+        objectiveId: objectiveId || null,
+        isCarriedOver: isCarriedOver !== undefined ? isCarriedOver : undefined,
+        carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null
       },
       include: {
         owner: true,
@@ -197,52 +162,33 @@ router.put('/:id', async (req, res) => {
 });
 
 // @route   POST /api/rocks/:id/carry-over
-// @desc    Carry over a rock to the next quarter
+// @desc    Carry over a rock to next quarter
 router.post('/:id/carry-over', async (req, res) => {
   try {
     const rock = await prisma.rock.findUnique({
-      where: { id: req.params.id },
-      include: {
-        stories: {
-          where: { status: 'DONE' },
-          select: { estimate: true }
-        }
-      }
+      where: { id: req.params.id }
     });
 
     if (!rock) {
       return res.status(404).json({ error: 'Rock not found' });
     }
 
-    const donePoints = rock.stories.reduce((sum, s) => sum + (s.estimate || 0), 0);
+    const currentQuarter = rock.quarter;
+    let nextQuarter = currentQuarter + 1;
+    let nextYear = rock.year;
     
-    // Log the current quarter
-    await prisma.rockQuarterLog.create({
-      data: {
-        rockId: rock.id,
-        year: rock.yearOfRecord,
-        quarter: rock.currentQuarter,
-        committedPoints: rock.committedPoints,
-        donePoints,
-        wasCarryOver: rock.currentQuarter !== rock.originalQuarter
-      }
-    });
-
-    // Calculate next quarter
-    let nextQuarter = rock.currentQuarter + 1;
-    let nextYear = rock.yearOfRecord;
     if (nextQuarter > 4) {
       nextQuarter = 1;
       nextYear++;
     }
 
-    // Update rock to next quarter
     const updatedRock = await prisma.rock.update({
       where: { id: req.params.id },
       data: {
-        currentQuarter: nextQuarter,
-        committedPoints: rock.committedPoints - donePoints, // Remaining points
-        health: 'YELLOW' // Mark as at risk since it carried over
+        quarter: nextQuarter,
+        year: nextYear,
+        isCarriedOver: true,
+        carriedFromQuarter: currentQuarter
       },
       include: {
         owner: true,
@@ -254,6 +200,30 @@ router.post('/:id/carry-over', async (req, res) => {
   } catch (error) {
     console.error('Error carrying over rock:', error);
     res.status(500).json({ error: 'Failed to carry over rock' });
+  }
+});
+
+// @route   PUT /api/rocks/:id/progress
+// @desc    Update rock progress
+router.put('/:id/progress', async (req, res) => {
+  try {
+    const { progress } = req.body;
+
+    const rock = await prisma.rock.update({
+      where: { id: req.params.id },
+      data: {
+        progress: Math.min(100, Math.max(0, parseInt(progress) || 0))
+      },
+      include: {
+        owner: true,
+        objective: true
+      }
+    });
+
+    res.json(rock);
+  } catch (error) {
+    console.error('Error updating rock progress:', error);
+    res.status(500).json({ error: 'Failed to update progress' });
   }
 });
 

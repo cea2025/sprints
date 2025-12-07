@@ -1,103 +1,38 @@
-/**
- * Seed Objectives Script
- * Run with: node scripts/seed-objectives.js
- */
-
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const objectives = [
-  {
-    code: '25-OBJ-01',
-    name: 'חוברת ואתר הסבר תוכניות הגמ"ח',
-    description: 'לא פירמידה - הסברה ושיווק תוכניות הגמ"ח',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-02',
-    name: 'יח"צ של הגמ"ח',
-    description: 'יחסי ציבור ופרסום הגמ"ח',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-03',
-    name: 'התקדמות תוכנה חדשה',
-    description: 'הגדרה ופיתוח תוכנה חדשה',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-04',
-    name: 'הטמעה והפצה איזור אישי / פרסום',
-    description: 'הטמעת האיזור האישי והפצתו למשתמשים',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-05',
-    name: 'חוו"ד משפטים',
-    description: 'קבלת חוות דעת משפטית',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-06',
-    name: 'תוכנית שימור',
-    description: 'תוכנית לשימור לקוחות ומשתתפים',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-07',
-    name: 'המלצות רבנים',
-    description: 'קבלת המלצות מרבנים',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-08',
-    name: 'הרחבת ועדת כספים',
-    description: '2 חוד כספים / הרחבת ועדת כספים',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-09',
-    name: 'דיון קבלת חווד נוסף',
-    description: 'דיון האם לקבל עוד חווד / לסגור עם בלס',
-    timeframe: '2025'
-  },
-  {
-    code: '25-OBJ-10',
-    name: 'קביעת לוח דוח כספי',
-    description: 'קביעת לוח לדוח כספי ואיזה שינויים / הוספות ביאורים נכניס',
-    timeframe: '2025'
-  }
+  { code: "OBJ-01", name: "חינוך לחיים טובים", description: "קידום חינוך ערכי ומיומנויות חיים" },
+  { code: "OBJ-02", name: "הורים מעורבים", description: "שיתוף פעולה עם הורים" },
+  { code: "OBJ-03", name: "זהות יהודית ישראלית", description: "חיזוק הזהות היהודית" },
+  { code: "OBJ-04", name: "תפילה", description: "העמקת חוויית התפילה" },
+  { code: "OBJ-05", name: "משמעת מכבדת", description: "בניית סביבה מכבדת ובטוחה" },
+  { code: "OBJ-06", name: "גמילות חסדים", description: "טיפוח ערכי נתינה וחסד" },
+  { code: "OBJ-07", name: "מצוינות בתורה", description: "קידום לימוד תורה ברמה גבוהה" },
+  { code: "OBJ-08", name: "מצוינות אקדמית", description: "השגת הישגים לימודיים גבוהים" },
+  { code: "OBJ-09", name: "יסודות איתנים", description: "בניית בסיס יציב לבית הספר" },
+  { code: "OBJ-10", name: "גיוס ושימור", description: "גיוס ושימור כוח אדם איכותי" }
 ];
 
-async function main() {
-  console.log('🌱 Starting to seed objectives...\n');
-
+async function seed() {
+  console.log('🌱 Seeding objectives...');
+  
   for (const obj of objectives) {
     try {
-      const created = await prisma.objective.upsert({
+      await prisma.objective.upsert({
         where: { code: obj.code },
-        update: {
-          name: obj.name,
-          description: obj.description,
-          timeframe: obj.timeframe
-        },
+        update: { name: obj.name, description: obj.description },
         create: obj
       });
-      console.log(`✅ ${created.code}: ${created.name}`);
+      console.log(`✅ ${obj.code}: ${obj.name}`);
     } catch (error) {
-      console.error(`❌ Error creating ${obj.code}:`, error.message);
+      console.error(`❌ Error seeding ${obj.code}:`, error.message);
     }
   }
-
-  console.log('\n🎉 Seeding completed!');
+  
+  console.log('✅ Objectives seeding complete!');
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-
+seed()
+  .catch(e => console.error(e))
+  .finally(() => prisma.$disconnect());

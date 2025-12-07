@@ -8,149 +8,70 @@ const router = express.Router();
 router.use(isAuthenticated);
 
 // @route   GET /api/sprints
-// @desc    Get all sprints with rocks and stats
+// @desc    Get all sprints
 router.get('/', async (req, res) => {
   try {
-    const { state, yearOfRecord, quarter } = req.query;
+    const { year, quarter } = req.query;
     
     const where = {};
-    if (state) where.state = state;
+    if (year) where.year = parseInt(year);
+    if (quarter) where.quarter = parseInt(quarter);
 
     const sprints = await prisma.sprint.findMany({
       where,
       include: {
         sprintRocks: {
           include: {
-            rock: true
+            rock: {
+              include: {
+                objective: true
+              }
+            }
           }
         },
         stories: {
           select: {
             id: true,
-            status: true,
-            estimate: true
+            progress: true,
+            isBlocked: true
           }
         }
       },
-      orderBy: { startDate: 'desc' }
+      orderBy: [
+        { year: 'desc' },
+        { quarter: 'desc' },
+        { sprintNumber: 'desc' }
+      ]
     });
 
-    // Add stats to each sprint
-    const sprintsWithStats = sprints.map(sprint => {
-      const stats = {
-        total: sprint.stories.length,
-        todo: sprint.stories.filter(s => s.status === 'TODO').length,
-        inProgress: sprint.stories.filter(s => s.status === 'IN_PROGRESS').length,
-        blocked: sprint.stories.filter(s => s.status === 'BLOCKED').length,
-        done: sprint.stories.filter(s => s.status === 'DONE').length,
-        totalPoints: sprint.stories.reduce((sum, s) => sum + (s.estimate || 0), 0),
-        donePoints: sprint.stories
-          .filter(s => s.status === 'DONE')
-          .reduce((sum, s) => sum + (s.estimate || 0), 0)
-      };
-      
-      // Extract rocks from sprintRocks
-      const rocks = sprint.sprintRocks.map(sr => sr.rock);
+    // Add progress calculations
+    const sprintsWithProgress = sprints.map(sprint => {
+      let totalProgress = 0;
+      if (sprint.stories.length > 0) {
+        totalProgress = Math.round(
+          sprint.stories.reduce((sum, s) => sum + (s.progress || 0), 0) / sprint.stories.length
+        );
+      }
       
       return {
         ...sprint,
-        rocks,
-        stats
+        rocks: sprint.sprintRocks.map(sr => sr.rock),
+        progress: totalProgress,
+        totalStories: sprint.stories.length,
+        completedStories: sprint.stories.filter(s => s.progress === 100).length,
+        blockedStories: sprint.stories.filter(s => s.isBlocked).length
       };
     });
 
-    res.json(sprintsWithStats);
+    res.json(sprintsWithProgress);
   } catch (error) {
     console.error('Error fetching sprints:', error);
     res.status(500).json({ error: 'Failed to fetch sprints' });
   }
 });
 
-// @route   GET /api/sprints/current
-// @desc    Get current active sprint
-router.get('/current', async (req, res) => {
-  try {
-    const today = new Date();
-    
-    // First try to find by state ACTIVE
-    let sprint = await prisma.sprint.findFirst({
-      where: { state: 'ACTIVE' },
-      include: {
-        sprintRocks: {
-          include: {
-            rock: true
-          }
-        },
-        stories: {
-          include: {
-            owner: true,
-            rock: true
-          }
-        }
-      }
-    });
-
-    // If no active sprint, try by date
-    if (!sprint) {
-      sprint = await prisma.sprint.findFirst({
-        where: {
-          startDate: { lte: today },
-          endDate: { gte: today }
-        },
-        include: {
-          sprintRocks: {
-            include: {
-              rock: true
-            }
-          },
-          stories: {
-            include: {
-              owner: true,
-              rock: true
-            }
-          }
-        }
-      });
-    }
-
-    if (!sprint) {
-      // Return next upcoming sprint if no current
-      const nextSprint = await prisma.sprint.findFirst({
-        where: {
-          startDate: { gt: today }
-        },
-        orderBy: { startDate: 'asc' },
-        include: {
-          sprintRocks: {
-            include: {
-              rock: true
-            }
-          },
-          stories: {
-            include: {
-              owner: true,
-              rock: true
-            }
-          }
-        }
-      });
-      
-      if (nextSprint) {
-        nextSprint.rocks = nextSprint.sprintRocks.map(sr => sr.rock);
-      }
-      return res.json(nextSprint || null);
-    }
-
-    sprint.rocks = sprint.sprintRocks.map(sr => sr.rock);
-    res.json(sprint);
-  } catch (error) {
-    console.error('Error fetching current sprint:', error);
-    res.status(500).json({ error: 'Failed to fetch current sprint' });
-  }
-});
-
 // @route   GET /api/sprints/:id
-// @desc    Get single sprint with stories
+// @desc    Get single sprint with all details
 router.get('/:id', async (req, res) => {
   try {
     const sprint = await prisma.sprint.findUnique({
@@ -158,7 +79,12 @@ router.get('/:id', async (req, res) => {
       include: {
         sprintRocks: {
           include: {
-            rock: true
+            rock: {
+              include: {
+                owner: true,
+                objective: true
+              }
+            }
           }
         },
         stories: {
@@ -166,11 +92,7 @@ router.get('/:id', async (req, res) => {
             owner: true,
             rock: true
           },
-          orderBy: [
-            { status: 'asc' },
-            { priority: 'desc' },
-            { createdAt: 'desc' }
-          ]
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
@@ -179,10 +101,10 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Sprint not found' });
     }
 
-    // Extract rocks from sprintRocks
-    sprint.rocks = sprint.sprintRocks.map(sr => sr.rock);
-    
-    res.json(sprint);
+    res.json({
+      ...sprint,
+      rocks: sprint.sprintRocks.map(sr => sr.rock)
+    });
   } catch (error) {
     console.error('Error fetching sprint:', error);
     res.status(500).json({ error: 'Failed to fetch sprint' });
@@ -190,23 +112,37 @@ router.get('/:id', async (req, res) => {
 });
 
 // @route   POST /api/sprints
-// @desc    Create a new sprint
+// @desc    Create a new sprint with auto-generated name
 router.post('/', async (req, res) => {
   try {
-    const { name, goal, startDate, endDate, capacityPoints, state, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+
+    // Auto-generate name: 2026-Q2-S5
+    const name = `${year}-Q${quarter}-S${sprintNumber}`;
+
+    // Check if name already exists
+    const existing = await prisma.sprint.findUnique({
+      where: { name }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: `ספרינט ${name} כבר קיים` });
+    }
 
     const sprint = await prisma.sprint.create({
       data: {
         name,
+        year: parseInt(year),
+        quarter: parseInt(quarter),
+        sprintNumber: parseInt(sprintNumber),
         goal,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        capacityPoints: capacityPoints ? parseInt(capacityPoints) : 0,
-        state: state || 'PLANNED',
-        // Create sprint-rock connections if rockIds provided
-        sprintRocks: rockIds && rockIds.length > 0 ? {
-          create: rockIds.map(rockId => ({ rockId }))
-        } : undefined
+        sprintRocks: {
+          create: (rockIds || []).map(rockId => ({
+            rockId
+          }))
+        }
       },
       include: {
         sprintRocks: {
@@ -217,13 +153,12 @@ router.post('/', async (req, res) => {
       }
     });
 
-    sprint.rocks = sprint.sprintRocks.map(sr => sr.rock);
-    res.status(201).json(sprint);
+    res.status(201).json({
+      ...sprint,
+      rocks: sprint.sprintRocks.map(sr => sr.rock)
+    });
   } catch (error) {
     console.error('Error creating sprint:', error);
-    if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Sprint name already exists' });
-    }
     res.status(500).json({ error: 'Failed to create sprint' });
   }
 });
@@ -232,42 +167,49 @@ router.post('/', async (req, res) => {
 // @desc    Update a sprint
 router.put('/:id', async (req, res) => {
   try {
-    const { name, goal, startDate, endDate, capacityPoints, state, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
 
-    // Update sprint basic data
+    // Auto-generate name if year/quarter/sprintNumber provided
+    let name;
+    if (year && quarter && sprintNumber) {
+      name = `${year}-Q${quarter}-S${sprintNumber}`;
+    }
+
+    // Update sprint
     const sprint = await prisma.sprint.update({
       where: { id: req.params.id },
       data: {
-        name,
+        name: name || undefined,
+        year: year ? parseInt(year) : undefined,
+        quarter: quarter ? parseInt(quarter) : undefined,
+        sprintNumber: sprintNumber ? parseInt(sprintNumber) : undefined,
         goal,
         startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        capacityPoints: capacityPoints !== undefined ? parseInt(capacityPoints) : undefined,
-        state
+        endDate: endDate ? new Date(endDate) : undefined
       }
     });
 
-    // If rockIds provided, update the relationships
+    // Update rock associations if provided
     if (rockIds !== undefined) {
-      // Delete existing relationships
+      // Remove existing associations
       await prisma.sprintRock.deleteMany({
-        where: { sprintId: req.params.id }
+        where: { sprintId: sprint.id }
       });
 
-      // Create new relationships
-      if (rockIds && rockIds.length > 0) {
+      // Add new associations
+      if (rockIds.length > 0) {
         await prisma.sprintRock.createMany({
           data: rockIds.map(rockId => ({
-            sprintId: req.params.id,
+            sprintId: sprint.id,
             rockId
           }))
         });
       }
     }
 
-    // Fetch updated sprint with rocks
+    // Fetch updated sprint
     const updatedSprint = await prisma.sprint.findUnique({
-      where: { id: req.params.id },
+      where: { id: sprint.id },
       include: {
         sprintRocks: {
           include: {
@@ -277,103 +219,13 @@ router.put('/:id', async (req, res) => {
       }
     });
 
-    updatedSprint.rocks = updatedSprint.sprintRocks.map(sr => sr.rock);
-    res.json(updatedSprint);
+    res.json({
+      ...updatedSprint,
+      rocks: updatedSprint.sprintRocks.map(sr => sr.rock)
+    });
   } catch (error) {
     console.error('Error updating sprint:', error);
     res.status(500).json({ error: 'Failed to update sprint' });
-  }
-});
-
-// @route   POST /api/sprints/:id/rocks
-// @desc    Add rocks to a sprint
-router.post('/:id/rocks', async (req, res) => {
-  try {
-    const { rockIds } = req.body;
-
-    if (!rockIds || !Array.isArray(rockIds)) {
-      return res.status(400).json({ error: 'rockIds array is required' });
-    }
-
-    // Create connections (ignore duplicates)
-    for (const rockId of rockIds) {
-      await prisma.sprintRock.upsert({
-        where: {
-          sprintId_rockId: {
-            sprintId: req.params.id,
-            rockId
-          }
-        },
-        create: {
-          sprintId: req.params.id,
-          rockId
-        },
-        update: {}
-      });
-    }
-
-    // Fetch updated sprint
-    const sprint = await prisma.sprint.findUnique({
-      where: { id: req.params.id },
-      include: {
-        sprintRocks: {
-          include: {
-            rock: true
-          }
-        }
-      }
-    });
-
-    sprint.rocks = sprint.sprintRocks.map(sr => sr.rock);
-    res.json(sprint);
-  } catch (error) {
-    console.error('Error adding rocks to sprint:', error);
-    res.status(500).json({ error: 'Failed to add rocks to sprint' });
-  }
-});
-
-// @route   DELETE /api/sprints/:id/rocks/:rockId
-// @desc    Remove a rock from a sprint
-router.delete('/:id/rocks/:rockId', async (req, res) => {
-  try {
-    await prisma.sprintRock.delete({
-      where: {
-        sprintId_rockId: {
-          sprintId: req.params.id,
-          rockId: req.params.rockId
-        }
-      }
-    });
-
-    res.json({ message: 'Rock removed from sprint' });
-  } catch (error) {
-    console.error('Error removing rock from sprint:', error);
-    res.status(500).json({ error: 'Failed to remove rock from sprint' });
-  }
-});
-
-// @route   POST /api/sprints/:id/close
-// @desc    Close a sprint
-router.post('/:id/close', async (req, res) => {
-  try {
-    const sprint = await prisma.sprint.update({
-      where: { id: req.params.id },
-      data: { state: 'CLOSED' },
-      include: {
-        sprintRocks: {
-          include: {
-            rock: true
-          }
-        },
-        stories: true
-      }
-    });
-
-    sprint.rocks = sprint.sprintRocks.map(sr => sr.rock);
-    res.json(sprint);
-  } catch (error) {
-    console.error('Error closing sprint:', error);
-    res.status(500).json({ error: 'Failed to close sprint' });
   }
 });
 

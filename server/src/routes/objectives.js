@@ -5,7 +5,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // @route   GET /api/objectives
-// @desc    Get all objectives with rocks count and progress
+// @desc    Get all objectives with rocks and progress
 router.get('/', async (req, res) => {
   try {
     const objectives = await prisma.objective.findMany({
@@ -14,31 +14,27 @@ router.get('/', async (req, res) => {
         rocks: {
           include: {
             stories: {
-              where: { status: 'DONE' },
-              select: { estimate: true }
+              select: { progress: true }
             }
           }
         }
       },
-      orderBy: [
-        { timeframe: 'desc' },
-        { code: 'asc' }
-      ]
+      orderBy: { createdAt: 'desc' }
     });
 
     // Calculate progress for each objective
     const objectivesWithProgress = objectives.map(obj => {
-      const totalCommitted = obj.rocks.reduce((sum, rock) => sum + rock.committedPoints, 0);
-      const totalDone = obj.rocks.reduce((sum, rock) => {
-        return sum + rock.stories.reduce((s, story) => s + (story.estimate || 0), 0);
-      }, 0);
+      let totalProgress = 0;
+      if (obj.rocks.length > 0) {
+        totalProgress = Math.round(
+          obj.rocks.reduce((sum, rock) => sum + (rock.progress || 0), 0) / obj.rocks.length
+        );
+      }
       
       return {
         ...obj,
         rocksCount: obj.rocks.length,
-        totalCommittedPoints: totalCommitted,
-        totalDonePoints: totalDone,
-        progress: totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0
+        progress: totalProgress
       };
     });
 
@@ -50,7 +46,7 @@ router.get('/', async (req, res) => {
 });
 
 // @route   GET /api/objectives/:id
-// @desc    Get single objective with all details
+// @desc    Get single objective
 router.get('/:id', async (req, res) => {
   try {
     const objective = await prisma.objective.findUnique({
@@ -81,16 +77,13 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new objective
 router.post('/', async (req, res) => {
   try {
-    const { code, name, description, timeframe, targetValue, metric, ownerId } = req.body;
+    const { code, name, description, ownerId } = req.body;
 
     const objective = await prisma.objective.create({
       data: {
         code,
         name,
         description,
-        timeframe,
-        targetValue: targetValue ? parseInt(targetValue) : null,
-        metric,
         ownerId: ownerId || null
       },
       include: {
@@ -112,7 +105,7 @@ router.post('/', async (req, res) => {
 // @desc    Update an objective
 router.put('/:id', async (req, res) => {
   try {
-    const { code, name, description, timeframe, targetValue, metric, ownerId } = req.body;
+    const { code, name, description, ownerId } = req.body;
 
     const objective = await prisma.objective.update({
       where: { id: req.params.id },
@@ -120,9 +113,6 @@ router.put('/:id', async (req, res) => {
         code,
         name,
         description,
-        timeframe,
-        targetValue: targetValue !== undefined ? (targetValue ? parseInt(targetValue) : null) : undefined,
-        metric,
         ownerId: ownerId || null
       },
       include: {
@@ -141,7 +131,6 @@ router.put('/:id', async (req, res) => {
 // @desc    Delete an objective
 router.delete('/:id', async (req, res) => {
   try {
-    // First, unlink all rocks from this objective
     await prisma.rock.updateMany({
       where: { objectiveId: req.params.id },
       data: { objectiveId: null }
@@ -159,4 +148,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-

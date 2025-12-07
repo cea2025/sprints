@@ -8,34 +8,29 @@ const router = express.Router();
 router.use(isAuthenticated);
 
 // @route   GET /api/stories
-// @desc    Get all stories with filters
+// @desc    Get all stories
 router.get('/', async (req, res) => {
   try {
-    const { sprintId, rockId, ownerId, status, priority } = req.query;
+    const { sprintId, rockId, ownerId, isBlocked } = req.query;
     
     const where = {};
     if (sprintId) where.sprintId = sprintId;
     if (rockId) where.rockId = rockId;
     if (ownerId) where.ownerId = ownerId;
-    if (status) where.status = status;
-    if (priority) where.priority = priority;
+    if (isBlocked !== undefined) where.isBlocked = isBlocked === 'true';
 
     const stories = await prisma.story.findMany({
       where,
       include: {
-        owner: true,
         sprint: true,
         rock: {
           include: {
             objective: true
           }
-        }
+        },
+        owner: true
       },
-      orderBy: [
-        { status: 'asc' },
-        { priority: 'desc' },
-        { createdAt: 'desc' }
-      ]
+      orderBy: { createdAt: 'desc' }
     });
 
     res.json(stories);
@@ -52,9 +47,13 @@ router.get('/:id', async (req, res) => {
     const story = await prisma.story.findUnique({
       where: { id: req.params.id },
       include: {
-        owner: true,
         sprint: true,
-        rock: true
+        rock: {
+          include: {
+            objective: true
+          }
+        },
+        owner: true
       }
     });
 
@@ -73,23 +72,34 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new story
 router.post('/', async (req, res) => {
   try {
-    const { title, description, status, priority, estimate, sprintId, rockId, ownerId } = req.body;
+    const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+
+    // Validate required fields
+    if (!sprintId) {
+      return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
+    }
+    if (!ownerId) {
+      return res.status(400).json({ error: 'אחראי הוא שדה חובה' });
+    }
 
     const story = await prisma.story.create({
       data: {
         title,
         description,
-        status: status || 'TODO',
-        priority: priority || 'MEDIUM',
-        estimate: estimate ? parseInt(estimate) : null,
-        sprintId: sprintId || null,    // Convert empty string to null
-        rockId: rockId || null,        // Convert empty string to null
-        ownerId: ownerId || null       // Convert empty string to null
+        progress: progress ? parseInt(progress) : 0,
+        isBlocked: isBlocked || false,
+        sprintId,
+        rockId: rockId || null,
+        ownerId
       },
       include: {
-        owner: true,
         sprint: true,
-        rock: true
+        rock: {
+          include: {
+            objective: true
+          }
+        },
+        owner: true
       }
     });
 
@@ -104,24 +114,35 @@ router.post('/', async (req, res) => {
 // @desc    Update a story
 router.put('/:id', async (req, res) => {
   try {
-    const { title, description, status, priority, estimate, sprintId, rockId, ownerId } = req.body;
+    const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+
+    // Validate required fields
+    if (sprintId === '') {
+      return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
+    }
+    if (ownerId === '') {
+      return res.status(400).json({ error: 'אחראי הוא שדה חובה' });
+    }
 
     const story = await prisma.story.update({
       where: { id: req.params.id },
       data: {
         title,
         description,
-        status,
-        priority,
-        estimate: estimate !== undefined ? (estimate ? parseInt(estimate) : null) : undefined,
-        sprintId: sprintId || null,    // Convert empty string to null
-        rockId: rockId || null,        // Convert empty string to null
-        ownerId: ownerId || null       // Convert empty string to null
+        progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
+        isBlocked: isBlocked !== undefined ? isBlocked : undefined,
+        sprintId: sprintId || undefined,
+        rockId: rockId || null,
+        ownerId: ownerId || undefined
       },
       include: {
-        owner: true,
         sprint: true,
-        rock: true
+        rock: {
+          include: {
+            objective: true
+          }
+        },
+        owner: true
       }
     });
 
@@ -132,26 +153,64 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// @route   PATCH /api/stories/:id/status
-// @desc    Quick status update
-router.patch('/:id/status', async (req, res) => {
+// @route   PUT /api/stories/:id/progress
+// @desc    Quick update for story progress
+router.put('/:id/progress', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { progress, isBlocked } = req.body;
 
     const story = await prisma.story.update({
       where: { id: req.params.id },
-      data: { status },
+      data: {
+        progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
+        isBlocked: isBlocked !== undefined ? isBlocked : undefined
+      },
       include: {
-        owner: true,
         sprint: true,
-        rock: true
+        rock: {
+          include: {
+            objective: true
+          }
+        },
+        owner: true
       }
     });
 
     res.json(story);
   } catch (error) {
-    console.error('Error updating story status:', error);
-    res.status(500).json({ error: 'Failed to update story status' });
+    console.error('Error updating story progress:', error);
+    res.status(500).json({ error: 'Failed to update progress' });
+  }
+});
+
+// @route   PUT /api/stories/:id/block
+// @desc    Toggle story blocked state
+router.put('/:id/block', async (req, res) => {
+  try {
+    const current = await prisma.story.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!current) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+
+    const story = await prisma.story.update({
+      where: { id: req.params.id },
+      data: {
+        isBlocked: !current.isBlocked
+      },
+      include: {
+        sprint: true,
+        rock: true,
+        owner: true
+      }
+    });
+
+    res.json(story);
+  } catch (error) {
+    console.error('Error toggling block state:', error);
+    res.status(500).json({ error: 'Failed to toggle block state' });
   }
 });
 
