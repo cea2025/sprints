@@ -66,7 +66,7 @@ router.get('/', async (req, res) => {
     res.json(sprintsWithProgress);
   } catch (error) {
     console.error('Error fetching sprints:', error);
-    res.status(500).json({ error: 'Failed to fetch sprints' });
+    res.status(500).json([]);
   }
 });
 

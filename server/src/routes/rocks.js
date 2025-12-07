@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
     res.json(rocksWithProgress);
   } catch (error) {
     console.error('Error fetching rocks:', error);
-    res.status(500).json({ error: 'Failed to fetch rocks' });
+    res.status(500).json([]);
   }
 });
 

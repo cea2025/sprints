@@ -1,8 +1,11 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
+const { isAuthenticated } = require('../middleware/auth');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(isAuthenticated);
 
 // @route   GET /api/objectives
 // @desc    Get all objectives with rocks and progress
@@ -12,10 +15,9 @@ router.get('/', async (req, res) => {
       include: {
         owner: true,
         rocks: {
-          include: {
-            stories: {
-              select: { progress: true }
-            }
+          select: {
+            id: true,
+            progress: true
           }
         }
       },
@@ -25,15 +27,16 @@ router.get('/', async (req, res) => {
     // Calculate progress for each objective
     const objectivesWithProgress = objectives.map(obj => {
       let totalProgress = 0;
-      if (obj.rocks.length > 0) {
+      const rocksArray = obj.rocks || [];
+      if (rocksArray.length > 0) {
         totalProgress = Math.round(
-          obj.rocks.reduce((sum, rock) => sum + (rock.progress || 0), 0) / obj.rocks.length
+          rocksArray.reduce((sum, rock) => sum + (rock.progress || 0), 0) / rocksArray.length
         );
       }
       
       return {
         ...obj,
-        rocksCount: obj.rocks.length,
+        rocksCount: rocksArray.length,
         progress: totalProgress
       };
     });
@@ -41,7 +44,8 @@ router.get('/', async (req, res) => {
     res.json(objectivesWithProgress);
   } catch (error) {
     console.error('Error fetching objectives:', error);
-    res.status(500).json({ error: 'Failed to fetch objectives' });
+    // Return empty array on error so frontend doesn't crash
+    res.status(500).json([]);
   }
 });
 

@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
     res.json(stories);
   } catch (error) {
     console.error('Error fetching stories:', error);
-    res.status(500).json({ error: 'Failed to fetch stories' });
+    res.status(500).json([]);
   }
 });
 
