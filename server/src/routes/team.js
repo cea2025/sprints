@@ -130,18 +130,34 @@ router.put('/:id', async (req, res) => {
 });
 
 // @route   DELETE /api/team/:id
-// @desc    Deactivate a team member (soft delete)
+// @desc    Delete a team member (removes ownership from rocks/stories first)
 router.delete('/:id', async (req, res) => {
   try {
-    const teamMember = await prisma.teamMember.update({
-      where: { id: req.params.id },
-      data: { isActive: false }
+    // Remove ownership from rocks and stories first
+    await prisma.rock.updateMany({
+      where: { ownerId: req.params.id },
+      data: { ownerId: null }
+    });
+    
+    await prisma.story.updateMany({
+      where: { ownerId: req.params.id },
+      data: { ownerId: null }
+    });
+    
+    await prisma.objective.updateMany({
+      where: { ownerId: req.params.id },
+      data: { ownerId: null }
     });
 
-    res.json({ message: 'Team member deactivated', teamMember });
+    // Now delete the team member
+    await prisma.teamMember.delete({
+      where: { id: req.params.id }
+    });
+
+    res.json({ message: 'Team member deleted' });
   } catch (error) {
-    console.error('Error deactivating team member:', error);
-    res.status(500).json({ error: 'Failed to deactivate team member' });
+    console.error('Error deleting team member:', error);
+    res.status(500).json({ error: 'Failed to delete team member' });
   }
 });
 

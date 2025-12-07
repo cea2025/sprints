@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, UserX, UserCheck, Users, X } from 'lucide-react';
+import { Plus, Edit2, UserX, UserCheck, Users, X, Trash2 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { Skeleton } from '../components/ui/Skeleton';
 
@@ -79,6 +79,22 @@ function Team() {
       capacity: member.capacity || ''
     });
     setShowForm(true);
+  };
+
+  const handleDelete = async (member) => {
+    if (!confirm(`האם למחוק את ${member.name}?`)) return;
+
+    const res = await fetch(`/api/team/${member.id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      setTeamMembers(prev => Array.isArray(prev) ? prev.filter(m => m.id !== member.id) : []);
+      toast.success('חבר הצוות נמחק בהצלחה');
+    } else {
+      toast.error('שגיאה במחיקת חבר הצוות');
+    }
   };
 
   const resetForm = () => {
@@ -236,6 +252,7 @@ function Team() {
                 member={member}
                 onEdit={handleEdit}
                 onToggleActive={handleToggleActive}
+                onDelete={handleDelete}
                 index={index}
               />
             ))}
@@ -256,6 +273,7 @@ function Team() {
                 member={member}
                 onEdit={handleEdit}
                 onToggleActive={handleToggleActive}
+                onDelete={handleDelete}
                 inactive
                 index={index}
               />
@@ -267,7 +285,7 @@ function Team() {
   );
 }
 
-function MemberCard({ member, onEdit, onToggleActive, inactive, index }) {
+function MemberCard({ member, onEdit, onToggleActive, onDelete, inactive, index }) {
   return (
     <div 
       className={`rounded-2xl p-4 border transition-all hover:shadow-md animate-slide-in-up ${
@@ -308,6 +326,7 @@ function MemberCard({ member, onEdit, onToggleActive, inactive, index }) {
           <button
             onClick={() => onEdit(member)}
             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            title="עריכה"
           >
             <Edit2 size={16} />
           </button>
@@ -316,11 +335,18 @@ function MemberCard({ member, onEdit, onToggleActive, inactive, index }) {
             className={`p-2 rounded-lg transition-colors ${
               inactive 
                 ? 'text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20' 
-                : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20'
             }`}
             title={inactive ? 'הפעל' : 'השבת'}
           >
             {inactive ? <UserCheck size={16} /> : <UserX size={16} />}
+          </button>
+          <button
+            onClick={() => onDelete(member)}
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            title="מחק"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>

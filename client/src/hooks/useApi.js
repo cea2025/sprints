@@ -1,89 +1,73 @@
 import { useState, useCallback } from 'react';
+import { useToast } from '../components/ui/Toast';
 
 /**
- * Custom hook for API calls with loading and error states
+ * Custom hook for API calls with loading, error states and toast notifications
  */
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const toast = useToast();
 
   const request = useCallback(async (url, options = {}) => {
+    const { 
+      method = 'GET', 
+      body, 
+      showToast = true,
+      successMessage,
+      headers = {}
+    } = options;
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(url, {
+      const fetchOptions = {
+        method,
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...headers,
         },
-        ...options,
-      });
+      };
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      if (body && method !== 'GET') {
+        fetchOptions.body = JSON.stringify(body);
       }
 
-      const data = await response.json();
-      return { data, error: null };
+      const response = await fetch(url, fetchOptions);
+
+      // Handle 401 - unauthorized
+      if (response.status === 401) {
+        if (showToast) toast.error('לא מורשה - יש להתחבר מחדש');
+        return null;
+      }
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const errorMsg = data?.error || data?.message || `שגיאה ${response.status}`;
+        if (showToast) toast.error(errorMsg);
+        setError(errorMsg);
+        return null;
+      }
+
+      if (successMessage && showToast) {
+        toast.success(successMessage);
+      }
+
+      return data;
     } catch (err) {
-      setError(err.message);
-      return { data: null, error: err.message };
+      const errorMsg = err.message || 'שגיאה בחיבור לשרת';
+      if (showToast) toast.error(errorMsg);
+      setError(errorMsg);
+      return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
-  const get = useCallback((url) => request(url), [request]);
-
-  const post = useCallback((url, body) => 
-    request(url, { method: 'POST', body: JSON.stringify(body) }), [request]);
-
-  const put = useCallback((url, body) => 
-    request(url, { method: 'PUT', body: JSON.stringify(body) }), [request]);
-
-  const patch = useCallback((url, body) => 
-    request(url, { method: 'PATCH', body: JSON.stringify(body) }), [request]);
-
-  const del = useCallback((url) => 
-    request(url, { method: 'DELETE' }), [request]);
-
-  return { loading, error, get, post, put, patch, del, request };
-}
-
-/**
- * Hook for fetching data on mount
- */
-export function useFetch(url, dependencies = []) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch');
-      const result = await response.json();
-      setData(result);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [url]);
-
-  // Initial fetch
-  useState(() => {
-    refetch();
-  });
-
-  return { data, loading, error, refetch };
+  return { loading, error, request };
 }
 
 export default useApi;
-
