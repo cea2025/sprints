@@ -449,7 +449,10 @@ function Rocks() {
                       )}
                     </div>
                     <h3 className="font-medium text-gray-900 dark:text-white text-lg mb-1">{rock.name}</h3>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                    {rock.description && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">{rock.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
                       {rock.owner && <span>אחראי: {rock.owner.name}</span>}
                       {rock.objective && <span>מטרה: {rock.objective.code}</span>}
                     </div>

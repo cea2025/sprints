@@ -326,14 +326,19 @@ function Objectives() {
                       )}
                     </div>
                     <h3 className="font-medium text-gray-900 dark:text-white text-lg mb-1">{objective.name}</h3>
-                    {objective.metric && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {objective.metric}{objective.targetValue ? `: ${objective.targetValue}` : ''}
-                      </p>
+                    {objective.description && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">{objective.description}</p>
                     )}
-                    {objective.owner && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">אחראי: {objective.owner.name}</p>
-                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
+                      {objective.metric && (
+                        <span>
+                          {objective.metric}{objective.targetValue ? `: ${objective.targetValue}` : ''}
+                        </span>
+                      )}
+                      {objective.owner && (
+                        <span>אחראי: {objective.owner.name}</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}
