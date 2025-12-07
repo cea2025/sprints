@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useOrganization } from '../../context/OrganizationContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { ROLE_LABELS, ROLE_COLORS } from '../../constants/roles';
 import { 
@@ -17,15 +18,19 @@ import {
   Sun,
   Shield,
   CheckCircle,
-  Database
+  Database,
+  Building2,
+  ChevronDown
 } from 'lucide-react';
 import { useState } from 'react';
 
 function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { currentOrganization, organizations, selectOrganization, hasMultipleOrgs } = useOrganization();
   const { isAdmin, role } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [orgPickerOpen, setOrgPickerOpen] = useState(false);
   const navigate = useNavigate();
 
   const navigation = [
@@ -71,14 +76,89 @@ function Layout() {
         lg:translate-x-0 border-l border-gray-200 dark:border-gray-700
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
       `}>
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        {/* Organization Header */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          {/* Organization Selector */}
+          <div className="relative mb-3">
+            <button
+              onClick={() => hasMultipleOrgs && setOrgPickerOpen(!orgPickerOpen)}
+              className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
+                hasMultipleOrgs 
+                  ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
+                  : ''
+              }`}
+            >
+              {currentOrganization?.logo ? (
+                <img 
+                  src={currentOrganization.logo} 
+                  alt={currentOrganization.name}
+                  className="w-10 h-10 rounded-xl object-cover shadow-md ring-2 ring-white dark:ring-gray-700"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                />
+              ) : null}
+              <div className={`${currentOrganization?.logo ? 'hidden' : 'flex'} w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 items-center justify-center shadow-md ring-2 ring-white dark:ring-gray-700`}>
+                {currentOrganization ? (
+                  <span className="text-white font-bold text-lg">
+                    {currentOrganization.name.charAt(0)}
+                  </span>
+                ) : (
+                  <Building2 className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="flex-1 text-right">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  {currentOrganization?.name || 'בחר ארגון'}
+                </h2>
+                {hasMultipleOrgs && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">לחץ להחלפה</p>
+                )}
+              </div>
+              {hasMultipleOrgs && (
+                <ChevronDown 
+                  size={18} 
+                  className={`text-gray-400 transition-transform ${orgPickerOpen ? 'rotate-180' : ''}`} 
+                />
+              )}
+            </button>
+
+            {/* Org Picker Dropdown */}
+            {orgPickerOpen && hasMultipleOrgs && (
+              <div className="absolute top-full right-0 left-0 mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                {organizations.map(org => (
+                  <button
+                    key={org.id}
+                    onClick={() => {
+                      selectOrganization(org);
+                      setOrgPickerOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                      currentOrganization?.id === org.id ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                    }`}
+                  >
+                    {org.logo ? (
+                      <img src={org.logo} alt={org.name} className="w-8 h-8 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">{org.name.charAt(0)}</span>
+                      </div>
+                    )}
+                    <span className="font-medium text-gray-900 dark:text-white text-sm">{org.name}</span>
+                    {currentOrganization?.id === org.id && (
+                      <CheckCircle size={16} className="mr-auto text-purple-600" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* App Logo */}
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
-              <Mountain className="w-6 h-6 text-white" />
+              <Mountain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 ספרינטים
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">ניהול אבני דרך צוות</p>

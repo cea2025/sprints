@@ -20,6 +20,10 @@ const {
 // All routes require authentication
 router.use(isAuthenticated);
 
+// ==============================================================
+// IMPORTANT: Specific routes MUST come before parameterized routes
+// ==============================================================
+
 /**
  * @route   GET /api/organizations
  * @desc    Get all organizations for current user
@@ -30,6 +34,28 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * @route   GET /api/organizations/my
+ * @desc    Get organizations where user is a member (alias for /)
+ */
+router.get('/my', asyncHandler(async (req, res) => {
+  const organizations = await organizationService.getUserOrganizations(req.user.id);
+  res.json(organizations);
+}));
+
+/**
+ * @route   GET /api/organizations/current
+ * @desc    Get current active organization from session
+ */
+router.get('/current', asyncHandler(async (req, res) => {
+  if (!req.session.organizationId) {
+    return res.json({ organization: null });
+  }
+  
+  const organization = await organizationService.getById(req.session.organizationId, req.user.id);
+  res.json({ organization });
+}));
+
+/**
  * @route   POST /api/organizations
  * @desc    Create new organization
  */
@@ -37,6 +63,25 @@ router.post('/', validateBody(createOrganizationSchema), asyncHandler(async (req
   const organization = await organizationService.create(req.body, req.user.id);
   res.status(201).json(organization);
 }));
+
+/**
+ * @route   POST /api/organizations/select
+ * @desc    Set active organization for session
+ */
+router.post('/select', validateBody(selectOrganizationSchema), asyncHandler(async (req, res) => {
+  const result = await organizationService.setActiveOrganization(req.user.id, req.body.organizationId);
+  
+  // Save to session
+  req.session.organizationId = result.organizationId;
+  req.session.organizationName = result.organizationName;
+  req.session.organizationRole = result.role;
+  
+  res.json(result);
+}));
+
+// ==============================================================
+// Parameterized routes MUST come after specific routes
+// ==============================================================
 
 /**
  * @route   GET /api/organizations/:id
@@ -93,33 +138,4 @@ router.delete('/:id/members/:memberId', asyncHandler(async (req, res) => {
   res.json({ message: 'החבר הוסר מהארגון' });
 }));
 
-/**
- * @route   POST /api/organizations/select
- * @desc    Set active organization for session
- */
-router.post('/select', validateBody(selectOrganizationSchema), asyncHandler(async (req, res) => {
-  const result = await organizationService.setActiveOrganization(req.user.id, req.body.organizationId);
-  
-  // Save to session
-  req.session.organizationId = result.organizationId;
-  req.session.organizationName = result.organizationName;
-  req.session.organizationRole = result.role;
-  
-  res.json(result);
-}));
-
-/**
- * @route   GET /api/organizations/current
- * @desc    Get current active organization from session
- */
-router.get('/current', asyncHandler(async (req, res) => {
-  if (!req.session.organizationId) {
-    return res.json({ organization: null });
-  }
-  
-  const organization = await organizationService.getById(req.session.organizationId, req.user.id);
-  res.json({ organization });
-}));
-
 module.exports = router;
-

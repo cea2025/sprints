@@ -5,13 +5,13 @@
  * Manages organizations, users, roles, and allowed emails.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
 import { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS } from '../constants/roles';
 import { 
   Plus, Trash2, Mail, UserPlus, Users, CheckCircle, XCircle, 
-  Building2, Upload, Edit2, Globe, Image 
+  Building2, Edit2, Globe, Image 
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -38,7 +38,6 @@ export default function Admin() {
   const [newOrg, setNewOrg] = useState({ name: '', slug: '', logo: '' });
   const [addingOrg, setAddingOrg] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
-  const fileInputRef = useRef(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -174,18 +173,6 @@ export default function Admin() {
       logo: org.logo || ''
     });
     setShowOrgForm(true);
-  };
-
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Convert to base64 (simple approach - for production use cloud storage)
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNewOrg({ ...newOrg, logo: reader.result });
-    };
-    reader.readAsDataURL(file);
   };
 
   // User handlers
@@ -410,7 +397,7 @@ export default function Admin() {
                   </div>
                 </div>
 
-                {/* Logo Upload */}
+                {/* Logo URL */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <Image size={14} className="inline ml-1" />
@@ -423,6 +410,7 @@ export default function Admin() {
                           src={newOrg.logo} 
                           alt="Logo preview" 
                           className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600"
+                          onError={(e) => { e.target.style.display = 'none'; }}
                         />
                         <button
                           type="button"
@@ -437,23 +425,15 @@ export default function Admin() {
                         <Building2 className="w-8 h-8 text-gray-400" />
                       </div>
                     )}
-                    <div>
+                    <div className="flex-1">
                       <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
+                        type="url"
+                        value={newOrg.logo}
+                        onChange={(e) => setNewOrg({ ...newOrg, logo: e.target.value })}
+                        placeholder="https://example.com/logo.png"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
                       />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        <Upload size={16} />
-                        העלה תמונה
-                      </button>
-                      <p className="text-xs text-gray-500 mt-1">PNG, JPG עד 2MB</p>
+                      <p className="text-xs text-gray-500 mt-1">הזן URL של תמונת הלוגו (PNG, JPG)</p>
                     </div>
                   </div>
                 </div>

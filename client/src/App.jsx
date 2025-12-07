@@ -16,6 +16,7 @@ import SelectOrganization from './pages/SelectOrganization';
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthContext } from './context/AuthContext';
+import { OrganizationProvider } from './context/OrganizationContext';
 
 // Re-export useAuth from context
 export { useAuth } from './context/AuthContext';
@@ -137,8 +138,9 @@ function App() {
     <ThemeProvider>
       <ToastProvider>
         <AuthContext.Provider value={{ user, setUser, loading, logout }}>
-          <BrowserRouter>
-            <Routes>
+          <OrganizationProvider>
+            <BrowserRouter>
+              <Routes>
               {/* Public Routes */}
               <Route path="/" element={
                 user ? <Navigate to="/dashboard" replace /> : <Home />
@@ -172,8 +174,9 @@ function App() {
               <Route path="*" element={
                 <Navigate to={user ? "/dashboard" : "/"} replace />
               } />
-            </Routes>
-          </BrowserRouter>
+              </Routes>
+            </BrowserRouter>
+          </OrganizationProvider>
         </AuthContext.Provider>
       </ToastProvider>
     </ThemeProvider>
