@@ -16,7 +16,8 @@ import {
   Moon,
   Sun,
   Shield,
-  CheckCircle
+  CheckCircle,
+  Database
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -34,6 +35,7 @@ function Layout() {
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
     { name: 'אבני דרך', href: '/stories', icon: ListTodo },
     { name: 'צוות', href: '/team', icon: Users },
+    { name: 'ניהול נתונים', href: '/data', icon: Database },
     // Admin link - only shown for admins
     ...(isAdmin ? [{ name: 'ניהול מערכת', href: '/admin', icon: Shield }] : []),
   ];

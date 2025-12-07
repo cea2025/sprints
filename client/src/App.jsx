@@ -11,6 +11,7 @@ import SprintBoard from './pages/SprintBoard';
 import Stories from './pages/Stories';
 import Team from './pages/Team';
 import Admin from './pages/Admin';
+import DataManagement from './pages/DataManagement';
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthContext } from './context/AuthContext';
@@ -158,6 +159,7 @@ function App() {
                 <Route path="/stories" element={<Stories />} />
                 <Route path="/team" element={<Team />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="/data" element={<DataManagement />} />
               </Route>
 
               {/* Catch all - redirect based on auth */}
