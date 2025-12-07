@@ -12,6 +12,7 @@ import Stories from './pages/Stories';
 import Team from './pages/Team';
 import Admin from './pages/Admin';
 import DataManagement from './pages/DataManagement';
+import SelectOrganization from './pages/SelectOrganization';
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthContext } from './context/AuthContext';
@@ -145,6 +146,11 @@ function App() {
               
               <Route path="/login" element={
                 user ? <Navigate to="/dashboard" replace /> : <Login />
+              } />
+
+              {/* Organization Selection - Protected but no layout */}
+              <Route path="/select-organization" element={
+                user ? <SelectOrganization /> : <Navigate to="/login" replace />
               } />
               
               {/* Protected Routes - App Layout */}

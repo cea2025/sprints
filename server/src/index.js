@@ -7,7 +7,7 @@ const passport = require('passport');
 const path = require('path');
 const { Pool } = require('pg');
 
-// Import routes
+// Import routes (legacy)
 const authRoutes = require('./routes/auth');
 const objectivesRoutes = require('./routes/objectives');
 const rocksRoutes = require('./routes/rocks');
@@ -16,6 +16,12 @@ const storiesRoutes = require('./routes/stories');
 const teamRoutes = require('./routes/team');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
+
+// Import new module routes
+const organizationRoutes = require('./modules/organization/organization.routes');
+
+// Import middleware
+const { errorHandler, notFoundHandler } = require('./shared/middleware/error.middleware');
 
 // Import passport config
 require('./config/passport');
@@ -79,10 +85,15 @@ app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ==================== ROUTES ====================
+// ==================== API ROUTES ====================
 
-// API routes
+// Auth routes
 app.use('/api/auth', authRoutes);
+
+// Organization routes (new module structure)
+app.use('/api/organizations', organizationRoutes);
+
+// Legacy routes (will be migrated to modules later)
 app.use('/api/objectives', objectivesRoutes);
 app.use('/api/rocks', rocksRoutes);
 app.use('/api/sprints', sprintsRoutes);
@@ -93,7 +104,11 @@ app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    version: '2.0.0' // Updated version
+  });
 });
 
 // ==================== PRODUCTION: Serve Frontend ====================
@@ -108,9 +123,18 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// ==================== ERROR HANDLING ====================
+
+// 404 handler (must be after all routes)
+app.use('/api/*', notFoundHandler);
+
+// Global error handler (must be last)
+app.use(errorHandler);
+
 // ==================== START SERVER ====================
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📦 Architecture: Multi-tenant ready`);
 });
