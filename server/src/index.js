@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const objectivesRoutes = require('./routes/objectives');
 const rocksRoutes = require('./routes/rocks');
 const sprintsRoutes = require('./routes/sprints');
 const storiesRoutes = require('./routes/stories');
@@ -82,6 +83,7 @@ app.use(passport.session());
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/objectives', objectivesRoutes);
 app.use('/api/rocks', rocksRoutes);
 app.use('/api/sprints', sprintsRoutes);
 app.use('/api/stories', storiesRoutes);

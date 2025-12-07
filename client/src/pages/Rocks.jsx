@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Mountain, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Mountain, X, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { SkeletonRockCard } from '../components/ui/Skeleton';
 
@@ -17,38 +17,60 @@ const statusColors = {
   DONE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
 };
 
+const healthLabels = {
+  GREEN: 'במסלול',
+  YELLOW: 'בסיכון',
+  RED: 'חריגה'
+};
+
+const healthColors = {
+  GREEN: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  YELLOW: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+  RED: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+};
+
 const progressColors = {
-  PLANNED: 'bg-gray-400',
-  IN_PROGRESS: 'bg-blue-500',
-  AT_RISK: 'bg-red-500',
-  DONE: 'bg-green-500',
+  GREEN: 'bg-green-500',
+  YELLOW: 'bg-yellow-500',
+  RED: 'bg-red-500',
 };
 
 function Rocks() {
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [objectives, setObjectives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingRock, setEditingRock] = useState(null);
   const toast = useToast();
+  
+  const currentYear = new Date().getFullYear();
+  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+  
   const [formData, setFormData] = useState({
     code: '',
     name: '',
     description: '',
-    year: new Date().getFullYear(),
-    quarter: Math.ceil((new Date().getMonth() + 1) / 3),
+    yearOfRecord: currentYear,
+    originalQuarter: currentQuarter,
+    currentQuarter: currentQuarter,
     status: 'PLANNED',
-    ownerId: ''
+    health: 'GREEN',
+    committedPoints: 0,
+    ownerId: '',
+    objectiveId: ''
   });
 
   useEffect(() => {
     Promise.all([
       fetch('/api/rocks', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/team', { credentials: 'include' }).then(r => r.json())
+      fetch('/api/team', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/objectives', { credentials: 'include' }).then(r => r.json())
     ])
-      .then(([rocksData, teamData]) => {
-        setRocks(rocksData);
-        setTeamMembers(teamData);
+      .then(([rocksData, teamData, objectivesData]) => {
+        setRocks(Array.isArray(rocksData) ? rocksData : []);
+        setTeamMembers(Array.isArray(teamData) ? teamData : []);
+        setObjectives(Array.isArray(objectivesData) ? objectivesData : []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -99,16 +121,37 @@ function Rocks() {
     }
   };
 
+  const handleCarryOver = async (rock) => {
+    if (!confirm(`האם להעביר את הסלע "${rock.name}" לרבעון הבא?`)) return;
+    
+    const res = await fetch(`/api/rocks/${rock.id}/carry-over`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const updatedRock = await res.json();
+      setRocks(rocks.map(r => r.id === updatedRock.id ? updatedRock : r));
+      toast.success('הסלע הועבר לרבעון הבא');
+    } else {
+      toast.error('שגיאה בהעברת הסלע');
+    }
+  };
+
   const handleEdit = (rock) => {
     setEditingRock(rock);
     setFormData({
       code: rock.code,
       name: rock.name,
       description: rock.description || '',
-      year: rock.year,
-      quarter: rock.quarter,
+      yearOfRecord: rock.yearOfRecord,
+      originalQuarter: rock.originalQuarter,
+      currentQuarter: rock.currentQuarter,
       status: rock.status,
-      ownerId: rock.ownerId || ''
+      health: rock.health || 'GREEN',
+      committedPoints: rock.committedPoints || 0,
+      ownerId: rock.ownerId || '',
+      objectiveId: rock.objectiveId || ''
     });
     setShowForm(true);
   };
@@ -120,10 +163,14 @@ function Rocks() {
       code: '',
       name: '',
       description: '',
-      year: new Date().getFullYear(),
-      quarter: Math.ceil((new Date().getMonth() + 1) / 3),
+      yearOfRecord: currentYear,
+      originalQuarter: currentQuarter,
+      currentQuarter: currentQuarter,
       status: 'PLANNED',
-      ownerId: ''
+      health: 'GREEN',
+      committedPoints: 0,
+      ownerId: '',
+      objectiveId: ''
     });
   };
 
@@ -223,30 +270,34 @@ function Rocks() {
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  rows={3}
+                  rows={2}
                   className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              {/* Quarter & Year */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     שנה
                   </label>
                   <input
                     type="number"
-                    value={formData.year}
-                    onChange={e => setFormData({...formData, year: parseInt(e.target.value)})}
+                    value={formData.yearOfRecord}
+                    onChange={e => setFormData({...formData, yearOfRecord: parseInt(e.target.value)})}
                     className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    רבעון
+                    רבעון מקורי
                   </label>
                   <select
-                    value={formData.quarter}
-                    onChange={e => setFormData({...formData, quarter: parseInt(e.target.value)})}
+                    value={formData.originalQuarter}
+                    onChange={e => {
+                      const q = parseInt(e.target.value);
+                      setFormData({...formData, originalQuarter: q, currentQuarter: q});
+                    }}
                     className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     <option value={1}>Q1</option>
@@ -254,6 +305,50 @@ function Rocks() {
                     <option value={3}>Q3</option>
                     <option value={4}>Q4</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    רבעון נוכחי
+                  </label>
+                  <select
+                    value={formData.currentQuarter}
+                    onChange={e => setFormData({...formData, currentQuarter: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value={1}>Q1</option>
+                    <option value={2}>Q2</option>
+                    <option value={3}>Q3</option>
+                    <option value={4}>Q4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    בריאות
+                  </label>
+                  <select
+                    value={formData.health}
+                    onChange={e => setFormData({...formData, health: e.target.value})}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    {Object.entries(healthLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Points & Owner */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    נקודות התחייבות
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.committedPoints}
+                    onChange={e => setFormData({...formData, committedPoints: parseInt(e.target.value) || 0})}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -267,6 +362,21 @@ function Rocks() {
                     <option value="">ללא</option>
                     {teamMembers.map(member => (
                       <option key={member.id} value={member.id}>{member.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    מטרת-על
+                  </label>
+                  <select
+                    value={formData.objectiveId}
+                    onChange={e => setFormData({...formData, objectiveId: e.target.value})}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ללא</option>
+                    {objectives.map(obj => (
+                      <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
                     ))}
                   </select>
                 </div>
@@ -306,64 +416,89 @@ function Rocks() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {rocks.map((rock, index) => (
-            <div 
-              key={rock.id} 
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 animate-slide-in-up hover:shadow-md transition-all"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                {/* Main Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                      {rock.code}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[rock.status]}`}>
-                      {statusLabels[rock.status]}
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      Q{rock.quarter}/{rock.year}
-                    </span>
+          {rocks.map((rock, index) => {
+            const isCarryOver = rock.originalQuarter !== rock.currentQuarter;
+            
+            return (
+              <div 
+                key={rock.id} 
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 animate-slide-in-up hover:shadow-md transition-all"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  {/* Main Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                        {rock.code}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[rock.status]}`}>
+                        {statusLabels[rock.status]}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${healthColors[rock.health]}`}>
+                        {healthLabels[rock.health]}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        Q{rock.currentQuarter}/{rock.yearOfRecord}
+                      </span>
+                      {isCarryOver && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 flex items-center gap-1">
+                          <AlertTriangle size={12} />
+                          גלישה מ-Q{rock.originalQuarter}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-medium text-gray-900 dark:text-white text-lg mb-1">{rock.name}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                      {rock.owner && <span>אחראי: {rock.owner.name}</span>}
+                      {rock.objective && <span>מטרה: {rock.objective.code}</span>}
+                    </div>
                   </div>
-                  <h3 className="font-medium text-gray-900 dark:text-white text-lg mb-1">{rock.name}</h3>
-                  {rock.owner && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">אחראי: {rock.owner.name}</p>
-                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 self-start">
+                    {rock.status !== 'DONE' && (
+                      <button
+                        onClick={() => handleCarryOver(rock)}
+                        title="העבר לרבעון הבא"
+                        className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                      >
+                        <ArrowRight size={18} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEdit(rock)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(rock.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 self-start">
-                  <button
-                    onClick={() => handleEdit(rock)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(rock.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                {/* Progress bar */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-gray-500 dark:text-gray-400">
+                      התקדמות ({rock.donePoints || 0}/{rock.committedPoints || 0} נק')
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-white">{rock.progress || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${progressColors[rock.health]} rounded-full transition-all duration-500`}
+                      style={{ width: `${Math.min(rock.progress || 0, 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-
-              {/* Progress bar */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-gray-500 dark:text-gray-400">התקדמות</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{rock.progress || 0}%</span>
-                </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${progressColors[rock.status]} rounded-full transition-all duration-500`}
-                    style={{ width: `${rock.progress || 0}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

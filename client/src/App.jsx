@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Objectives from './pages/Objectives';
 import Rocks from './pages/Rocks';
 import Sprints from './pages/Sprints';
 import SprintBoard from './pages/SprintBoard';
@@ -150,6 +151,7 @@ function App() {
                 user ? <Layout /> : <Navigate to="/login" replace />
               }>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/objectives" element={<Objectives />} />
                 <Route path="/rocks" element={<Rocks />} />
                 <Route path="/sprints" element={<Sprints />} />
                 <Route path="/sprints/:id" element={<SprintBoard />} />

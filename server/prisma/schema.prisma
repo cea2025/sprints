@@ -1,4 +1,5 @@
 // Prisma Schema for Sprint Management System
+// Updated with Objectives, M:N Sprint-Rock, and quarterly tracking
 
 generator client {
   provider = "prisma-client-js"
@@ -23,6 +24,18 @@ enum RockStatus {
   IN_PROGRESS
   AT_RISK
   DONE
+}
+
+enum RockHealth {
+  GREEN      // On track
+  YELLOW     // At risk
+  RED        // Off track
+}
+
+enum SprintState {
+  PLANNED
+  ACTIVE
+  CLOSED
 }
 
 enum StoryStatus {
@@ -65,47 +78,107 @@ model TeamMember {
   userId    String?  @unique
   user      User?    @relation(fields: [userId], references: [id])
   
-  ownedRocks   Rock[]
-  ownedStories Story[]
+  ownedRocks      Rock[]
+  ownedStories    Story[]
+  ownedObjectives Objective[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Rock {
-  id          String     @id @default(uuid())
-  code        String     @unique  // "25-Q4-1"
+// ==================== OBJECTIVE (NEW) ====================
+// מטרת-על שנתית/חצי-שנתית שמאגדת כמה סלעים
+
+model Objective {
+  id          String   @id @default(uuid())
+  code        String   @unique  // "25-OBJ-1"
   name        String
   description String?
-  year        Int
-  quarter     Int        // 1-4
-  status      RockStatus @default(PLANNED)
+  timeframe   String   // "2025" / "H1-2025" / "H2-2025"
+  targetValue Int?     // KR target (optional)
+  metric      String?  // מדד ה-KR (תיאור)
   
   ownerId     String?
   owner       TeamMember? @relation(fields: [ownerId], references: [id])
   
-  stories     Story[]
-  sprints     Sprint[]   @relation("SprintMainRock")
+  rocks       Rock[]
   
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
+// ==================== ROCK (UPDATED) ====================
+// סלע - יעד רבעוני עם תמיכה בגלישה בין רבעונים
+
+model Rock {
+  id              String     @id @default(uuid())
+  code            String     @unique  // "25-Q4-1" (זהות קבועה)
+  name            String
+  description     String?
+  status          RockStatus @default(PLANNED)
+  
+  // שדות רבעון
+  yearOfRecord    Int        // שנת יעד מקורית (2025)
+  originalQuarter Int        // רבעון יעד מקורי (1-4)
+  currentQuarter  Int        // רבעון נוכחי - מתעדכן כשגולש
+  
+  // נקודות ובריאות
+  committedPoints Int        @default(0)  // התחייבות לרבעון הנוכחי
+  health          RockHealth @default(GREEN)
+  
+  // קשרים
+  ownerId         String?
+  owner           TeamMember? @relation(fields: [ownerId], references: [id])
+  
+  objectiveId     String?
+  objective       Objective?  @relation(fields: [objectiveId], references: [id])
+  
+  stories         Story[]
+  sprintRocks     SprintRock[]
+  quarterLogs     RockQuarterLog[]
+  
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+// ==================== SPRINT (UPDATED) ====================
+// ספרינט - תקופת עבודה קצובה
+
 model Sprint {
-  id        String   @id @default(uuid())
-  name      String   @unique  // "25-Q1-S1"
-  goal      String?
-  startDate DateTime
-  endDate   DateTime
+  id             String      @id @default(uuid())
+  name           String      @unique  // "25-Q1-S1"
+  goal           String?
+  startDate      DateTime
+  endDate        DateTime
+  capacityPoints Int         @default(0)  // קיבולת נקודות לספרינט
+  state          SprintState @default(PLANNED)
   
-  mainRockId String?
-  mainRock   Rock?    @relation("SprintMainRock", fields: [mainRockId], references: [id])
+  // קשרים M:N עם סלעים
+  sprintRocks    SprintRock[]
+  stories        Story[]
   
-  stories   Story[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ==================== SPRINT-ROCK (NEW - M:N) ====================
+// טבלת קשר בין ספרינטים לסלעים
+
+model SprintRock {
+  id        String  @id @default(uuid())
+  
+  sprintId  String
+  sprint    Sprint  @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  
+  rockId    String
+  rock      Rock    @relation(fields: [rockId], references: [id], onDelete: Cascade)
   
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  
+  @@unique([sprintId, rockId])
 }
+
+// ==================== STORY ====================
 
 model Story {
   id          String      @id @default(uuid())
@@ -126,6 +199,24 @@ model Story {
   
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+}
+
+// ==================== ROCK QUARTER LOG (OPTIONAL) ====================
+// לוג היסטורי לרבעון - צילום מצב בסוף כל רבעון
+
+model RockQuarterLog {
+  id              String   @id @default(uuid())
+  
+  rockId          String
+  rock            Rock     @relation(fields: [rockId], references: [id], onDelete: Cascade)
+  
+  year            Int
+  quarter         Int      // 1-4
+  committedPoints Int
+  donePoints      Int
+  wasCarryOver    Boolean  @default(false)  // האם גלש מרבעון קודם
+  
+  closedAt        DateTime @default(now())
 }
 
 // ==================== ACCESS CONTROL ====================

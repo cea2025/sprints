@@ -5,6 +5,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { ROLE_LABELS, ROLE_COLORS } from '../../constants/roles';
 import { 
   LayoutDashboard, 
+  Target,
   Mountain, 
   Zap, 
   ListTodo, 
@@ -28,6 +29,7 @@ function Layout() {
 
   const navigation = [
     { name: 'דשבורד', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'מטרות-על', href: '/objectives', icon: Target },
     { name: 'סלעים', href: '/rocks', icon: Mountain },
     { name: 'ספרינטים', href: '/sprints', icon: Zap },
     { name: 'משימות', href: '/stories', icon: ListTodo },

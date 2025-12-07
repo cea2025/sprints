@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Calendar, Target, Zap, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Mountain, Zap, X, Check } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { Skeleton } from '../components/ui/Skeleton';
+
+const stateLabels = {
+  PLANNED: 'מתוכנן',
+  ACTIVE: 'פעיל',
+  CLOSED: 'סגור'
+};
+
+const stateColors = {
+  PLANNED: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+  ACTIVE: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  CLOSED: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+};
 
 function Sprints() {
   const [sprints, setSprints] = useState([]);
@@ -16,7 +28,9 @@ function Sprints() {
     goal: '',
     startDate: '',
     endDate: '',
-    mainRockId: ''
+    capacityPoints: 0,
+    state: 'PLANNED',
+    rockIds: []
   });
 
   useEffect(() => {
@@ -25,8 +39,8 @@ function Sprints() {
       fetch('/api/rocks', { credentials: 'include' }).then(r => r.json())
     ])
       .then(([sprintsData, rocksData]) => {
-        setSprints(sprintsData);
-        setRocks(rocksData);
+        setSprints(Array.isArray(sprintsData) ? sprintsData : []);
+        setRocks(Array.isArray(rocksData) ? rocksData : []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -77,6 +91,23 @@ function Sprints() {
     }
   };
 
+  const handleCloseSprint = async (sprint) => {
+    if (!confirm('האם לסגור את הספרינט?')) return;
+    
+    const res = await fetch(`/api/sprints/${sprint.id}/close`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const updatedSprint = await res.json();
+      setSprints(sprints.map(s => s.id === updatedSprint.id ? updatedSprint : s));
+      toast.success('הספרינט נסגר');
+    } else {
+      toast.error('שגיאה בסגירת הספרינט');
+    }
+  };
+
   const handleEdit = (sprint) => {
     setEditingSprint(sprint);
     setFormData({
@@ -84,7 +115,9 @@ function Sprints() {
       goal: sprint.goal || '',
       startDate: sprint.startDate.split('T')[0],
       endDate: sprint.endDate.split('T')[0],
-      mainRockId: sprint.mainRockId || ''
+      capacityPoints: sprint.capacityPoints || 0,
+      state: sprint.state || 'PLANNED',
+      rockIds: sprint.rocks ? sprint.rocks.map(r => r.id) : []
     });
     setShowForm(true);
   };
@@ -97,8 +130,19 @@ function Sprints() {
       goal: '',
       startDate: '',
       endDate: '',
-      mainRockId: ''
+      capacityPoints: 0,
+      state: 'PLANNED',
+      rockIds: []
     });
+  };
+
+  const toggleRock = (rockId) => {
+    setFormData(prev => ({
+      ...prev,
+      rockIds: prev.rockIds.includes(rockId)
+        ? prev.rockIds.filter(id => id !== rockId)
+        : [...prev.rockIds, rockId]
+    }));
   };
 
   const formatDate = (dateString) => {
@@ -106,6 +150,7 @@ function Sprints() {
   };
 
   const isCurrentSprint = (sprint) => {
+    if (sprint.state === 'ACTIVE') return true;
     const today = new Date();
     const start = new Date(sprint.startDate);
     const end = new Date(sprint.endDate);
@@ -164,18 +209,34 @@ function Sprints() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  שם
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="25-Q1-S1"
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    שם
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    placeholder="25-Q1-S1"
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    סטטוס
+                  </label>
+                  <select
+                    value={formData.state}
+                    onChange={e => setFormData({...formData, state: e.target.value})}
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    {Object.entries(stateLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -190,7 +251,7 @@ function Sprints() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     תאריך התחלה
@@ -215,24 +276,56 @@ function Sprints() {
                     required
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    קיבולת (נק')
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.capacityPoints}
+                    onChange={e => setFormData({...formData, capacityPoints: parseInt(e.target.value) || 0})}
+                    className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
               </div>
 
+              {/* Rocks Selection - Multi-select */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  סלע ראשי
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  סלעים מקושרים
                 </label>
-                <select
-                  value={formData.mainRockId}
-                  onChange={e => setFormData({...formData, mainRockId: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">ללא</option>
-                  {rocks.map(rock => (
-                    <option key={rock.id} value={rock.id}>
-                      {rock.code} - {rock.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="border dark:border-gray-600 rounded-xl max-h-48 overflow-y-auto">
+                  {rocks.length === 0 ? (
+                    <p className="p-4 text-gray-500 dark:text-gray-400 text-sm text-center">אין סלעים</p>
+                  ) : (
+                    rocks.map(rock => (
+                      <label
+                        key={rock.id}
+                        className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0 dark:border-gray-700"
+                      >
+                        <div 
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                            formData.rockIds.includes(rock.id)
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                          onClick={() => toggleRock(rock.id)}
+                        >
+                          {formData.rockIds.includes(rock.id) && <Check size={14} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-mono text-gray-400 ml-2">{rock.code}</span>
+                          <span className="text-sm text-gray-900 dark:text-white">{rock.name}</span>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {formData.rockIds.length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formData.rockIds.length} סלעים נבחרו
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
@@ -273,7 +366,7 @@ function Sprints() {
             <div
               key={sprint.id}
               className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6 border-r-4 animate-slide-in-up hover:shadow-md transition-all ${
-                isCurrentSprint(sprint) ? 'border-r-green-500' : 'border-r-gray-200 dark:border-r-gray-700'
+                sprint.state === 'ACTIVE' || isCurrentSprint(sprint) ? 'border-r-green-500' : 'border-r-gray-200 dark:border-r-gray-700'
               }`}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
@@ -284,11 +377,9 @@ function Sprints() {
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">{sprint.name}</h3>
-                      {isCurrentSprint(sprint) && (
-                        <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">
-                          פעיל
-                        </span>
-                      )}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${stateColors[sprint.state]}`}>
+                        {stateLabels[sprint.state]}
+                      </span>
                     </div>
                     {sprint.goal && (
                       <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{sprint.goal}</p>
@@ -297,6 +388,15 @@ function Sprints() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1">
+                    {sprint.state !== 'CLOSED' && (
+                      <button
+                        onClick={() => handleCloseSprint(sprint)}
+                        title="סגור ספרינט"
+                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                      >
+                        <Check size={18} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEdit(sprint)}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -318,13 +418,25 @@ function Sprints() {
                     <Calendar size={16} />
                     <span>{formatDate(sprint.startDate)} - {formatDate(sprint.endDate)}</span>
                   </div>
-                  {sprint.mainRock && (
-                    <div className="flex items-center gap-2">
-                      <Target size={16} />
-                      <span>{sprint.mainRock.code}</span>
-                    </div>
+                  {sprint.capacityPoints > 0 && (
+                    <span>קיבולת: {sprint.capacityPoints} נק'</span>
                   )}
                 </div>
+
+                {/* Rocks */}
+                {sprint.rocks && sprint.rocks.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {sprint.rocks.map(rock => (
+                      <span
+                        key={rock.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs"
+                      >
+                        <Mountain size={12} />
+                        {rock.code}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Stats + Action */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t dark:border-gray-700">
