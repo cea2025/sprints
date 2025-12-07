@@ -57,9 +57,10 @@ function SprintBoard() {
 
     if (res.ok) {
       const updatedStory = await res.json();
+      const stories = Array.isArray(sprint?.stories) ? sprint.stories : [];
       setSprint({
         ...sprint,
-        stories: sprint.stories.map(s => 
+        stories: stories.map(s => 
           s.id === storyId ? updatedStory : s
         )
       });

@@ -269,7 +269,7 @@ export default function Sprints() {
               </div>
 
               {/* Rocks */}
-              {sprint.rocks && sprint.rocks.length > 0 && (
+              {sprint.rocks && Array.isArray(sprint.rocks) && sprint.rocks.length > 0 && (
                 <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">סלעים מקושרים:</p>
                   <div className="flex flex-wrap gap-2">

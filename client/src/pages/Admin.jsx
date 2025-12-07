@@ -52,7 +52,7 @@ export default function Admin() {
       });
       if (!res.ok) throw new Error('שגיאה בטעינת המשתמשים');
       const data = await res.json();
-      setUsers(data);
+      if (Array.isArray(data)) setUsers(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -67,7 +67,7 @@ export default function Admin() {
       });
       if (res.ok) {
         const data = await res.json();
-        setAllowedEmails(data);
+        if (Array.isArray(data)) setAllowedEmails(data);
       }
     } catch (err) {
       console.error('Error fetching allowed emails:', err);

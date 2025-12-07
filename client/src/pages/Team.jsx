@@ -18,7 +18,9 @@ function Team() {
   useEffect(() => {
     fetch('/api/team', { credentials: 'include' })
       .then(r => r.json())
-      .then(setTeamMembers)
+      .then(data => {
+        if (Array.isArray(data)) setTeamMembers(data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,10 +42,10 @@ function Team() {
     if (res.ok) {
       const member = await res.json();
       if (editingMember) {
-        setTeamMembers(teamMembers.map(m => m.id === member.id ? member : m));
+        setTeamMembers(prev => Array.isArray(prev) ? prev.map(m => m.id === member.id ? member : m) : [member]);
         toast.success('חבר הצוות עודכן בהצלחה');
       } else {
-        setTeamMembers([...teamMembers, member]);
+        setTeamMembers(prev => Array.isArray(prev) ? [...prev, member] : [member]);
         toast.success('חבר הצוות נוסף בהצלחה');
       }
       resetForm();
@@ -62,7 +64,7 @@ function Team() {
 
     if (res.ok) {
       const updated = await res.json();
-      setTeamMembers(teamMembers.map(m => m.id === updated.id ? updated : m));
+      setTeamMembers(prev => Array.isArray(prev) ? prev.map(m => m.id === updated.id ? updated : m) : [updated]);
       toast.success(updated.isActive ? 'חבר הצוות הופעל' : 'חבר הצוות הושבת');
     } else {
       toast.error('שגיאה בעדכון חבר הצוות');
