@@ -16,6 +16,7 @@ import Team from './pages/Team';
 import Admin from './pages/Admin';
 import DataManagement from './pages/DataManagement';
 import SelectOrganization from './pages/SelectOrganization';
+import OrganizationSettings from './pages/OrganizationSettings';
 
 // Providers
 import { ToastProvider } from './components/ui/Toast';
@@ -246,7 +247,7 @@ function App() {
                   <Route path="team" element={<Team />} />
                   <Route path="admin" element={<Admin />} />
                   <Route path="data" element={<DataManagement />} />
-                  <Route path="settings" element={<div>Settings Page (TBD)</div>} />
+                  <Route path="settings" element={<OrganizationSettings />} />
                 </Route>
 
                 {/* Legacy routes - redirect to select organization */}

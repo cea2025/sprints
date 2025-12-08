@@ -1,7 +1,7 @@
 {
   "name": "sprints",
-  "version": "1.0.0",
-  "description": "Internal Sprint Management System",
+  "version": "2.0.0",
+  "description": "Internal Sprint Management System - Multi-tenant",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
@@ -11,10 +11,11 @@
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "build:render": "npm install && cd server && npm install && npx prisma generate && cd ../client && npm install --include=dev && npm run build",
-    "start:render": "cd server && npx prisma db push --accept-data-loss && node scripts/create-session-table.js && npm start",
+    "start:render": "cd server && npx prisma db push --accept-data-loss && node scripts/create-session-table.js && node scripts/init-platform.js && npm start",
     "db:push": "cd server && npx prisma db push",
     "db:seed": "cd server && npx prisma db seed",
-    "db:studio": "cd server && npx prisma studio"
+    "db:studio": "cd server && npx prisma studio",
+    "set-super-admin": "cd server && node scripts/set-super-admin.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

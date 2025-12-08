@@ -43,16 +43,15 @@ export default function SelectOrganization() {
   const handleSelect = async (org) => {
     setSelecting(org.id);
     try {
-      const result = await request('/api/organizations/select', {
+      // Update session on server
+      await request('/api/organizations/select', {
         method: 'POST',
         body: { organizationId: org.id },
         showToast: false
       });
       
-      if (result) {
-        // Navigate to dashboard
-        navigate('/dashboard');
-      }
+      // Navigate to organization's dashboard using slug
+      navigate(`/${org.slug}/dashboard`);
     } catch (error) {
       console.error('Failed to select organization:', error);
     } finally {
