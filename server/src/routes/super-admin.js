@@ -95,12 +95,26 @@ router.post('/organizations', async (req, res) => {
       return res.status(400).json({ error: 'שם URL כבר תפוס' });
     }
 
+    // Create organization AND add creator as admin member
     const organization = await prisma.organization.create({
       data: {
         name,
         slug,
-        logo,
-        createdBy: req.user.id
+        logo: logo || null,
+        createdBy: req.user.id,
+        // Add the creator as an admin of this organization
+        members: {
+          create: {
+            userId: req.user.id,
+            role: 'ADMIN'
+          }
+        }
+      },
+      include: {
+        members: true,
+        _count: {
+          select: { rocks: true, stories: true, members: true }
+        }
       }
     });
 
