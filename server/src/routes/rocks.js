@@ -15,33 +15,58 @@ const getOrganizationId = async (req) => {
   
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: req.user.id, isActive: true },
-    include: { organization: true }
+    select: { organizationId: true }
   });
   
   return membership?.organizationId || null;
 };
 
 // @route   GET /api/rocks
-// @desc    Get all rocks with progress
+// @desc    Get all rocks with progress (optimized with search)
 router.get('/', async (req, res) => {
   try {
-    const { year, quarter, objectiveId } = req.query;
+    const { year, quarter, objectiveId, search, page = 1, limit = 50 } = req.query;
     const organizationId = await getOrganizationId(req);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const where = {};
     if (organizationId) where.organizationId = organizationId;
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
     if (objectiveId) where.objectiveId = objectiveId;
+    
+    // Server-side search
+    if (search && search.length >= 2) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
 
     const rocks = await prisma.rock.findMany({
       where,
-      include: {
-        owner: true,
-        objective: true,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        year: true,
+        quarter: true,
+        progress: true,
+        isCarriedOver: true,
+        carriedFromQuarter: true,
+        owner: {
+          select: { id: true, name: true }
+        },
+        objective: {
+          select: { id: true, code: true, name: true }
+        },
+        _count: {
+          select: { stories: true }
+        },
         stories: {
           select: {
-            id: true,
             progress: true,
             isBlocked: true
           }
@@ -51,30 +76,72 @@ router.get('/', async (req, res) => {
         { year: 'desc' },
         { quarter: 'desc' },
         { code: 'asc' }
-      ]
+      ],
+      skip,
+      take: parseInt(limit)
     });
 
     // Calculate progress from stories if not set manually
     const rocksWithProgress = rocks.map(rock => {
       let calculatedProgress = 0;
-      if (rock.stories.length > 0) {
+      const storiesArray = rock.stories || [];
+      if (storiesArray.length > 0) {
         calculatedProgress = Math.round(
-          rock.stories.reduce((sum, s) => sum + (s.progress || 0), 0) / rock.stories.length
+          storiesArray.reduce((sum, s) => sum + (s.progress || 0), 0) / storiesArray.length
         );
       }
       
       return {
-        ...rock,
+        id: rock.id,
+        code: rock.code,
+        name: rock.name,
+        description: rock.description,
+        year: rock.year,
+        quarter: rock.quarter,
+        progress: rock.progress,
+        isCarriedOver: rock.isCarriedOver,
+        carriedFromQuarter: rock.carriedFromQuarter,
+        owner: rock.owner,
+        objective: rock.objective,
         calculatedProgress,
-        // Use manual progress if set, otherwise calculated
         effectiveProgress: rock.progress > 0 ? rock.progress : calculatedProgress,
-        totalStories: rock.stories.length,
-        completedStories: rock.stories.filter(s => s.progress === 100).length,
-        blockedStories: rock.stories.filter(s => s.isBlocked).length
+        totalStories: rock._count.stories,
+        completedStories: storiesArray.filter(s => s.progress === 100).length,
+        blockedStories: storiesArray.filter(s => s.isBlocked).length
       };
     });
 
     res.json(rocksWithProgress);
+  } catch (error) {
+    console.error('Error fetching rocks:', error);
+    res.status(500).json([]);
+  }
+});
+
+// @route   GET /api/rocks/simple
+// @desc    Get rocks with minimal data (for dropdowns)
+router.get('/simple', async (req, res) => {
+  try {
+    const { year, quarter } = req.query;
+    const organizationId = await getOrganizationId(req);
+    
+    const where = {};
+    if (organizationId) where.organizationId = organizationId;
+    if (year) where.year = parseInt(year);
+    if (quarter) where.quarter = parseInt(quarter);
+
+    const rocks = await prisma.rock.findMany({
+      where,
+      select: {
+        id: true,
+        code: true,
+        name: true
+      },
+      orderBy: { code: 'asc' },
+      take: 200
+    });
+
+    res.json(rocks);
   } catch (error) {
     console.error('Error fetching rocks:', error);
     res.status(500).json([]);
@@ -88,14 +155,19 @@ router.get('/:id', async (req, res) => {
     const rock = await prisma.rock.findUnique({
       where: { id: req.params.id },
       include: {
-        owner: true,
-        objective: true,
+        owner: { select: { id: true, name: true } },
+        objective: { select: { id: true, code: true, name: true } },
         stories: {
-          include: {
-            owner: true,
-            sprint: true
+          select: {
+            id: true,
+            title: true,
+            progress: true,
+            isBlocked: true,
+            owner: { select: { id: true, name: true } },
+            sprint: { select: { id: true, name: true } }
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take: 50
         }
       }
     });
@@ -131,9 +203,15 @@ router.post('/', async (req, res) => {
         organizationId,
         createdBy: req.user.id
       },
-      include: {
-        owner: true,
-        objective: true
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        year: true,
+        quarter: true,
+        progress: true,
+        owner: { select: { id: true, name: true } },
+        objective: { select: { id: true, code: true, name: true } }
       }
     });
 
@@ -168,9 +246,15 @@ router.put('/:id', async (req, res) => {
         carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null,
         updatedBy: req.user.id
       },
-      include: {
-        owner: true,
-        objective: true
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        year: true,
+        quarter: true,
+        progress: true,
+        owner: { select: { id: true, name: true } },
+        objective: { select: { id: true, code: true, name: true } }
       }
     });
 
@@ -186,7 +270,8 @@ router.put('/:id', async (req, res) => {
 router.post('/:id/carry-over', async (req, res) => {
   try {
     const rock = await prisma.rock.findUnique({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
+      select: { quarter: true, year: true }
     });
 
     if (!rock) {
@@ -211,9 +296,14 @@ router.post('/:id/carry-over', async (req, res) => {
         carriedFromQuarter: currentQuarter,
         updatedBy: req.user.id
       },
-      include: {
-        owner: true,
-        objective: true
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        year: true,
+        quarter: true,
+        isCarriedOver: true,
+        carriedFromQuarter: true
       }
     });
 
@@ -225,7 +315,7 @@ router.post('/:id/carry-over', async (req, res) => {
 });
 
 // @route   PUT /api/rocks/:id/progress
-// @desc    Update rock progress
+// @desc    Update rock progress (optimized - minimal data)
 router.put('/:id/progress', async (req, res) => {
   try {
     const { progress } = req.body;
@@ -236,9 +326,9 @@ router.put('/:id/progress', async (req, res) => {
         progress: Math.min(100, Math.max(0, parseInt(progress) || 0)),
         updatedBy: req.user.id
       },
-      include: {
-        owner: true,
-        objective: true
+      select: {
+        id: true,
+        progress: true
       }
     });
 

@@ -61,6 +61,8 @@ model OrganizationMember {
   updatedAt      DateTime @updatedAt
   
   @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
 }
 
 // ==================== USER ====================
@@ -113,6 +115,10 @@ model TeamMember {
   updatedBy String?
   deletedAt DateTime?
   deletedBy String?
+  
+  @@index([organizationId])
+  @@index([isActive])
+  @@index([name])
 }
 
 // ==================== OBJECTIVE ====================
@@ -144,6 +150,8 @@ model Objective {
   deletedBy   String?
   
   @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([ownerId])
 }
 
 // ==================== ROCK ====================
@@ -192,6 +200,10 @@ model Rock {
   deletedBy       String?
   
   @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, year, quarter])
+  @@index([objectiveId])
+  @@index([ownerId])
 }
 
 // ==================== SPRINT ====================
@@ -228,6 +240,9 @@ model Sprint {
   deletedBy      String?
   
   @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([organizationId, year, quarter])
+  @@index([startDate, endDate])
 }
 
 // ==================== SPRINT-ROCK (M:N) ====================
@@ -244,6 +259,8 @@ model SprintRock {
   createdAt DateTime @default(now())
   
   @@unique([sprintId, rockId])
+  @@index([sprintId])
+  @@index([rockId])
 }
 
 // ==================== STORY (אבן דרך) ====================
@@ -282,6 +299,13 @@ model Story {
   updatedBy   String?
   deletedAt   DateTime?
   deletedBy   String?
+  
+  @@index([organizationId])
+  @@index([sprintId])
+  @@index([rockId])
+  @@index([ownerId])
+  @@index([isBlocked])
+  @@index([organizationId, sprintId])
 }
 
 // ==================== ACCESS CONTROL ====================
@@ -303,6 +327,8 @@ model AllowedEmail {
   updatedAt   DateTime @updatedAt
   
   @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([email])
 }
 
 // ==================== AUDIT LOG (Optional) ====================

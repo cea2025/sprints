@@ -46,10 +46,18 @@ export default function Stories() {
     if (filters.sprintId) params.append('sprintId', filters.sprintId);
     if (filters.rockId) params.append('rockId', filters.rockId);
     if (filters.isBlocked) params.append('isBlocked', filters.isBlocked);
+    params.append('limit', '200'); // Get more items
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
-    if (data && Array.isArray(data)) setStories(data);
+    // Handle both array and paginated response formats
+    if (data) {
+      if (Array.isArray(data)) {
+        setStories(data);
+      } else if (data.data && Array.isArray(data.data)) {
+        setStories(data.data);
+      }
+    }
   };
 
   const fetchSprints = async () => {
@@ -72,10 +80,6 @@ export default function Stories() {
 
     if (!formData.sprintId) {
       alert('ספרינט הוא שדה חובה');
-      return;
-    }
-    if (!formData.ownerId) {
-      alert('אחראי הוא שדה חובה');
       return;
     }
 
@@ -149,6 +153,8 @@ export default function Stories() {
 
   const resetForm = () => {
     setEditingStory(null);
+    // Pre-select the first team member as default owner for better UX
+    const defaultOwner = teamMembers.length > 0 ? teamMembers[0].id : '';
     setFormData({
       title: '',
       description: '',
@@ -156,7 +162,7 @@ export default function Stories() {
       isBlocked: false,
       sprintId: filters.sprintId || '',
       rockId: filters.rockId || '',
-      ownerId: ''
+      ownerId: defaultOwner
     });
   };
 
@@ -434,18 +440,17 @@ export default function Stories() {
                 </select>
               </div>
 
-              {/* Owner - Required */}
+              {/* Owner - Optional */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  אחראי <span className="text-red-500">*</span>
+                  אחראי
                 </label>
                 <select
                   value={formData.ownerId}
                   onChange={e => setFormData({...formData, ownerId: e.target.value})}
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                  required
                 >
-                  <option value="">בחר אחראי</option>
+                  <option value="">ללא אחראי</option>
                   {teamMembers.map(member => (
                     <option key={member.id} value={member.id}>{member.name}</option>
                   ))}

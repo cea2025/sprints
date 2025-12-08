@@ -15,18 +15,28 @@ const getOrganizationId = async (req) => {
   
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: req.user.id, isActive: true },
-    include: { organization: true }
+    select: { organizationId: true }
   });
   
   return membership?.organizationId || null;
 };
 
 // @route   GET /api/stories
-// @desc    Get all stories
+// @desc    Get all stories with search, filter and pagination
 router.get('/', async (req, res) => {
   try {
-    const { sprintId, rockId, ownerId, isBlocked } = req.query;
+    const { 
+      sprintId, 
+      rockId, 
+      ownerId, 
+      isBlocked,
+      search,
+      page = 1,
+      limit = 50
+    } = req.query;
+    
     const organizationId = await getOrganizationId(req);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const where = {};
     if (organizationId) where.organizationId = organizationId;
@@ -34,19 +44,92 @@ router.get('/', async (req, res) => {
     if (rockId) where.rockId = rockId;
     if (ownerId) where.ownerId = ownerId;
     if (isBlocked !== undefined) where.isBlocked = isBlocked === 'true';
+    
+    // Server-side search
+    if (search && search.length >= 2) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.story.count({ where });
 
     const stories = await prisma.story.findMany({
       where,
-      include: {
-        sprint: true,
-        rock: {
-          include: {
-            objective: true
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        progress: true,
+        isBlocked: true,
+        createdAt: true,
+        sprint: {
+          select: {
+            id: true,
+            name: true
           }
         },
-        owner: true
+        rock: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            objective: {
+              select: {
+                id: true,
+                code: true,
+                name: true
+              }
+            }
+          }
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: parseInt(limit)
+    });
+
+    res.json({
+      data: stories,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching stories:', error);
+    res.status(500).json({ data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
+  }
+});
+
+// @route   GET /api/stories/simple
+// @desc    Get stories with minimal data (for dropdowns, quick lists)
+router.get('/simple', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    const where = {};
+    if (organizationId) where.organizationId = organizationId;
+
+    const stories = await prisma.story.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        progress: true,
+        isBlocked: true
+      },
+      orderBy: { title: 'asc' },
+      take: 200
     });
 
     res.json(stories);
@@ -63,13 +146,22 @@ router.get('/:id', async (req, res) => {
     const story = await prisma.story.findUnique({
       where: { id: req.params.id },
       include: {
-        sprint: true,
+        sprint: {
+          select: { id: true, name: true }
+        },
         rock: {
-          include: {
-            objective: true
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            objective: {
+              select: { id: true, code: true, name: true }
+            }
           }
         },
-        owner: true
+        owner: {
+          select: { id: true, name: true }
+        }
       }
     });
 
@@ -108,14 +200,29 @@ router.post('/', async (req, res) => {
         organizationId,
         createdBy: req.user.id
       },
-      include: {
-        sprint: true,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        progress: true,
+        isBlocked: true,
+        createdAt: true,
+        sprint: {
+          select: { id: true, name: true }
+        },
         rock: {
-          include: {
-            objective: true
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            objective: {
+              select: { id: true, code: true, name: true }
+            }
           }
         },
-        owner: true
+        owner: {
+          select: { id: true, name: true }
+        }
       }
     });
 
@@ -149,14 +256,29 @@ router.put('/:id', async (req, res) => {
         ownerId: ownerId || null,
         updatedBy: req.user.id
       },
-      include: {
-        sprint: true,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        progress: true,
+        isBlocked: true,
+        createdAt: true,
+        sprint: {
+          select: { id: true, name: true }
+        },
         rock: {
-          include: {
-            objective: true
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            objective: {
+              select: { id: true, code: true, name: true }
+            }
           }
         },
-        owner: true
+        owner: {
+          select: { id: true, name: true }
+        }
       }
     });
 
@@ -168,7 +290,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // @route   PUT /api/stories/:id/progress
-// @desc    Quick update for story progress
+// @desc    Quick update for story progress (optimized)
 router.put('/:id/progress', async (req, res) => {
   try {
     const { progress, isBlocked } = req.body;
@@ -180,14 +302,10 @@ router.put('/:id/progress', async (req, res) => {
         isBlocked: isBlocked !== undefined ? isBlocked : undefined,
         updatedBy: req.user.id
       },
-      include: {
-        sprint: true,
-        rock: {
-          include: {
-            objective: true
-          }
-        },
-        owner: true
+      select: {
+        id: true,
+        progress: true,
+        isBlocked: true
       }
     });
 
@@ -203,7 +321,8 @@ router.put('/:id/progress', async (req, res) => {
 router.put('/:id/block', async (req, res) => {
   try {
     const current = await prisma.story.findUnique({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
+      select: { isBlocked: true }
     });
 
     if (!current) {
@@ -216,10 +335,10 @@ router.put('/:id/block', async (req, res) => {
         isBlocked: !current.isBlocked,
         updatedBy: req.user.id
       },
-      include: {
-        sprint: true,
-        rock: true,
-        owner: true
+      select: {
+        id: true,
+        isBlocked: true,
+        progress: true
       }
     });
 
