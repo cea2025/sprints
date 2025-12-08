@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const OrganizationContext = createContext(null);
 
@@ -17,10 +18,30 @@ export const OrganizationProvider = ({ children }) => {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // טעינת ארגונים בעת התחברות
+  // Get organizations from user data or fetch them
   useEffect(() => {
     if (user) {
-      fetchOrganizations();
+      if (user.organizations && user.organizations.length > 0) {
+        // Use organizations from auth response
+        setOrganizations(user.organizations);
+        
+        // Auto-select if only one org
+        if (user.organizations.length === 1) {
+          setCurrentOrganization(user.organizations[0]);
+        } else {
+          // Try to restore from localStorage
+          const savedOrgId = localStorage.getItem('currentOrgId');
+          if (savedOrgId) {
+            const savedOrg = user.organizations.find(org => org.id === savedOrgId);
+            if (savedOrg) {
+              setCurrentOrganization(savedOrg);
+            }
+          }
+        }
+        setLoading(false);
+      } else {
+        fetchOrganizations();
+      }
     } else {
       setCurrentOrganization(null);
       setOrganizations([]);
@@ -39,12 +60,12 @@ export const OrganizationProvider = ({ children }) => {
         const data = await response.json();
         setOrganizations(Array.isArray(data) ? data : []);
         
-        // אם יש רק ארגון אחד, בחר אותו אוטומטית
+        // Auto-select if only one org
         if (Array.isArray(data) && data.length === 1) {
           setCurrentOrganization(data[0]);
           localStorage.setItem('currentOrgId', data[0].id);
         } else {
-          // בדוק אם יש ארגון שמור
+          // Try to restore from localStorage
           const savedOrgId = localStorage.getItem('currentOrgId');
           if (savedOrgId && Array.isArray(data)) {
             const savedOrg = data.find(org => org.id === savedOrgId);
@@ -61,24 +82,42 @@ export const OrganizationProvider = ({ children }) => {
     }
   };
 
-  const selectOrganization = (org) => {
+  const selectOrganization = useCallback((org) => {
     setCurrentOrganization(org);
     if (org) {
       localStorage.setItem('currentOrgId', org.id);
+      // Also update server session
+      fetch('/api/organizations/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ organizationId: org.id })
+      }).catch(console.error);
     } else {
       localStorage.removeItem('currentOrgId');
     }
-  };
+  }, []);
 
-  const refreshOrganizations = () => {
+  // Set organization by slug (for URL-based routing)
+  const setCurrentOrganizationBySlug = useCallback((slug) => {
+    if (!slug || !organizations.length) return;
+    
+    const org = organizations.find(o => o.slug === slug);
+    if (org && (!currentOrganization || currentOrganization.slug !== slug)) {
+      selectOrganization(org);
+    }
+  }, [organizations, currentOrganization, selectOrganization]);
+
+  const refreshOrganizations = useCallback(() => {
     fetchOrganizations();
-  };
+  }, []);
 
   const value = {
     currentOrganization,
     organizations,
     loading,
     selectOrganization,
+    setCurrentOrganizationBySlug,
     refreshOrganizations,
     hasMultipleOrgs: organizations.length > 1
   };
@@ -91,4 +130,3 @@ export const OrganizationProvider = ({ children }) => {
 };
 
 export default OrganizationContext;
-

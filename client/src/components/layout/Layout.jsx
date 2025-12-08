@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useOrganization } from '../../context/OrganizationContext';
@@ -20,34 +20,53 @@ import {
   CheckCircle,
   Database,
   Building2,
-  ChevronDown
+  ChevronDown,
+  Settings,
+  Crown
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { currentOrganization, organizations, selectOrganization, hasMultipleOrgs } = useOrganization();
+  const { currentOrganization, organizations, selectOrganization, setCurrentOrganizationBySlug, hasMultipleOrgs } = useOrganization();
   const { isAdmin, role } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orgPickerOpen, setOrgPickerOpen] = useState(false);
   const navigate = useNavigate();
+  const { slug } = useParams();
+
+  // Set organization based on URL slug
+  useEffect(() => {
+    if (slug && setCurrentOrganizationBySlug) {
+      setCurrentOrganizationBySlug(slug);
+    }
+  }, [slug, setCurrentOrganizationBySlug]);
+
+  // Get base path for navigation (includes slug)
+  const basePath = slug ? `/${slug}` : '';
 
   const navigation = [
-    { name: 'דשבורד', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'מטרות-על', href: '/objectives', icon: Target },
-    { name: 'סלעים', href: '/rocks', icon: Mountain },
-    { name: 'ספרינטים', href: '/sprints', icon: Zap },
-    { name: 'אבני דרך', href: '/stories', icon: ListTodo },
-    { name: 'צוות', href: '/team', icon: Users },
-    { name: 'ניהול נתונים', href: '/data', icon: Database },
+    { name: 'דשבורד', href: `${basePath}/dashboard`, icon: LayoutDashboard },
+    { name: 'מטרות-על', href: `${basePath}/objectives`, icon: Target },
+    { name: 'סלעים', href: `${basePath}/rocks`, icon: Mountain },
+    { name: 'ספרינטים', href: `${basePath}/sprints`, icon: Zap },
+    { name: 'אבני דרך', href: `${basePath}/stories`, icon: ListTodo },
+    { name: 'צוות', href: `${basePath}/team`, icon: Users },
+    { name: 'ניהול נתונים', href: `${basePath}/data`, icon: Database },
     // Admin link - only shown for admins
-    ...(isAdmin ? [{ name: 'ניהול מערכת', href: '/admin', icon: Shield }] : []),
+    ...(isAdmin ? [{ name: 'ניהול מערכת', href: `${basePath}/admin`, icon: Shield }] : []),
   ];
 
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  const handleOrgSwitch = (org) => {
+    selectOrganization(org);
+    setOrgPickerOpen(false);
+    navigate(`/${org.slug}/dashboard`);
   };
 
   const navLinkClass = ({ isActive }) =>
@@ -78,12 +97,26 @@ function Layout() {
       `}>
         {/* Organization Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          {/* Super Admin Badge */}
+          {user?.isSuperAdmin && (
+            <div className="mb-3 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg flex items-center gap-2 text-white text-sm">
+              <Crown size={14} />
+              <span className="font-medium">Super Admin</span>
+              <button
+                onClick={() => navigate('/super-admin')}
+                className="mr-auto text-xs bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
+              >
+                לוח בקרה
+              </button>
+            </div>
+          )}
+
           {/* Organization Selector */}
           <div className="relative mb-3">
             <button
-              onClick={() => hasMultipleOrgs && setOrgPickerOpen(!orgPickerOpen)}
+              onClick={() => (hasMultipleOrgs || user?.isSuperAdmin) && setOrgPickerOpen(!orgPickerOpen)}
               className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
-                hasMultipleOrgs 
+                (hasMultipleOrgs || user?.isSuperAdmin)
                   ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
                   : ''
               }`}
@@ -109,11 +142,11 @@ function Layout() {
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                   {currentOrganization?.name || 'בחר ארגון'}
                 </h2>
-                {hasMultipleOrgs && (
+                {(hasMultipleOrgs || user?.isSuperAdmin) && (
                   <p className="text-xs text-gray-500 dark:text-gray-400">לחץ להחלפה</p>
                 )}
               </div>
-              {hasMultipleOrgs && (
+              {(hasMultipleOrgs || user?.isSuperAdmin) && (
                 <ChevronDown 
                   size={18} 
                   className={`text-gray-400 transition-transform ${orgPickerOpen ? 'rotate-180' : ''}`} 
@@ -122,15 +155,12 @@ function Layout() {
             </button>
 
             {/* Org Picker Dropdown */}
-            {orgPickerOpen && hasMultipleOrgs && (
-              <div className="absolute top-full right-0 left-0 mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+            {orgPickerOpen && (hasMultipleOrgs || user?.isSuperAdmin) && (
+              <div className="absolute top-full right-0 left-0 mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-64 overflow-y-auto">
                 {organizations.map(org => (
                   <button
                     key={org.id}
-                    onClick={() => {
-                      selectOrganization(org);
-                      setOrgPickerOpen(false);
-                    }}
+                    onClick={() => handleOrgSwitch(org)}
                     className={`w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                       currentOrganization?.id === org.id ? 'bg-purple-50 dark:bg-purple-900/20' : ''
                     }`}
@@ -142,12 +172,28 @@ function Layout() {
                         <span className="text-white font-bold text-sm">{org.name.charAt(0)}</span>
                       </div>
                     )}
-                    <span className="font-medium text-gray-900 dark:text-white text-sm">{org.name}</span>
+                    <div className="flex-1 text-right">
+                      <span className="font-medium text-gray-900 dark:text-white text-sm block">{org.name}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">/{org.slug}</span>
+                    </div>
                     {currentOrganization?.id === org.id && (
-                      <CheckCircle size={16} className="mr-auto text-purple-600" />
+                      <CheckCircle size={16} className="text-purple-600" />
                     )}
                   </button>
                 ))}
+                
+                {user?.isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setOrgPickerOpen(false);
+                      navigate('/super-admin');
+                    }}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors border-t border-gray-100 dark:border-gray-700 text-amber-600 dark:text-amber-400"
+                  >
+                    <Crown size={16} />
+                    <span className="text-sm font-medium">כל הארגונים (Super Admin)</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -174,13 +220,25 @@ function Layout() {
               to={item.href}
               className={navLinkClass}
               onClick={() => setSidebarOpen(false)}
-              end={item.href === '/dashboard'}
+              end={item.href.endsWith('/dashboard')}
               style={{ animationDelay: `${index * 0.05}s` }}
             >
               <item.icon size={20} />
               <span className="font-medium">{item.name}</span>
             </NavLink>
           ))}
+          
+          {/* Organization Settings Link */}
+          {isAdmin && (
+            <NavLink
+              to={`${basePath}/settings`}
+              className={navLinkClass}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <Settings size={20} />
+              <span className="font-medium">הגדרות ארגון</span>
+            </NavLink>
+          )}
         </nav>
 
         {/* Theme Toggle */}
@@ -231,16 +289,21 @@ function Layout() {
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {user?.name}
               </p>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {user?.email}
               </p>
+              <div className="flex items-center gap-2 mt-1">
+                {role && (
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[role]}`}>
+                    {ROLE_LABELS[role]}
+                  </span>
+                )}
+                {user?.isSuperAdmin && (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    SA
+                  </span>
+                )}
               </div>
-              {role && (
-                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[role]}`}>
-                  {ROLE_LABELS[role]}
-                </span>
-              )}
             </div>
           </div>
           <button

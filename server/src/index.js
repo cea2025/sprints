@@ -16,6 +16,7 @@ const storiesRoutes = require('./routes/stories');
 const teamRoutes = require('./routes/team');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
+const superAdminRoutes = require('./routes/super-admin');
 
 // Import new module routes
 const organizationRoutes = require('./modules/organization/organization.routes');
@@ -92,6 +93,9 @@ app.use('/api/auth', authRoutes);
 
 // Organization routes (new module structure)
 app.use('/api/organizations', organizationRoutes);
+
+// Super Admin routes (platform-wide)
+app.use('/api/super-admin', superAdminRoutes);
 
 // Legacy routes (will be migrated to modules later)
 app.use('/api/objectives', objectivesRoutes);

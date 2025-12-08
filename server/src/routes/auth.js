@@ -21,13 +21,13 @@ router.get('/google', (req, res, next) => {
 });
 
 // @route   GET /api/auth/google/callback
-// @desc    Google OAuth callback
+// @desc    Google OAuth callback - redirects based on user's organizations
 router.get('/google/callback', (req, res, next) => {
   if (!isGoogleOAuthConfigured()) {
     return res.redirect('/login?error=oauth_not_configured');
   }
   
-  passport.authenticate('google', (err, user, info) => {
+  passport.authenticate('google', async (err, user, info) => {
     // Handle errors
     if (err) {
       console.error('OAuth error:', err);
@@ -46,36 +46,120 @@ router.get('/google/callback', (req, res, next) => {
     }
     
     // Login the user
-    req.logIn(user, (loginErr) => {
+    req.logIn(user, async (loginErr) => {
       if (loginErr) {
         console.error('Login error:', loginErr);
         return res.redirect('/login?error=login_failed');
       }
       
-      // Successful authentication
-      const redirectUrl = process.env.NODE_ENV === 'production' 
-        ? '/dashboard' 
-        : 'http://localhost:5173/dashboard';
-      res.redirect(redirectUrl);
+      const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173';
+      
+      try {
+        // Super Admin - redirect to super admin dashboard
+        if (user.isSuperAdmin) {
+          return res.redirect(`${baseUrl}/super-admin`);
+        }
+        
+        // Get user's organizations
+        const prisma = require('../lib/prisma');
+        const memberships = await prisma.organizationMember.findMany({
+          where: {
+            userId: user.id,
+            isActive: true,
+            organization: { isActive: true }
+          },
+          include: {
+            organization: {
+              select: { slug: true }
+            }
+          }
+        });
+        
+        if (memberships.length === 0) {
+          // No organizations - redirect to create or join
+          return res.redirect(`${baseUrl}/no-organization`);
+        } else if (memberships.length === 1) {
+          // Single organization - redirect directly to their dashboard
+          const slug = memberships[0].organization.slug;
+          req.session.organizationId = memberships[0].organizationId;
+          return res.redirect(`${baseUrl}/${slug}/dashboard`);
+        } else {
+          // Multiple organizations - let user choose
+          return res.redirect(`${baseUrl}/select-organization`);
+        }
+      } catch (error) {
+        console.error('Error determining redirect:', error);
+        return res.redirect(`${baseUrl}/dashboard`);
+      }
     });
   })(req, res, next);
 });
 
 // @route   GET /api/auth/me
-// @desc    Get current user
-router.get('/me', (req, res) => {
+// @desc    Get current user with organizations
+router.get('/me', async (req, res) => {
   if (req.user) {
-    res.json({
-      user: {
-        id: req.user.id,
-        email: req.user.email,
-        name: req.user.name,
-        picture: req.user.picture,
-        role: req.user.role,
-        isActive: req.user.isActive,
-        teamMember: req.user.teamMember
-      }
-    });
+    try {
+      const prisma = require('../lib/prisma');
+      
+      // Get user's organizations
+      const memberships = await prisma.organizationMember.findMany({
+        where: {
+          userId: req.user.id,
+          isActive: true,
+          organization: { isActive: true }
+        },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              logo: true
+            }
+          }
+        }
+      });
+
+      const organizations = memberships.map(m => ({
+        id: m.organization.id,
+        name: m.organization.name,
+        slug: m.organization.slug,
+        logo: m.organization.logo,
+        role: m.role
+      }));
+
+      res.json({
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          name: req.user.name,
+          picture: req.user.picture,
+          role: req.user.role,
+          isActive: req.user.isActive,
+          isSuperAdmin: req.user.isSuperAdmin || false,
+          teamMember: req.user.teamMember,
+          organizations,
+          organizationCount: organizations.length
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      res.json({
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          name: req.user.name,
+          picture: req.user.picture,
+          role: req.user.role,
+          isActive: req.user.isActive,
+          isSuperAdmin: req.user.isSuperAdmin || false,
+          teamMember: req.user.teamMember,
+          organizations: [],
+          organizationCount: 0
+        }
+      });
+    }
   } else {
     res.status(401).json({ user: null });
   }
