@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi';
 import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { ListTodo, Plus, Edit2, Trash2 } from 'lucide-react';
 
 export default function Stories() {
@@ -422,56 +423,61 @@ export default function Stories() {
                 />
               </div>
 
-              {/* Sprint - Required */}
+              {/* Sprint - Required with Search */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   ספרינט <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SearchableSelect
+                  options={sprints}
                   value={formData.sprintId}
-                  onChange={e => setFormData({...formData, sprintId: e.target.value})}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                  required
-                >
-                  <option value="">בחר ספרינט</option>
-                  {sprints.map(sprint => (
-                    <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({...formData, sprintId: value})}
+                  placeholder="בחר ספרינט"
+                  searchPlaceholder="חפש ספרינט..."
+                  emptyMessage="לא נמצאו ספרינטים"
+                  getLabel={(sprint) => sprint.name}
+                  getValue={(sprint) => sprint.id}
+                  getSearchText={(sprint) => sprint.name}
+                  allowClear={false}
+                />
               </div>
 
-              {/* Owner - Optional */}
+              {/* Owner - Optional with Search */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   אחראי
                 </label>
-                <select
+                <SearchableSelect
+                  options={teamMembers}
                   value={formData.ownerId}
-                  onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">ללא אחראי</option>
-                  {teamMembers.map(member => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({...formData, ownerId: value})}
+                  placeholder="ללא אחראי"
+                  searchPlaceholder="חפש איש צוות..."
+                  emptyMessage="לא נמצאו אנשי צוות"
+                  getLabel={(member) => member.name}
+                  getValue={(member) => member.id}
+                  getSearchText={(member) => `${member.name} ${member.role || ''}`}
+                  allowClear={true}
+                />
               </div>
 
-              {/* Rock - Optional */}
+              {/* Rock - Optional with Search */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   סלע (אופציונלי)
                 </label>
-                <select
+                <SearchableSelect
+                  options={rocks}
                   value={formData.rockId}
-                  onChange={e => setFormData({...formData, rockId: e.target.value})}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">ללא שיוך לסלע</option>
-                  {rocks.map(rock => (
-                    <option key={rock.id} value={rock.id}>{rock.code} - {rock.name}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({...formData, rockId: value})}
+                  placeholder="ללא שיוך לסלע"
+                  searchPlaceholder="חפש סלע לפי קוד או שם..."
+                  emptyMessage="לא נמצאו סלעים"
+                  getLabel={(rock) => `${rock.code} - ${rock.name}`}
+                  getValue={(rock) => rock.id}
+                  getSearchText={(rock) => `${rock.code} ${rock.name} ${rock.objective?.code || ''} ${rock.objective?.name || ''}`}
+                  allowClear={true}
+                />
               </div>
 
               {/* Progress */}
