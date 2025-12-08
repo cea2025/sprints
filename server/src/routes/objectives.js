@@ -7,11 +7,31 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(isAuthenticated);
 
+// Helper to get organization ID from session or default
+const getOrganizationId = async (req) => {
+  if (req.session?.organizationId) {
+    return req.session.organizationId;
+  }
+  
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: req.user.id, isActive: true },
+    include: { organization: true }
+  });
+  
+  return membership?.organizationId || null;
+};
+
 // @route   GET /api/objectives
 // @desc    Get all objectives with rocks and progress
 router.get('/', async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    
+    const where = {};
+    if (organizationId) where.organizationId = organizationId;
+
     const objectives = await prisma.objective.findMany({
+      where,
       include: {
         owner: true,
         rocks: {
@@ -82,13 +102,16 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { code, name, description, ownerId } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     const objective = await prisma.objective.create({
       data: {
         code,
         name,
         description,
-        ownerId: ownerId || null
+        ownerId: ownerId || null,
+        organizationId,
+        createdBy: req.user.id
       },
       include: {
         owner: true
@@ -99,9 +122,9 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error creating objective:', error);
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Objective code already exists' });
+      return res.status(400).json({ error: 'קוד מטרת-על כבר קיים' });
     }
-    res.status(500).json({ error: 'Failed to create objective' });
+    res.status(500).json({ error: 'Failed to create objective: ' + error.message });
   }
 });
 
@@ -117,7 +140,8 @@ router.put('/:id', async (req, res) => {
         code,
         name,
         description,
-        ownerId: ownerId || null
+        ownerId: ownerId || null,
+        updatedBy: req.user.id
       },
       include: {
         owner: true

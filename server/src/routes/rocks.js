@@ -7,13 +7,29 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(isAuthenticated);
 
+// Helper to get organization ID from session or default
+const getOrganizationId = async (req) => {
+  if (req.session?.organizationId) {
+    return req.session.organizationId;
+  }
+  
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: req.user.id, isActive: true },
+    include: { organization: true }
+  });
+  
+  return membership?.organizationId || null;
+};
+
 // @route   GET /api/rocks
 // @desc    Get all rocks with progress
 router.get('/', async (req, res) => {
   try {
     const { year, quarter, objectiveId } = req.query;
+    const organizationId = await getOrganizationId(req);
     
     const where = {};
+    if (organizationId) where.organizationId = organizationId;
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
     if (objectiveId) where.objectiveId = objectiveId;
@@ -100,6 +116,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { code, name, description, year, quarter, progress, ownerId, objectiveId } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     const rock = await prisma.rock.create({
       data: {
@@ -110,7 +127,9 @@ router.post('/', async (req, res) => {
         quarter: parseInt(quarter),
         progress: progress ? parseInt(progress) : 0,
         ownerId: ownerId || null,
-        objectiveId: objectiveId || null
+        objectiveId: objectiveId || null,
+        organizationId,
+        createdBy: req.user.id
       },
       include: {
         owner: true,
@@ -122,9 +141,9 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error creating rock:', error);
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Rock code already exists' });
+      return res.status(400).json({ error: 'קוד הסלע כבר קיים' });
     }
-    res.status(500).json({ error: 'Failed to create rock' });
+    res.status(500).json({ error: 'Failed to create rock: ' + error.message });
   }
 });
 
@@ -146,7 +165,8 @@ router.put('/:id', async (req, res) => {
         ownerId: ownerId || null,
         objectiveId: objectiveId || null,
         isCarriedOver: isCarriedOver !== undefined ? isCarriedOver : undefined,
-        carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null
+        carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null,
+        updatedBy: req.user.id
       },
       include: {
         owner: true,
@@ -188,7 +208,8 @@ router.post('/:id/carry-over', async (req, res) => {
         quarter: nextQuarter,
         year: nextYear,
         isCarriedOver: true,
-        carriedFromQuarter: currentQuarter
+        carriedFromQuarter: currentQuarter,
+        updatedBy: req.user.id
       },
       include: {
         owner: true,
@@ -212,7 +233,8 @@ router.put('/:id/progress', async (req, res) => {
     const rock = await prisma.rock.update({
       where: { id: req.params.id },
       data: {
-        progress: Math.min(100, Math.max(0, parseInt(progress) || 0))
+        progress: Math.min(100, Math.max(0, parseInt(progress) || 0)),
+        updatedBy: req.user.id
       },
       include: {
         owner: true,

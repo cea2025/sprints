@@ -7,13 +7,29 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(isAuthenticated);
 
+// Helper to get organization ID from session or default
+const getOrganizationId = async (req) => {
+  if (req.session?.organizationId) {
+    return req.session.organizationId;
+  }
+  
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: req.user.id, isActive: true },
+    include: { organization: true }
+  });
+  
+  return membership?.organizationId || null;
+};
+
 // @route   GET /api/team
 // @desc    Get all team members
 router.get('/', async (req, res) => {
   try {
     const { active } = req.query;
+    const organizationId = await getOrganizationId(req);
     
     const where = {};
+    if (organizationId) where.organizationId = organizationId;
     if (active === 'true') where.isActive = true;
     if (active === 'false') where.isActive = false;
 
@@ -39,7 +55,7 @@ router.get('/', async (req, res) => {
     res.json(teamMembers);
   } catch (error) {
     console.error('Error fetching team members:', error);
-    res.status(500).json({ error: 'Failed to fetch team members' });
+    res.status(500).json([]);
   }
 });
 
@@ -59,7 +75,7 @@ router.get('/:id', async (req, res) => {
         ownedRocks: {
           include: {
             stories: {
-              select: { status: true }
+              select: { progress: true }
             }
           }
         },
@@ -89,20 +105,23 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, role, capacity, userId } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     const teamMember = await prisma.teamMember.create({
       data: {
         name,
         role,
         capacity: capacity ? parseInt(capacity) : null,
-        userId
+        userId,
+        organizationId,
+        createdBy: req.user.id
       }
     });
 
     res.status(201).json(teamMember);
   } catch (error) {
     console.error('Error creating team member:', error);
-    res.status(500).json({ error: 'Failed to create team member' });
+    res.status(500).json({ error: 'Failed to create team member: ' + error.message });
   }
 });
 
@@ -118,7 +137,8 @@ router.put('/:id', async (req, res) => {
         name,
         role,
         capacity: capacity !== undefined ? (capacity ? parseInt(capacity) : null) : undefined,
-        isActive
+        isActive,
+        updatedBy: req.user.id
       }
     });
 

@@ -7,13 +7,31 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(isAuthenticated);
 
+// Helper to get organization ID from session or default
+const getOrganizationId = async (req) => {
+  // Try to get from session first
+  if (req.session?.organizationId) {
+    return req.session.organizationId;
+  }
+  
+  // Otherwise, get the first organization the user belongs to
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: req.user.id, isActive: true },
+    include: { organization: true }
+  });
+  
+  return membership?.organizationId || null;
+};
+
 // @route   GET /api/sprints
 // @desc    Get all sprints
 router.get('/', async (req, res) => {
   try {
     const { year, quarter } = req.query;
+    const organizationId = await getOrganizationId(req);
     
     const where = {};
+    if (organizationId) where.organizationId = organizationId;
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
 
@@ -116,13 +134,17 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     // Auto-generate name: 2026-Q2-S5
     const name = `${year}-Q${quarter}-S${sprintNumber}`;
 
-    // Check if name already exists
-    const existing = await prisma.sprint.findUnique({
-      where: { name }
+    // Check if name already exists in this organization
+    const existing = await prisma.sprint.findFirst({
+      where: { 
+        name,
+        organizationId 
+      }
     });
 
     if (existing) {
@@ -138,6 +160,8 @@ router.post('/', async (req, res) => {
         goal,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
+        organizationId,
+        createdBy: req.user.id,
         sprintRocks: {
           create: (rockIds || []).map(rockId => ({
             rockId
@@ -159,7 +183,7 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating sprint:', error);
-    res.status(500).json({ error: 'Failed to create sprint' });
+    res.status(500).json({ error: 'Failed to create sprint: ' + error.message });
   }
 });
 
@@ -185,7 +209,8 @@ router.put('/:id', async (req, res) => {
         sprintNumber: sprintNumber ? parseInt(sprintNumber) : undefined,
         goal,
         startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined
+        endDate: endDate ? new Date(endDate) : undefined,
+        updatedBy: req.user.id
       }
     });
 

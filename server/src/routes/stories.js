@@ -7,13 +7,29 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(isAuthenticated);
 
+// Helper to get organization ID from session or default
+const getOrganizationId = async (req) => {
+  if (req.session?.organizationId) {
+    return req.session.organizationId;
+  }
+  
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: req.user.id, isActive: true },
+    include: { organization: true }
+  });
+  
+  return membership?.organizationId || null;
+};
+
 // @route   GET /api/stories
 // @desc    Get all stories
 router.get('/', async (req, res) => {
   try {
     const { sprintId, rockId, ownerId, isBlocked } = req.query;
+    const organizationId = await getOrganizationId(req);
     
     const where = {};
+    if (organizationId) where.organizationId = organizationId;
     if (sprintId) where.sprintId = sprintId;
     if (rockId) where.rockId = rockId;
     if (ownerId) where.ownerId = ownerId;
@@ -73,13 +89,11 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     // Validate required fields
     if (!sprintId) {
       return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
-    }
-    if (!ownerId) {
-      return res.status(400).json({ error: 'אחראי הוא שדה חובה' });
     }
 
     const story = await prisma.story.create({
@@ -90,7 +104,9 @@ router.post('/', async (req, res) => {
         isBlocked: isBlocked || false,
         sprintId,
         rockId: rockId || null,
-        ownerId
+        ownerId: ownerId || null,
+        organizationId,
+        createdBy: req.user.id
       },
       include: {
         sprint: true,
@@ -106,7 +122,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(story);
   } catch (error) {
     console.error('Error creating story:', error);
-    res.status(500).json({ error: 'Failed to create story' });
+    res.status(500).json({ error: 'Failed to create story: ' + error.message });
   }
 });
 
@@ -120,9 +136,6 @@ router.put('/:id', async (req, res) => {
     if (sprintId === '') {
       return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
     }
-    if (ownerId === '') {
-      return res.status(400).json({ error: 'אחראי הוא שדה חובה' });
-    }
 
     const story = await prisma.story.update({
       where: { id: req.params.id },
@@ -133,7 +146,8 @@ router.put('/:id', async (req, res) => {
         isBlocked: isBlocked !== undefined ? isBlocked : undefined,
         sprintId: sprintId || undefined,
         rockId: rockId || null,
-        ownerId: ownerId || undefined
+        ownerId: ownerId || null,
+        updatedBy: req.user.id
       },
       include: {
         sprint: true,
@@ -163,7 +177,8 @@ router.put('/:id/progress', async (req, res) => {
       where: { id: req.params.id },
       data: {
         progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
-        isBlocked: isBlocked !== undefined ? isBlocked : undefined
+        isBlocked: isBlocked !== undefined ? isBlocked : undefined,
+        updatedBy: req.user.id
       },
       include: {
         sprint: true,
@@ -198,7 +213,8 @@ router.put('/:id/block', async (req, res) => {
     const story = await prisma.story.update({
       where: { id: req.params.id },
       data: {
-        isBlocked: !current.isBlocked
+        isBlocked: !current.isBlocked,
+        updatedBy: req.user.id
       },
       include: {
         sprint: true,
