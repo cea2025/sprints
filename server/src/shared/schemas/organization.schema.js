@@ -10,7 +10,8 @@ const createOrganizationSchema = z.object({
   name: z.string().min(1, 'שם הוא שדה חובה').max(100),
   slug: z.string().min(1).max(50)
     .regex(/^[a-z0-9-]+$/, 'slug חייב להכיל רק אותיות קטנות, מספרים ומקפים'),
-  logo: z.string().url().optional().nullable(),
+  logo: z.string().url().optional().nullable()
+    .or(z.literal('')), // Allow empty string
   settings: z.object({}).passthrough().optional().nullable()
 });
 
@@ -20,7 +21,8 @@ const updateOrganizationSchema = z.object({
   slug: z.string().min(1).max(50)
     .regex(/^[a-z0-9-]+$/, 'slug חייב להכיל רק אותיות קטנות, מספרים ומקפים')
     .optional(),
-  logo: z.string().url().optional().nullable(),
+  logo: z.string().url().optional().nullable()
+    .or(z.literal('')), // Allow empty string
   settings: z.object({}).passthrough().optional().nullable(),
   isActive: z.boolean().optional()
 });

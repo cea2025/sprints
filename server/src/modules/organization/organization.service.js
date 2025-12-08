@@ -54,7 +54,7 @@ class OrganizationService {
       data: {
         name: data.name,
         slug: data.slug,
-        logo: data.logo,
+        logo: data.logo || null, // Convert empty string to null
         settings: data.settings,
         createdBy: userId,
         members: {
@@ -139,7 +139,7 @@ class OrganizationService {
       data: {
         name: data.name,
         slug: data.slug,
-        logo: data.logo,
+        logo: data.logo || null, // Convert empty string to null
         settings: data.settings,
         isActive: data.isActive
       }
