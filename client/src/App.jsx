@@ -76,13 +76,16 @@ function NoOrganization() {
   );
 }
 
-// Super Admin Dashboard (placeholder)
+// Super Admin Dashboard
 function SuperAdminDashboard() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ name: '', slug: '', logo: '' });
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const fetchOrganizations = () => {
     fetch('/api/super-admin/organizations', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -90,24 +93,93 @@ function SuperAdminDashboard() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchOrganizations();
   }, []);
+
+  const handleCreateOrg = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.slug) return;
+    
+    setSaving(true);
+    try {
+      const res = await fetch('/api/super-admin/organizations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+      });
+      
+      if (res.ok) {
+        setShowModal(false);
+        setFormData({ name: '', slug: '', logo: '' });
+        fetchOrganizations();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'שגיאה ביצירת ארגון');
+      }
+    } catch (error) {
+      alert('שגיאה ביצירת ארגון');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">🛡️ Super Admin</h1>
-          <p className="text-gray-600 dark:text-gray-400">ניהול כל הארגונים בפלטפורמה</p>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">🛡️ Super Admin</h1>
+            <p className="text-gray-600 dark:text-gray-400">ניהול כל הארגונים בפלטפורמה</p>
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25 font-medium"
+          >
+            <span className="text-xl">+</span>
+            <span>ארגון חדש</span>
+          </button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+            <div className="text-2xl font-bold text-purple-600">{organizations.length}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">ארגונים</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+            <div className="text-2xl font-bold text-blue-600">
+              {organizations.reduce((sum, o) => sum + (o._count?.members || 0), 0)}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">משתמשים</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+            <div className="text-2xl font-bold text-green-600">
+              {organizations.reduce((sum, o) => sum + (o._count?.rocks || 0), 0)}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">סלעים</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+            <div className="text-2xl font-bold text-orange-600">
+              {organizations.reduce((sum, o) => sum + (o._count?.stories || 0), 0)}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">אבני דרך</div>
+          </div>
         </div>
         
+        {/* Organizations Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {organizations.map(org => (
             <div
               key={org.id}
               onClick={() => navigate(`/${org.slug}/dashboard`)}
-              className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-lg transition-all"
+              className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-purple-300 dark:hover:border-purple-600 transition-all"
             >
               <div className="flex items-center gap-4 mb-4">
                 {org.logo ? (
@@ -141,11 +213,101 @@ function SuperAdminDashboard() {
         </div>
         
         {organizations.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">אין ארגונים בפלטפורמה</p>
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+            <div className="text-6xl mb-4">🏢</div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">אין ארגונים</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">צור את הארגון הראשון שלך</p>
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all"
+            >
+              צור ארגון חדש
+            </button>
           </div>
         )}
       </div>
+
+      {/* Create Organization Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+              ➕ ארגון חדש
+            </h2>
+            
+            <form onSubmit={handleCreateOrg} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  שם הארגון <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="לדוגמה: החברה שלי"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  כתובת URL (slug) <span className="text-red-500">*</span>
+                </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 text-sm text-gray-500 bg-gray-100 dark:bg-gray-600 border border-l-0 dark:border-gray-600 rounded-r-xl">
+                    sprints.onrender.com/
+                  </span>
+                  <input
+                    type="text"
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') 
+                    })}
+                    placeholder="my-company"
+                    className="flex-1 px-4 py-2.5 border dark:border-gray-600 rounded-l-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    dir="ltr"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">רק אותיות באנגלית קטנות, מספרים ומקפים</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  לוגו (URL)
+                </label>
+                <input
+                  type="url"
+                  value={formData.logo}
+                  onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setFormData({ name: '', slug: '', logo: '' }); }}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || !formData.name || !formData.slug}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
+                >
+                  {saving ? 'יוצר...' : 'צור ארגון'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
