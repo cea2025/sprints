@@ -10,6 +10,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { requireAuth, requireAdmin, requirePermission } = require('../middleware/permissions');
 const { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, getPermissionsForRole } = require('../constants/roles');
+const { getOrganizationId } = require('../middleware/organization');
 
 const prisma = new PrismaClient();
 
@@ -238,12 +239,18 @@ router.get('/stats', requireAdmin, async (req, res) => {
 
 /**
  * @route   GET /api/admin/allowed-emails
- * @desc    Get all allowed emails
+ * @desc    Get all allowed emails for current organization
  * @access  Admin only
  */
 router.get('/allowed-emails', requirePermission('users:read'), async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
     const allowedEmails = await prisma.allowedEmail.findMany({
+      where: { organizationId },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -284,6 +291,11 @@ router.get('/allowed-emails', requirePermission('users:read'), async (req, res) 
  */
 router.post('/allowed-emails/bulk', requirePermission('users:create'), async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
     const { emails } = req.body; // Array of { email, name?, role?, note? }
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
@@ -297,9 +309,10 @@ router.post('/allowed-emails/bulk', requirePermission('users:create'), async (re
       return res.status(400).json({ error: 'לא נמצאו מיילים תקינים' });
     }
 
-    // Get existing emails to skip
+    // Get existing emails to skip (for this organization)
     const existingEmails = await prisma.allowedEmail.findMany({
       where: {
+        organizationId,
         email: {
           in: validEmails.map(e => e.email.toLowerCase())
         }
@@ -316,6 +329,7 @@ router.post('/allowed-emails/bulk', requirePermission('users:create'), async (re
 
     const created = await prisma.allowedEmail.createMany({
       data: newEmails.map(e => ({
+        organizationId,
         email: e.email.toLowerCase(),
         name: e.name || null,
         role: e.role || 'VIEWER',
@@ -337,11 +351,16 @@ router.post('/allowed-emails/bulk', requirePermission('users:create'), async (re
 
 /**
  * @route   POST /api/admin/allowed-emails
- * @desc    Add new allowed email
+ * @desc    Add new allowed email for current organization
  * @access  Admin only
  */
 router.post('/allowed-emails', requirePermission('users:create'), async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
     const { email, name, role, note } = req.body;
 
     if (!email) {
@@ -354,9 +373,12 @@ router.post('/allowed-emails', requirePermission('users:create'), async (req, re
       return res.status(400).json({ error: 'כתובת מייל לא תקינה' });
     }
 
-    // Check if already exists
-    const existing = await prisma.allowedEmail.findUnique({
-      where: { email: email.toLowerCase() }
+    // Check if already exists for this organization
+    const existing = await prisma.allowedEmail.findFirst({
+      where: { 
+        organizationId,
+        email: email.toLowerCase() 
+      }
     });
 
     if (existing) {
@@ -365,6 +387,7 @@ router.post('/allowed-emails', requirePermission('users:create'), async (req, re
 
     const allowedEmail = await prisma.allowedEmail.create({
       data: {
+        organizationId,
         email: email.toLowerCase(),
         name: name || null,
         role: role || 'VIEWER',
@@ -382,13 +405,27 @@ router.post('/allowed-emails', requirePermission('users:create'), async (req, re
 
 /**
  * @route   PUT /api/admin/allowed-emails/:id
- * @desc    Update allowed email
+ * @desc    Update allowed email (only within current organization)
  * @access  Admin only
  */
 router.put('/allowed-emails/:id', requirePermission('users:update'), async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
     const { id } = req.params;
     const { name, role, note } = req.body;
+
+    // Verify email belongs to current organization
+    const existing = await prisma.allowedEmail.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'מייל לא נמצא' });
+    }
 
     const allowedEmail = await prisma.allowedEmail.update({
       where: { id },
@@ -408,12 +445,26 @@ router.put('/allowed-emails/:id', requirePermission('users:update'), async (req,
 
 /**
  * @route   DELETE /api/admin/allowed-emails/:id
- * @desc    Remove allowed email
+ * @desc    Remove allowed email (only within current organization)
  * @access  Admin only
  */
 router.delete('/allowed-emails/:id', requirePermission('users:delete'), async (req, res) => {
   try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
     const { id } = req.params;
+
+    // Verify email belongs to current organization
+    const existing = await prisma.allowedEmail.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'מייל לא נמצא' });
+    }
 
     await prisma.allowedEmail.delete({
       where: { id }
