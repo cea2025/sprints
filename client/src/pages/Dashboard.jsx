@@ -116,9 +116,9 @@ function Dashboard() {
 
   const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [] } = data || {};
   
-  // Use user-specific data when in user mode, otherwise use all data
+  // Use user-specific data - same layout for both modes
   const displayRocks = viewMode === 'user' ? userRocks : rocks;
-  const displayMilestones = viewMode === 'user' ? userMilestones : [];
+  const displayMilestones = userMilestones; // Always show user milestones in the side panel
 
   const handleSetCurrentSprint = async (sprintId) => {
     try {
@@ -231,135 +231,139 @@ function Dashboard() {
         />
       </div>
 
-      {/* User Mode: Side by Side - My Milestones (Right) | My Tasks (Left) */}
-      {viewMode === 'user' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-in-up" style={{ animationDelay: '0.15s' }}>
-          {/* אבני הדרך שלי - Right Side */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-1 lg:order-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg">
-                  <ListTodo className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">אבני הדרך שלי</h2>
+      {/* Side by Side - Milestones (Right) | Tasks (Left) - Same layout for both modes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-in-up" style={{ animationDelay: '0.15s' }}>
+        {/* אבני דרך - Right Side */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-1 lg:order-1">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg">
+                <ListTodo className="w-5 h-5 text-white" />
               </div>
-              <Link
-                to={`${basePath}/stories`}
-                className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 text-sm font-medium group"
-              >
-                <span>הכל</span>
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              </Link>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                {viewMode === 'user' ? 'אבני הדרך שלי' : 'אבני דרך'}
+              </h2>
             </div>
-
-            {displayMilestones.length === 0 ? (
-              <div className="text-center py-8">
-                <ListTodo className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                <p className="text-gray-500 dark:text-gray-400 text-sm">אין אבני דרך מוקצות</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {displayMilestones.slice(0, 5).map((milestone) => (
-                  <div
-                    key={milestone.id}
-                    className={`p-3 rounded-xl border ${
-                      milestone.isBlocked 
-                        ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' 
-                        : 'border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                    } transition-all`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      {milestone.code && (
-                        <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-mono">
-                          {milestone.code}
-                        </span>
-                      )}
-                      <h3 className={`font-medium text-sm flex-1 truncate ${milestone.isBlocked ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                        {milestone.title}
-                      </h3>
-                      {milestone.isBlocked && <span className="text-red-500 text-xs">🚫</span>}
-                    </div>
-                    <Battery progress={milestone.progress || 0} size="xs" />
-                  </div>
-                ))}
-                {displayMilestones.length > 5 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
-                    +{displayMilestones.length - 5} נוספות
-                  </p>
-                )}
-              </div>
-            )}
+            <Link
+              to={`${basePath}/stories`}
+              className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 text-sm font-medium group"
+            >
+              <span>הכל</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            </Link>
           </div>
 
-          {/* המשימות שלי - Left Side */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-2 lg:order-2">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
-                  <CheckSquare className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">המשימות שלי</h2>
-              </div>
-              <Link
-                to={`${basePath}/tasks`}
-                className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium group"
-              >
-                <span>הכל</span>
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              </Link>
+          {displayMilestones.length === 0 ? (
+            <div className="text-center py-8">
+              <ListTodo className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
+                {viewMode === 'user' ? 'אין אבני דרך מוקצות' : 'אין אבני דרך'}
+              </p>
             </div>
-
-            {myTasks.filter(t => t.status !== 'DONE').length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
-                  >
-                    <button
-                      onClick={() => handleTaskStatusToggle(task.id, task.status)}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        task.status === 'IN_PROGRESS'
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-emerald-600'
-                      }`}
-                      title={task.status === 'TODO' ? 'התחל' : 'סיים'}
-                    >
-                      {task.status === 'IN_PROGRESS' ? <Clock className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                    </button>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{task.title}</p>
-                      {task.story && (
-                        <p className="text-xs text-purple-600 dark:text-purple-400 truncate">📋 {task.story.title}</p>
-                      )}
-                    </div>
-
-                    {task.priority > 0 && (
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        task.priority === 2 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
-                      }`}>
-                        {task.priority === 2 ? 'דחוף' : 'גבוה'}
+          ) : (
+            <div className="space-y-2">
+              {displayMilestones.slice(0, 5).map((milestone) => (
+                <div
+                  key={milestone.id}
+                  className={`p-3 rounded-xl border ${
+                    milestone.isBlocked 
+                      ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' 
+                      : 'border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  } transition-all`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    {milestone.code && (
+                      <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-mono">
+                        {milestone.code}
                       </span>
                     )}
+                    <h3 className={`font-medium text-sm flex-1 truncate ${milestone.isBlocked ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                      {milestone.title}
+                    </h3>
+                    {milestone.isBlocked && <span className="text-red-500 text-xs">🚫</span>}
                   </div>
-                ))}
-                
-                {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
-                    +{myTasks.filter(t => t.status !== 'DONE').length - 5} נוספות
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                  <Battery progress={milestone.progress || 0} size="xs" />
+                </div>
+              ))}
+              {displayMilestones.length > 5 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                  +{displayMilestones.length - 5} נוספות
+                </p>
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* משימות - Left Side */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-2 lg:order-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                <CheckSquare className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                {viewMode === 'user' ? 'המשימות שלי' : 'משימות'}
+              </h2>
+            </div>
+            <Link
+              to={`${basePath}/tasks`}
+              className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium group"
+            >
+              <span>הכל</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          {myTasks.filter(t => t.status !== 'DONE').length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
+                >
+                  <button
+                    onClick={() => handleTaskStatusToggle(task.id, task.status)}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      task.status === 'IN_PROGRESS'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-emerald-600'
+                    }`}
+                    title={task.status === 'TODO' ? 'התחל' : 'סיים'}
+                  >
+                    {task.status === 'IN_PROGRESS' ? <Clock className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  </button>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{task.title}</p>
+                    {task.story && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 truncate">📋 {task.story.title}</p>
+                    )}
+                  </div>
+
+                  {task.priority > 0 && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      task.priority === 2 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                    }`}>
+                      {task.priority === 2 ? 'דחוף' : 'גבוה'}
+                    </span>
+                  )}
+                </div>
+              ))}
+              
+              {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                  +{myTasks.filter(t => t.status !== 'DONE').length - 5} נוספות
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Orphans Widget */}
       {orphans && orphans.total > 0 && (
@@ -468,76 +472,6 @@ function Dashboard() {
         )}
       </div>
 
-      {/* All Mode: Rocks */}
-      {viewMode === 'all' && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              סלעים - Q{currentQuarter?.quarter || 4}
-            </h2>
-            <Link
-              to={`${basePath}/rocks`}
-              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
-            >
-              <span>כל הסלעים</span>
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          {displayRocks.length === 0 ? (
-            <div className="text-center py-12">
-              <Mountain className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">אין סלעים לרבעון הנוכחי</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {displayRocks.map((rock, index) => (
-                <RockCard key={rock.id} rock={rock} index={index} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Objectives - Show only in 'all' mode */}
-      {viewMode === 'all' && objectives && objectives.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.4s' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              פרויקטים
-            </h2>
-            <Link
-              to={`${basePath}/objectives`}
-              className="flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium group"
-            >
-              <span>כל הפרויקטים</span>
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {objectives.slice(0, 4).map((obj) => (
-              <div
-                key={obj.id}
-                className="border dark:border-gray-700 rounded-xl p-4 hover:border-purple-300 dark:hover:border-purple-600 transition-all"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded font-medium">
-                    {obj.code}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {obj.rocksCount} סלעים
-                  </span>
-                </div>
-                <h3 className="font-medium text-gray-900 dark:text-white mb-3">
-                  {obj.name}
-                </h3>
-                <Battery progress={obj.progress || 0} size="sm" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
