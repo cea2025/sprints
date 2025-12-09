@@ -145,8 +145,14 @@ app.use(errorHandler);
 
 // ==================== START SERVER ====================
 
+// Import keep-alive utility
+const { startKeepAlive } = require('./utils/keep-alive');
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📦 Architecture: Multi-tenant ready`);
+  
+  // Start keep-alive pinger to prevent Render free tier from sleeping
+  startKeepAlive();
 });
