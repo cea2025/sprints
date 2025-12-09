@@ -309,6 +309,182 @@ router.get('/meta/categories', (req, res) => {
 });
 
 // ============================================================
+// Alert Configurations
+// ============================================================
+
+/**
+ * @route   GET /api/audit/alerts
+ * @desc    Get all alert configurations
+ * @access  Admin only
+ */
+router.get('/alerts', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
+    // Check admin permission
+    const membership = await prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId: req.user.id, organizationId }
+      }
+    });
+
+    if (!membership || membership.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'נדרשת הרשאת מנהל' });
+    }
+
+    const configs = await prisma.auditAlertConfig.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(configs);
+
+  } catch (error) {
+    console.error('Error fetching alert configs:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת הגדרות ההתראות' });
+  }
+});
+
+/**
+ * @route   POST /api/audit/alerts
+ * @desc    Create new alert configuration
+ * @access  Admin only
+ */
+router.post('/alerts', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
+    // Check admin permission
+    const membership = await prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId: req.user.id, organizationId }
+      }
+    });
+
+    if (!membership || membership.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'נדרשת הרשאת מנהל' });
+    }
+
+    const config = await prisma.auditAlertConfig.create({
+      data: {
+        organizationId,
+        name: req.body.name,
+        description: req.body.description,
+        triggerActions: req.body.triggerActions || [],
+        triggerEntities: req.body.triggerEntities || ['*'],
+        notifyRoles: req.body.notifyRoles || ['ADMIN'],
+        notifyUserIds: req.body.notifyUserIds || [],
+        channelEmail: req.body.channelEmail ?? false,
+        channelInApp: req.body.channelInApp ?? true,
+        channelWebhook: req.body.channelWebhook ?? false,
+        webhookUrl: req.body.webhookUrl,
+        webhookSecret: req.body.webhookSecret,
+        cooldownMinutes: req.body.cooldownMinutes || 5,
+        isActive: true,
+        createdBy: req.user.id
+      }
+    });
+
+    res.status(201).json(config);
+
+  } catch (error) {
+    console.error('Error creating alert config:', error);
+    res.status(500).json({ error: 'שגיאה ביצירת הגדרת התראה' });
+  }
+});
+
+/**
+ * @route   PUT /api/audit/alerts/:id
+ * @desc    Update alert configuration
+ * @access  Admin only
+ */
+router.put('/alerts/:id', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
+    // Check admin permission
+    const membership = await prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId: req.user.id, organizationId }
+      }
+    });
+
+    if (!membership || membership.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'נדרשת הרשאת מנהל' });
+    }
+
+    const config = await prisma.auditAlertConfig.update({
+      where: { id: req.params.id },
+      data: {
+        name: req.body.name,
+        description: req.body.description,
+        triggerActions: req.body.triggerActions,
+        triggerEntities: req.body.triggerEntities,
+        notifyRoles: req.body.notifyRoles,
+        notifyUserIds: req.body.notifyUserIds,
+        channelEmail: req.body.channelEmail,
+        channelInApp: req.body.channelInApp,
+        channelWebhook: req.body.channelWebhook,
+        webhookUrl: req.body.webhookUrl,
+        webhookSecret: req.body.webhookSecret,
+        cooldownMinutes: req.body.cooldownMinutes,
+        isActive: req.body.isActive
+      }
+    });
+
+    res.json(config);
+
+  } catch (error) {
+    console.error('Error updating alert config:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון הגדרת התראה' });
+  }
+});
+
+/**
+ * @route   DELETE /api/audit/alerts/:id
+ * @desc    Delete alert configuration
+ * @access  Admin only
+ */
+router.delete('/alerts/:id', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(403).json({ error: 'לא נבחר ארגון' });
+    }
+
+    // Check admin permission
+    const membership = await prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId: req.user.id, organizationId }
+      }
+    });
+
+    if (!membership || membership.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'נדרשת הרשאת מנהל' });
+    }
+
+    await prisma.auditAlertConfig.delete({
+      where: { id: req.params.id }
+    });
+
+    res.json({ message: 'התראה נמחקה בהצלחה' });
+
+  } catch (error) {
+    console.error('Error deleting alert config:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת הגדרת התראה' });
+  }
+});
+
+// ============================================================
 // Helpers
 // ============================================================
 

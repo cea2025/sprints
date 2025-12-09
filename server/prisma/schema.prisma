@@ -485,11 +485,12 @@ model AuditNotification {
   organizationId String
   userId         String       // Recipient
   
+  alertConfigId  String?      // Which alert config triggered this
   auditLogId     String?      // Reference to the audit log entry
   
   title          String
   message        String
-  type           String       // INFO, WARNING, ALERT
+  severity       String       @default("info") // low, medium, high, info
   
   isRead         Boolean      @default(false)
   readAt         DateTime?

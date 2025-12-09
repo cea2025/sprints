@@ -10,9 +10,10 @@ import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
 import { useOrganization } from '../context/OrganizationContext';
 import { apiFetch } from '../utils/api';
+import AlertConfigManager from '../components/audit/AlertConfigManager';
 import { 
   Search, Filter, Download, RefreshCw, ChevronDown, ChevronUp,
-  User, Calendar, Activity, Clock, Eye, FileText, 
+  User, Calendar, Activity, Clock, Eye, FileText, Bell,
   ArrowUpDown, X, Info, AlertTriangle, CheckCircle, Trash2, Edit, Plus
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export default function AuditLogs() {
   const { currentOrganization } = useOrganization();
   
   // State
+  const [activeTab, setActiveTab] = useState('logs'); // 'logs' | 'alerts'
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -209,28 +211,68 @@ export default function AuditLogs() {
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => fetchLogs()}
-            className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            רענון
-          </button>
-          
-          {isAdmin && (
+        {activeTab === 'logs' && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              onClick={() => fetchLogs()}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-              <Download size={18} />
-              ייצוא CSV
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              רענון
             </button>
-          )}
-        </div>
+            
+            {isAdmin && (
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                <Download size={18} />
+                ייצוא CSV
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Stats Cards */}
+      {/* Tabs */}
+      {isAdmin && (
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'logs'
+                  ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              }`}
+            >
+              <FileText size={18} className="inline ml-2" />
+              לוגים
+            </button>
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'alerts'
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              }`}
+            >
+              <Bell size={18} className="inline ml-2" />
+              הגדרות התראות
+            </button>
+          </nav>
+        </div>
+      )}
+
+      {/* Alerts Tab */}
+      {activeTab === 'alerts' && isAdmin && (
+        <AlertConfigManager />
+      )}
+
+      {/* Logs Tab - Stats Cards */}
+      {activeTab === 'logs' && (
+        <>
+        {/* Stats Cards */}
       {stats && isAdmin && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard 
@@ -638,6 +680,8 @@ export default function AuditLogs() {
           </>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

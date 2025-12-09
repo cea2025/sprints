@@ -336,12 +336,17 @@ class AuditService {
       const configs = await prisma.auditAlertConfig.findMany({
         where: {
           organizationId,
-          isActive: true,
-          triggerActions: { has: log.action }
+          isActive: true
         }
       });
 
       for (const config of configs) {
+        // Check if action matches
+        if (!config.triggerActions.includes('*') && 
+            !config.triggerActions.includes(log.action)) {
+          continue;
+        }
+
         // Check if entity type matches
         if (config.triggerEntities.length > 0 && 
             !config.triggerEntities.includes('*') &&
@@ -349,13 +354,17 @@ class AuditService {
           continue;
         }
 
+        console.log(`🔔 Alert triggered: ${config.name} for ${log.action} on ${log.entityType}`);
+
         // Create in-app notifications
         if (config.channelInApp) {
           await this.createNotifications(organizationId, config, log);
         }
 
-        // TODO: Send email notifications
-        // TODO: Send webhook notifications
+        // Send webhook notifications
+        if (config.channelWebhook && config.webhookUrl) {
+          await this.sendWebhook(config, log);
+        }
       }
     } catch (error) {
       console.error('Error processing audit alerts:', error);
@@ -366,10 +375,10 @@ class AuditService {
    * Create in-app notifications for alert
    */
   async createNotifications(organizationId, config, log) {
-    const userIds = new Set(config.notifyUserIds);
+    const userIds = new Set(config.notifyUserIds || []);
     
     // Add users by role
-    if (config.notifyRoles.length > 0) {
+    if (config.notifyRoles && config.notifyRoles.length > 0) {
       const members = await prisma.organizationMember.findMany({
         where: {
           organizationId,
@@ -382,29 +391,83 @@ class AuditService {
     }
 
     // Don't notify the user who performed the action
-    userIds.delete(log.userId);
+    if (log.userId) userIds.delete(log.userId);
 
     if (userIds.size === 0) return;
 
-    const title = this.getAlertTitle(log);
+    const title = this.getAlertTitle(config, log);
     const message = this.getAlertMessage(log);
+    const severity = this.getSeverity(log.action);
 
     await prisma.auditNotification.createMany({
       data: [...userIds].map(userId => ({
         organizationId,
         userId,
+        alertConfigId: config.id,
         auditLogId: log.id,
         title,
         message,
-        type: 'ALERT'
+        severity
       }))
     });
   }
 
   /**
+   * Send webhook notification
+   */
+  async sendWebhook(config, log) {
+    try {
+      const payload = {
+        event: 'audit_alert',
+        alert: {
+          name: config.name,
+          description: config.description
+        },
+        audit: {
+          id: log.id,
+          action: log.action,
+          entityType: log.entityType,
+          entityId: log.entityId,
+          entityName: log.entityName,
+          userName: log.userName,
+          userEmail: log.userEmail,
+          timestamp: log.createdAt,
+          changedFields: log.changedFields
+        }
+      };
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      // Add signature if secret is configured
+      if (config.webhookSecret) {
+        const crypto = require('crypto');
+        const signature = crypto
+          .createHmac('sha256', config.webhookSecret)
+          .update(JSON.stringify(payload))
+          .digest('hex');
+        headers['X-Webhook-Signature'] = signature;
+      }
+
+      await fetch(config.webhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      console.log(`📤 Webhook sent to ${config.webhookUrl}`);
+    } catch (error) {
+      console.error('Error sending webhook:', error.message);
+    }
+  }
+
+  /**
    * Get alert title
    */
-  getAlertTitle(log) {
+  getAlertTitle(config, log) {
+    if (config.name) return config.name;
+    
     const actionLabels = {
       CREATE: 'נוצר',
       UPDATE: 'עודכן',
@@ -419,7 +482,33 @@ class AuditService {
    * Get alert message
    */
   getAlertMessage(log) {
-    return `${log.userName || log.userEmail || 'משתמש'} ${log.action.toLowerCase()} ${log.entityName || log.entityType}`;
+    const entityLabels = {
+      Rock: 'סלע',
+      Story: 'אבן דרך',
+      Sprint: 'ספרינט',
+      Objective: 'מטרה',
+      TeamMember: 'חבר צוות'
+    };
+    const entity = entityLabels[log.entityType] || log.entityType;
+    return `${log.userName || log.userEmail || 'משתמש'} ביצע ${log.action} על ${entity}: ${log.entityName || ''}`.trim();
+  }
+
+  /**
+   * Get severity based on action
+   */
+  getSeverity(action) {
+    switch (action) {
+      case 'DELETE':
+      case 'LOGIN_FAILED':
+        return 'high';
+      case 'UPDATE':
+      case 'ROLE_CHANGED':
+        return 'medium';
+      case 'CREATE':
+        return 'low';
+      default:
+        return 'info';
+    }
   }
 
   // ============================================================
