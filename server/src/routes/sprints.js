@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 
 const router = express.Router();
 
@@ -116,7 +117,7 @@ router.get('/:id', async (req, res) => {
 
 // @route   POST /api/sprints
 // @desc    Create a new sprint with auto-generated name
-router.post('/', async (req, res) => {
+router.post('/', auditMiddleware('Sprint'), async (req, res) => {
   try {
     const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
     const organizationId = await getOrganizationId(req);
@@ -174,7 +175,7 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/sprints/:id
 // @desc    Update a sprint
-router.put('/:id', async (req, res) => {
+router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
     const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
 
@@ -241,7 +242,7 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/sprints/:id
 // @desc    Delete a sprint
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
     await prisma.sprint.delete({
       where: { id: req.params.id }

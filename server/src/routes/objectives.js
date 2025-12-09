@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ router.get('/:id', async (req, res) => {
 
 // @route   POST /api/objectives
 // @desc    Create a new objective
-router.post('/', async (req, res) => {
+router.post('/', auditMiddleware('Objective'), async (req, res) => {
   try {
     const { code, name, description, ownerId } = req.body;
     const organizationId = await getOrganizationId(req);
@@ -117,7 +118,7 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/objectives/:id
 // @desc    Update an objective
-router.put('/:id', async (req, res) => {
+router.put('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objective'), async (req, res) => {
   try {
     const { code, name, description, ownerId } = req.body;
 
@@ -144,7 +145,7 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/objectives/:id
 // @desc    Delete an objective
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objective'), async (req, res) => {
   try {
     await prisma.rock.updateMany({
       where: { objectiveId: req.params.id },

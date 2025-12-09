@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 
 const router = express.Router();
 
@@ -89,7 +90,7 @@ router.get('/:id', async (req, res) => {
 
 // @route   POST /api/team
 // @desc    Create a new team member
-router.post('/', async (req, res) => {
+router.post('/', auditMiddleware('TeamMember'), async (req, res) => {
   try {
     const { name, role, capacity, userId } = req.body;
     const organizationId = await getOrganizationId(req);
@@ -114,7 +115,7 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/team/:id
 // @desc    Update a team member
-router.put('/:id', async (req, res) => {
+router.put('/:id', captureOldEntity(prisma.teamMember), auditMiddleware('TeamMember'), async (req, res) => {
   try {
     const { name, role, capacity, isActive } = req.body;
 
@@ -138,7 +139,7 @@ router.put('/:id', async (req, res) => {
 
 // @route   DELETE /api/team/:id
 // @desc    Delete a team member (removes ownership from rocks/stories first)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', captureOldEntity(prisma.teamMember), auditMiddleware('TeamMember'), async (req, res) => {
   try {
     // Remove ownership from rocks and stories first
     await prisma.rock.updateMany({

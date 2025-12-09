@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 
 const router = express.Router();
 
@@ -172,7 +173,7 @@ router.get('/:id', async (req, res) => {
 
 // @route   POST /api/rocks
 // @desc    Create a new rock
-router.post('/', async (req, res) => {
+router.post('/', auditMiddleware('Rock'), async (req, res) => {
   try {
     const { code, name, description, year, quarter, progress, ownerId, objectiveId } = req.body;
     const organizationId = await getOrganizationId(req);
@@ -214,7 +215,7 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/rocks/:id
 // @desc    Update a rock
-router.put('/:id', async (req, res) => {
+router.put('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async (req, res) => {
   try {
     const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter } = req.body;
 
@@ -328,7 +329,7 @@ router.put('/:id/progress', async (req, res) => {
 
 // @route   DELETE /api/rocks/:id
 // @desc    Delete a rock
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async (req, res) => {
   try {
     await prisma.rock.delete({
       where: { id: req.params.id }

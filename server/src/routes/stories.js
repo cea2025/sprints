@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 
 const router = express.Router();
 
@@ -165,7 +166,7 @@ router.get('/:id', async (req, res) => {
 
 // @route   POST /api/stories
 // @desc    Create a new story
-router.post('/', async (req, res) => {
+router.post('/', auditMiddleware('Story'), async (req, res) => {
   try {
     const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
     const organizationId = await getOrganizationId(req);
@@ -222,7 +223,7 @@ router.post('/', async (req, res) => {
 
 // @route   PUT /api/stories/:id
 // @desc    Update a story
-router.put('/:id', async (req, res) => {
+router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), async (req, res) => {
   try {
     const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
 
@@ -278,7 +279,7 @@ router.put('/:id', async (req, res) => {
 
 // @route   PUT /api/stories/:id/progress
 // @desc    Quick update for story progress (optimized)
-router.put('/:id/progress', async (req, res) => {
+router.put('/:id/progress', captureOldEntity(prisma.story), auditMiddleware('Story'), async (req, res) => {
   try {
     const { progress, isBlocked } = req.body;
 
@@ -338,7 +339,7 @@ router.put('/:id/block', async (req, res) => {
 
 // @route   DELETE /api/stories/:id
 // @desc    Delete a story
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), async (req, res) => {
   try {
     await prisma.story.delete({
       where: { id: req.params.id }
