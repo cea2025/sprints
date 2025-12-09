@@ -39,6 +39,11 @@ model Organization {
   allowedEmails AllowedEmail[]
   featureFlags  FeatureFlag[]
   
+  // Audit System
+  auditLogs           AuditLog[]
+  auditAlertConfigs   AuditAlertConfig[]
+  auditRetentionConfig AuditRetentionConfig?
+  
   // Audit
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -85,6 +90,7 @@ model User {
   // Relations
   organizations OrganizationMember[]
   teamMember    TeamMember?
+  alertPreferences UserAlertPreferences[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -338,29 +344,160 @@ model AllowedEmail {
   @@index([email])
 }
 
-// ==================== AUDIT LOG ====================
+// ==================== AUDIT LOG SYSTEM ====================
+// Designed with abstraction layer for future migration to separate DB per org
 
 model AuditLog {
   id             String   @id @default(uuid())
   
-  organizationId String?
+  // ===== Organization (for RLS) =====
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // ===== Who =====
   userId         String?
   userEmail      String?
+  userName       String?
+  userRole       String?      // Role at time of action
   
-  action         String   // CREATE, UPDATE, DELETE, LOGIN, etc.
-  entityType     String   // Rock, Sprint, Story, etc.
+  // ===== What =====
+  action         String       // CREATE, UPDATE, DELETE, LOGIN, etc.
+  category       String       // AUTHENTICATION, DATA_CRUD, ADMINISTRATION, etc.
+  entityType     String       // Rock, Sprint, Story, User, etc.
   entityId       String?
+  entityName     String?      // Human-readable name for quick reference
   
-  oldValues      Json?
-  newValues      Json?
+  // ===== Changes (Full Detail) =====
+  oldValues      Json?        // Full snapshot before change
+  newValues      Json?        // Full snapshot after change
+  changedFields  String[]     // ['name', 'progress', 'status']
+  changesSummary String?      // Human-readable: "progress: 50% → 75%"
   
+  // ===== Context =====
   ipAddress      String?
   userAgent      String?
+  sessionId      String?
+  requestId      String?      // For distributed tracing
+  requestPath    String?      // /api/rocks/123
+  requestMethod  String?      // GET, POST, PUT, DELETE
+  duration       Int?         // Action duration in ms
   
+  // ===== Metadata =====
+  metadata       Json?        // Additional context
+  
+  // ===== Time =====
   createdAt      DateTime @default(now())
   
+  // ===== Indexes for performance =====
   @@index([organizationId, createdAt])
+  @@index([organizationId, userId])
+  @@index([organizationId, action])
+  @@index([organizationId, category])
+  @@index([organizationId, entityType])
   @@index([entityType, entityId])
+}
+
+// Alert Configuration per Organization
+model AuditAlertConfig {
+  id             String   @id @default(uuid())
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name           String       // "מחיקת רשומות", "כניסות כושלות"
+  description    String?
+  
+  // What triggers the alert
+  triggerActions String[]     // ['DELETE', 'LOGIN_FAILED']
+  triggerEntities String[]    // ['Rock', 'Story'] or ['*'] for all
+  
+  // Who receives the alert
+  notifyRoles    String[]     // ['ADMIN', 'MANAGER']
+  notifyUserIds  String[]     // Specific user IDs
+  
+  // How to send
+  channelEmail   Boolean      @default(true)
+  channelInApp   Boolean      @default(true)
+  channelWebhook Boolean      @default(false)
+  webhookUrl     String?
+  webhookSecret  String?      // For signing webhook payloads
+  
+  // Settings
+  isActive       Boolean      @default(true)
+  cooldownMinutes Int         @default(5)  // Prevent alert spam
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String?
+  
+  @@index([organizationId, isActive])
+}
+
+// Retention settings per Organization
+model AuditRetentionConfig {
+  id             String   @id @default(uuid())
+  
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  retentionDays  Int      @default(1095) // 3 years = 1095 days
+  autoArchive    Boolean  @default(true)
+  archiveAfterDays Int    @default(365)  // Move to archive after 1 year
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  updatedBy      String?
+}
+
+// User's personal alert preferences
+model UserAlertPreferences {
+  id             String   @id @default(uuid())
+  
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  organizationId String
+  
+  // Which alerts to receive
+  enabledActions String[]     // ['DELETE', 'ROLE_CHANGED']
+  disabledActions String[]    // Explicitly disabled
+  
+  // Delivery preferences
+  channelEmail   Boolean      @default(true)
+  channelInApp   Boolean      @default(true)
+  
+  // Timing
+  digestFrequency String      @default("REALTIME") // REALTIME, HOURLY, DAILY
+  quietHoursStart String?     // "22:00"
+  quietHoursEnd   String?     // "08:00"
+  timezone       String       @default("Asia/Jerusalem")
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([userId, organizationId])
+}
+
+// In-app notifications queue
+model AuditNotification {
+  id             String   @id @default(uuid())
+  
+  organizationId String
+  userId         String       // Recipient
+  
+  auditLogId     String?      // Reference to the audit log entry
+  
+  title          String
+  message        String
+  type           String       // INFO, WARNING, ALERT
+  
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  
+  createdAt      DateTime     @default(now())
+  
+  @@index([organizationId, userId, isRead])
+  @@index([createdAt])
 }
 
 // ==================== CONFIGURATION TABLES ====================

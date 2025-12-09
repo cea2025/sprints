@@ -21,6 +21,7 @@ const debugRoutes = require('./routes/debug');
 
 // Import new module routes
 const organizationRoutes = require('./modules/organization/organization.routes');
+const auditRoutes = require('./modules/audit/audit.routes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./shared/middleware/error.middleware');
@@ -106,6 +107,9 @@ app.use('/api/stories', storiesRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Audit routes (new module)
+app.use('/api/audit', auditRoutes);
 
 // Debug routes (for troubleshooting multi-tenant issues)
 app.use('/api/debug', debugRoutes);
