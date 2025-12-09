@@ -79,6 +79,15 @@ router.post('/select', validateBody(selectOrganizationSchema), asyncHandler(asyn
   res.json(result);
 }));
 
+/**
+ * @route   GET /api/organizations/by-slug/:slug
+ * @desc    Get organization by slug (for URL routing)
+ */
+router.get('/by-slug/:slug', asyncHandler(async (req, res) => {
+  const organization = await organizationService.getBySlug(req.params.slug, req.user.id, req.user.isSuperAdmin);
+  res.json(organization);
+}));
+
 // ==============================================================
 // Parameterized routes MUST come after specific routes
 // ==============================================================

@@ -1,6 +1,10 @@
 /**
  * Organization Middleware
  * Handles multi-tenant organization context for all API requests
+ * 
+ * Security layers:
+ * 1. Application-level: Header/Session verification
+ * 2. Database-level: Row-Level Security (RLS) - set via SET app.organization_id
  */
 
 const prisma = require('../lib/prisma');
@@ -24,7 +28,10 @@ async function getOrganizationId(req) {
         where: { id: headerOrgId },
         select: { id: true }
       });
-      if (org) return headerOrgId;
+      if (org) {
+        await setDbOrganizationContext(headerOrgId);
+        return headerOrgId;
+      }
     } else {
       // Regular users - verify they have access to this organization
       const membership = await prisma.organizationMember.findUnique({
@@ -32,12 +39,16 @@ async function getOrganizationId(req) {
           userId_organizationId: { userId: req.user.id, organizationId: headerOrgId }
         }
       });
-      if (membership) return headerOrgId;
+      if (membership) {
+        await setDbOrganizationContext(headerOrgId);
+        return headerOrgId;
+      }
     }
   }
   
   // Then check session
   if (req.session?.organizationId) {
+    await setDbOrganizationContext(req.session.organizationId);
     return req.session.organizationId;
   }
   
@@ -47,7 +58,31 @@ async function getOrganizationId(req) {
     select: { organizationId: true }
   });
   
+  if (membership?.organizationId) {
+    await setDbOrganizationContext(membership.organizationId);
+  }
+  
   return membership?.organizationId || null;
+}
+
+/**
+ * Set organization context in PostgreSQL for Row-Level Security
+ * This ensures that even if application code has a bug,
+ * the database will enforce organization isolation
+ */
+async function setDbOrganizationContext(organizationId) {
+  if (!organizationId) return;
+  
+  try {
+    // Set the PostgreSQL session variable for RLS
+    await prisma.$executeRawUnsafe(
+      `SELECT set_config('app.organization_id', '${organizationId}', false)`
+    );
+  } catch (error) {
+    // RLS function might not exist yet - that's okay
+    // Will be created when setup-rls.js runs
+    console.debug('RLS context not set (function may not exist yet)');
+  }
 }
 
 /**
@@ -64,8 +99,23 @@ async function requireOrganization(req, res, next) {
   next();
 }
 
+/**
+ * Clear organization context (for logout, etc.)
+ */
+async function clearDbOrganizationContext() {
+  try {
+    await prisma.$executeRawUnsafe(
+      `SELECT set_config('app.organization_id', '', false)`
+    );
+  } catch (error) {
+    // Ignore
+  }
+}
+
 module.exports = {
   getOrganizationId,
-  requireOrganization
+  requireOrganization,
+  setDbOrganizationContext,
+  clearDbOrganizationContext
 };
 

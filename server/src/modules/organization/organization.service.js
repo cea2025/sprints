@@ -114,6 +114,43 @@ class OrganizationService {
   }
 
   /**
+   * Get organization by slug (for URL routing)
+   */
+  async getBySlug(slug, userId, isSuperAdmin = false) {
+    const organization = await prisma.organization.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logo: true,
+        isActive: true
+      }
+    });
+
+    if (!organization || !organization.isActive) {
+      return null;
+    }
+
+    // Check if user has access
+    if (isSuperAdmin) {
+      return { ...organization, role: 'ADMIN' };
+    }
+
+    const membership = await prisma.organizationMember.findUnique({
+      where: {
+        userId_organizationId: { userId, organizationId: organization.id }
+      }
+    });
+
+    if (!membership || !membership.isActive) {
+      return null;
+    }
+
+    return { ...organization, role: membership.role };
+  }
+
+  /**
    * Update organization
    */
   async update(organizationId, data, userId) {

@@ -99,12 +99,39 @@ export const OrganizationProvider = ({ children }) => {
   }, []);
 
   // Set organization by slug (for URL-based routing)
-  const setCurrentOrganizationBySlug = useCallback((slug) => {
-    if (!slug || !organizations.length) return;
+  const setCurrentOrganizationBySlug = useCallback(async (slug) => {
+    if (!slug) return;
     
-    const org = organizations.find(o => o.slug === slug);
-    if (org && (!currentOrganization || currentOrganization.slug !== slug)) {
-      selectOrganization(org);
+    // First check if org is in current list
+    let org = organizations.find(o => o.slug === slug);
+    
+    if (org) {
+      if (!currentOrganization || currentOrganization.slug !== slug) {
+        selectOrganization(org);
+      }
+      return;
+    }
+    
+    // Org not in list - might be newly created or user is Super Admin
+    // Fetch the org directly by slug
+    try {
+      const response = await fetch(`/api/organizations/by-slug/${slug}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const orgData = await response.json();
+        if (orgData) {
+          // Add to organizations list
+          setOrganizations(prev => {
+            if (prev.find(o => o.id === orgData.id)) return prev;
+            return [...prev, orgData];
+          });
+          selectOrganization(orgData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching organization by slug:', error);
     }
   }, [organizations, currentOrganization, selectOrganization]);
 
