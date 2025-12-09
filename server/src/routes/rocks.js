@@ -13,7 +13,7 @@ router.use(isAuthenticated);
 // @desc    Get all rocks with progress (optimized with search)
 router.get('/', async (req, res) => {
   try {
-    const { year, quarter, objectiveId, search, page = 1, limit = 50 } = req.query;
+    const { year, quarter, objectiveId, orphanFilter, search, page = 1, limit = 50 } = req.query;
     const organizationId = await getOrganizationId(req);
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -22,6 +22,13 @@ router.get('/', async (req, res) => {
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
     if (objectiveId) where.objectiveId = objectiveId;
+    
+    // Orphan filters
+    if (orphanFilter === 'no-objective') {
+      where.objectiveId = null;
+    } else if (orphanFilter === 'no-stories') {
+      where.stories = { none: {} };
+    }
     
     // Server-side search
     if (search && search.length >= 2) {

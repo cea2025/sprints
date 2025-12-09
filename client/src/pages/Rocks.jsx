@@ -23,7 +23,8 @@ export default function Rocks() {
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
     quarter: Math.ceil((new Date().getMonth() + 1) / 3),
-    objectiveId: ''
+    objectiveId: '',
+    orphanFilter: '' // 'no-objective', 'no-stories'
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRock, setEditingRock] = useState(null);
@@ -57,6 +58,7 @@ export default function Rocks() {
     if (filters.year) params.append('year', filters.year);
     if (filters.quarter) params.append('quarter', filters.quarter);
     if (filters.objectiveId) params.append('objectiveId', filters.objectiveId);
+    if (filters.orphanFilter) params.append('orphanFilter', filters.orphanFilter);
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
@@ -235,6 +237,16 @@ export default function Rocks() {
           {objectives.map(obj => (
             <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
           ))}
+        </select>
+
+        <select
+          value={filters.orphanFilter}
+          onChange={e => setFilters({...filters, orphanFilter: e.target.value})}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="">כל הקישורים</option>
+          <option value="no-objective">🪨 ללא מטרה</option>
+          <option value="no-stories">🪨 ללא אבני דרך</option>
         </select>
 
         <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">

@@ -13,10 +13,16 @@ router.use(isAuthenticated);
 // @desc    Get all objectives with rocks and progress
 router.get('/', async (req, res) => {
   try {
+    const { orphanFilter } = req.query;
     const organizationId = await getOrganizationId(req);
     
     const where = {};
     if (organizationId) where.organizationId = organizationId;
+    
+    // Orphan filter: objectives without rocks
+    if (orphanFilter === 'no-rocks') {
+      where.rocks = { none: {} };
+    }
 
     const objectives = await prisma.objective.findMany({
       where,

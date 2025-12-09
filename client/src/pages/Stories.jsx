@@ -16,7 +16,8 @@ export default function Stories() {
   const [filters, setFilters] = useState({
     sprintId: '',
     rockId: '',
-    isBlocked: ''
+    isBlocked: '',
+    orphanFilter: '' // 'no-rock', 'backlog'
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStory, setEditingStory] = useState(null);
@@ -50,6 +51,7 @@ export default function Stories() {
     if (filters.sprintId) params.append('sprintId', filters.sprintId);
     if (filters.rockId) params.append('rockId', filters.rockId);
     if (filters.isBlocked) params.append('isBlocked', filters.isBlocked);
+    if (filters.orphanFilter) params.append('orphanFilter', filters.orphanFilter);
     params.append('limit', '200'); // Get more items
     if (params.toString()) url += `?${params.toString()}`;
 
@@ -251,6 +253,16 @@ export default function Stories() {
           <option value="">כל הסטטוסים</option>
           <option value="true">חסומות בלבד</option>
           <option value="false">לא חסומות</option>
+        </select>
+
+        <select
+          value={filters.orphanFilter}
+          onChange={e => setFilters({...filters, orphanFilter: e.target.value})}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="">כל הקישורים</option>
+          <option value="no-rock">📋 ללא סלע</option>
+          <option value="backlog">⏳ בהמתנה (ללא ספרינט)</option>
         </select>
 
         <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">

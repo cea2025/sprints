@@ -18,6 +18,7 @@ router.get('/', async (req, res) => {
       rockId, 
       ownerId, 
       isBlocked,
+      orphanFilter, // 'no-rock', 'backlog', 'no-sprint'
       search,
       page = 1,
       limit = 50
@@ -32,6 +33,13 @@ router.get('/', async (req, res) => {
     if (rockId) where.rockId = rockId;
     if (ownerId) where.ownerId = ownerId;
     if (isBlocked !== undefined) where.isBlocked = isBlocked === 'true';
+    
+    // Orphan filters
+    if (orphanFilter === 'no-rock') {
+      where.rockId = null;
+    } else if (orphanFilter === 'backlog' || orphanFilter === 'no-sprint') {
+      where.sprintId = null;
+    }
     
     // Server-side search
     if (search && search.length >= 2) {

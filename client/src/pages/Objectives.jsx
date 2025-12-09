@@ -12,6 +12,7 @@ export default function Objectives() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [orphanFilter, setOrphanFilter] = useState(''); // 'no-rocks'
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -29,10 +30,12 @@ export default function Objectives() {
     if (!currentOrganization) return;
     fetchObjectives();
     fetchTeamMembers();
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, orphanFilter]);
 
   const fetchObjectives = async () => {
-    const data = await request('/api/objectives');
+    let url = '/api/objectives';
+    if (orphanFilter) url += `?orphanFilter=${orphanFilter}`;
+    const data = await request(url);
     if (data && Array.isArray(data)) setObjectives(data);
   };
 
@@ -142,12 +145,29 @@ export default function Objectives() {
         </button>
       </div>
 
-      {/* Search */}
-      <SearchFilter
-        value={searchTerm}
-        onChange={setSearchTerm}
-        placeholder="חיפוש לפי קוד, שם, תיאור או אחראי..."
-      />
+      {/* Search & Filter */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex-1 min-w-[200px]">
+          <SearchFilter
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="חיפוש לפי קוד, שם, תיאור או אחראי..."
+          />
+        </div>
+        
+        <select
+          value={orphanFilter}
+          onChange={e => setOrphanFilter(e.target.value)}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="">כל המטרות</option>
+          <option value="no-rocks">🎯 ללא סלעים</option>
+        </select>
+        
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          {filteredObjectives.length} מטרות-על
+        </span>
+      </div>
 
       {/* Results count */}
       {searchTerm && (
