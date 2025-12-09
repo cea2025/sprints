@@ -17,6 +17,7 @@ const teamRoutes = require('./routes/team');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
 const superAdminRoutes = require('./routes/super-admin');
+const debugRoutes = require('./routes/debug');
 
 // Import new module routes
 const organizationRoutes = require('./modules/organization/organization.routes');
@@ -105,6 +106,9 @@ app.use('/api/stories', storiesRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Debug routes (for troubleshooting multi-tenant issues)
+app.use('/api/debug', debugRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

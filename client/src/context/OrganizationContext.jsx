@@ -83,9 +83,12 @@ export const OrganizationProvider = ({ children }) => {
   };
 
   const selectOrganization = useCallback((org) => {
+    console.log('🔄 [ORG] Selecting organization:', org?.name, org?.id);
     setCurrentOrganization(org);
     if (org) {
       localStorage.setItem('currentOrgId', org.id);
+      localStorage.setItem('currentOrgSlug', org.slug);
+      console.log('💾 [ORG] Saved to localStorage:', { id: org.id, slug: org.slug });
       // Also update server session
       fetch('/api/organizations/select', {
         method: 'POST',
@@ -95,6 +98,7 @@ export const OrganizationProvider = ({ children }) => {
       }).catch(console.error);
     } else {
       localStorage.removeItem('currentOrgId');
+      localStorage.removeItem('currentOrgSlug');
     }
   }, []);
 

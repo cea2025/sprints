@@ -17,6 +17,15 @@ const getOrganizationId = () => {
 export async function apiFetch(url, options = {}) {
   const organizationId = getOrganizationId();
   
+  // DEBUG: Log what's being sent
+  console.log(`🔍 [API] ${options.method || 'GET'} ${url}`, {
+    organizationId,
+    localStorage: {
+      currentOrgId: localStorage.getItem('currentOrgId'),
+      currentOrgSlug: localStorage.getItem('currentOrgSlug')
+    }
+  });
+  
   const headers = {
     'Content-Type': 'application/json',
     ...(organizationId ? { 'X-Organization-Id': organizationId } : {}),
