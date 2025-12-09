@@ -156,11 +156,21 @@ async function seedConfig() {
   ];
 
   for (const flag of flags) {
-    await prisma.featureFlag.upsert({
-      where: { key_organizationId: { key: flag.key, organizationId: null } },
-      update: { isEnabled: flag.isEnabled, description: flag.description },
-      create: { ...flag, organizationId: null }
+    // Check if exists first (for global flags with null organizationId)
+    const existing = await prisma.featureFlag.findFirst({
+      where: { key: flag.key, organizationId: null }
     });
+    
+    if (existing) {
+      await prisma.featureFlag.update({
+        where: { id: existing.id },
+        data: { isEnabled: flag.isEnabled, description: flag.description }
+      });
+    } else {
+      await prisma.featureFlag.create({
+        data: { ...flag, organizationId: null }
+      });
+    }
   }
   console.log(`   ✓ ${flags.length} feature flags configured`);
 
