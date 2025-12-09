@@ -39,6 +39,7 @@ function Team() {
 
     const res = await apiFetch(url, {
       method,
+      organizationId: currentOrganization?.id,
       body: JSON.stringify(formData)
     });
 
