@@ -111,6 +111,10 @@ app.use('/api/admin', adminRoutes);
 // Audit routes (new module)
 app.use('/api/audit', auditRoutes);
 
+// Orphans routes (unlinked entities)
+const orphansRoutes = require('./routes/orphans');
+app.use('/api/orphans', orphansRoutes);
+
 // Debug routes (for troubleshooting multi-tenant issues)
 app.use('/api/debug', debugRoutes);
 

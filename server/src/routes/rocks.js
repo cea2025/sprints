@@ -328,17 +328,27 @@ router.put('/:id/progress', async (req, res) => {
 });
 
 // @route   DELETE /api/rocks/:id
-// @desc    Delete a rock
+// @desc    Delete a rock (stories become orphaned)
 router.delete('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async (req, res) => {
   try {
+    // Count affected stories
+    const storiesCount = await prisma.story.count({
+      where: { rockId: req.params.id }
+    });
+
+    // Stories will be automatically unlinked due to onDelete: SetNull
     await prisma.rock.delete({
       where: { id: req.params.id }
     });
 
-    res.json({ message: 'Rock deleted successfully' });
+    const message = storiesCount > 0 
+      ? `סלע נמחק. ${storiesCount} אבני דרך עברו ל"אבני דרך ללא סלע"`
+      : 'סלע נמחק בהצלחה';
+
+    res.json({ message, affectedStories: storiesCount });
   } catch (error) {
     console.error('Error deleting rock:', error);
-    res.status(500).json({ error: 'Failed to delete rock' });
+    res.status(500).json({ error: 'שגיאה במחיקת הסלע' });
   }
 });
 

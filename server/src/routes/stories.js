@@ -171,10 +171,7 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
     const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
     const organizationId = await getOrganizationId(req);
 
-    // Validate required fields
-    if (!sprintId) {
-      return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
-    }
+    // sprintId is now optional - stories without sprint go to "backlog" (אבני דרך בהמתנה)
 
     const story = await prisma.story.create({
       data: {
@@ -182,7 +179,7 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
         description,
         progress: progress ? parseInt(progress) : 0,
         isBlocked: isBlocked || false,
-        sprintId,
+        sprintId: sprintId || null,  // Optional - null = backlog
         rockId: rockId || null,
         ownerId: ownerId || null,
         organizationId,
@@ -227,10 +224,9 @@ router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), asy
   try {
     const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
 
-    // Validate required fields
-    if (sprintId === '') {
-      return res.status(400).json({ error: 'ספרינט הוא שדה חובה' });
-    }
+    // sprintId can be null (moves to backlog) or a valid ID
+    // Empty string means "unset" -> null (backlog)
+    const newSprintId = sprintId === '' ? null : (sprintId !== undefined ? sprintId : undefined);
 
     const story = await prisma.story.update({
       where: { id: req.params.id },
@@ -239,9 +235,9 @@ router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), asy
         description,
         progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
         isBlocked: isBlocked !== undefined ? isBlocked : undefined,
-        sprintId: sprintId || undefined,
-        rockId: rockId || null,
-        ownerId: ownerId || null,
+        sprintId: newSprintId,
+        rockId: rockId === '' ? null : (rockId !== undefined ? rockId : undefined),
+        ownerId: ownerId === '' ? null : (ownerId !== undefined ? ownerId : undefined),
         updatedBy: req.user.id
       },
       select: {

@@ -198,7 +198,7 @@ model Rock {
   
   // Objective
   objectiveId     String?
-  objective       Objective?  @relation(fields: [objectiveId], references: [id])
+  objective       Objective?  @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
   
   // Relations
   stories         Story[]
@@ -293,9 +293,9 @@ model Story {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   
-  // ספרינט - חובה
-  sprintId    String
-  sprint      Sprint   @relation(fields: [sprintId], references: [id], onDelete: Restrict)
+  // ספרינט - אופציונלי (אם אין = "אבני דרך בהמתנה")
+  sprintId    String?
+  sprint      Sprint?  @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   
   // סלע - אופציונלי
   rockId      String?

@@ -144,22 +144,27 @@ router.put('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objectiv
 });
 
 // @route   DELETE /api/objectives/:id
-// @desc    Delete an objective
+// @desc    Delete an objective (rocks become orphaned)
 router.delete('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objective'), async (req, res) => {
   try {
-    await prisma.rock.updateMany({
-      where: { objectiveId: req.params.id },
-      data: { objectiveId: null }
+    // Count affected rocks
+    const rocksCount = await prisma.rock.count({
+      where: { objectiveId: req.params.id }
     });
 
+    // Rocks will be automatically unlinked due to onDelete: SetNull
     await prisma.objective.delete({
       where: { id: req.params.id }
     });
 
-    res.json({ message: 'Objective deleted successfully' });
+    const message = rocksCount > 0 
+      ? `מטרת-על נמחקה. ${rocksCount} סלעים עברו ל"סלעים ללא מטרה"`
+      : 'מטרת-על נמחקה בהצלחה';
+
+    res.json({ message, affectedRocks: rocksCount });
   } catch (error) {
     console.error('Error deleting objective:', error);
-    res.status(500).json({ error: 'Failed to delete objective' });
+    res.status(500).json({ error: 'שגיאה במחיקת מטרת-העל' });
   }
 });
 

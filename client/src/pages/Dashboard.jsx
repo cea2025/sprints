@@ -10,7 +10,9 @@ import {
   Ban,
   TrendingUp,
   ArrowLeft,
-  Target
+  Target,
+  AlertTriangle,
+  Link as LinkIcon
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 import { Battery, BatteryCompact } from '../components/ui/Battery';
@@ -19,6 +21,7 @@ import { apiFetch } from '../utils/api';
 
 function Dashboard() {
   const [data, setData] = useState(null);
+  const [orphans, setOrphans] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { currentOrganization } = useOrganization();
@@ -30,13 +33,22 @@ function Dashboard() {
     console.log('📊 [Dashboard] Fetching data for org:', currentOrganization.name, currentOrganization.id);
     
     setLoading(true);
-    // CRITICAL: Pass organization ID explicitly to avoid race condition with localStorage
-    apiFetch('/api/dashboard', { organizationId: currentOrganization.id })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
+    
+    // Fetch dashboard data and orphans summary in parallel
+    Promise.all([
+      apiFetch('/api/dashboard', { organizationId: currentOrganization.id }),
+      apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id })
+    ])
+      .then(async ([dashRes, orphansRes]) => {
+        if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
+        const dashData = await dashRes.json();
+        setData(dashData);
+        
+        if (orphansRes.ok) {
+          const orphansData = await orphansRes.json();
+          setOrphans(orphansData);
+        }
       })
-      .then(setData)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [currentOrganization?.id]);
@@ -112,6 +124,11 @@ function Dashboard() {
           delay={3}
         />
       </div>
+
+      {/* Orphans Widget */}
+      {orphans && orphans.total > 0 && (
+        <OrphansWidget orphans={orphans} />
+      )}
 
       {/* Current Sprint */}
       {currentSprint && (
@@ -327,6 +344,78 @@ function RockCard({ rock, index }) {
           </span>
         </div>
         <Battery progress={rock.progress || 0} size="md" />
+      </div>
+    </div>
+  );
+}
+
+function OrphansWidget({ orphans }) {
+  const items = [
+    { 
+      key: 'objectivesWithoutRocks',
+      label: 'מטרות ללא סלעים', 
+      count: orphans.objectivesWithoutRocks, 
+      icon: '🎯',
+      link: '/objectives?filter=no-rocks',
+      color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+    },
+    { 
+      key: 'rocksWithoutObjective',
+      label: 'סלעים ללא מטרה', 
+      count: orphans.rocksWithoutObjective, 
+      icon: '🪨',
+      link: '/rocks?filter=no-objective',
+      color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+    },
+    { 
+      key: 'rocksWithoutStories',
+      label: 'סלעים ללא אבנ"ד', 
+      count: orphans.rocksWithoutStories, 
+      icon: '🪨',
+      link: '/rocks?filter=no-stories',
+      color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
+    },
+    { 
+      key: 'storiesWithoutRock',
+      label: 'אבנ"ד ללא סלע', 
+      count: orphans.storiesWithoutRock, 
+      icon: '📋',
+      link: '/stories?filter=no-rock',
+      color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+    },
+    { 
+      key: 'storiesWithoutSprint',
+      label: 'אבנ"ד בהמתנה', 
+      count: orphans.storiesWithoutSprint, 
+      icon: '⏳',
+      link: '/stories?filter=backlog',
+      color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+    }
+  ].filter(item => item.count > 0);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl p-4 border border-amber-200 dark:border-amber-800 animate-slide-in-up" style={{ animationDelay: '0.15s' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400" />
+        <h3 className="font-semibold text-amber-800 dark:text-amber-300">
+          ישויות לא מקושרות ({orphans.total})
+        </h3>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map(item => (
+          <Link
+            key={item.key}
+            to={item.link}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105 hover:shadow-md ${item.color}`}
+          >
+            <span>{item.icon}</span>
+            <span>{item.count}</span>
+            <span className="hidden sm:inline">{item.label}</span>
+            <LinkIcon size={12} className="opacity-50" />
+          </Link>
+        ))}
       </div>
     </div>
   );

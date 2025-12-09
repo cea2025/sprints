@@ -241,17 +241,26 @@ router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), a
 });
 
 // @route   DELETE /api/sprints/:id
-// @desc    Delete a sprint
+// @desc    Delete a sprint (stories become "backlog")
 router.delete('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
+    // Count affected stories (will become backlog)
+    const storiesCount = await prisma.story.count({
+      where: { sprintId: req.params.id }
+    });
+
     await prisma.sprint.delete({
       where: { id: req.params.id }
     });
 
-    res.json({ message: 'Sprint deleted successfully' });
+    const message = storiesCount > 0 
+      ? `ספרינט נמחק. ${storiesCount} אבני דרך עברו ל"אבני דרך בהמתנה"`
+      : 'ספרינט נמחק בהצלחה';
+
+    res.json({ message, affectedStories: storiesCount });
   } catch (error) {
     console.error('Error deleting sprint:', error);
-    res.status(500).json({ error: 'Failed to delete sprint' });
+    res.status(500).json({ error: 'שגיאה במחיקת הספרינט' });
   }
 });
 
