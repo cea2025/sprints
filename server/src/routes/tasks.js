@@ -98,7 +98,10 @@ router.get('/my', async (req, res) => {
       }
     });
 
+    console.log('🔍 [tasks/my] userId:', req.user.id, 'orgId:', organizationId, 'teamMember:', teamMember?.id || 'NOT FOUND');
+
     if (!teamMember) {
+      console.log('⚠️ [tasks/my] No teamMember found for user');
       return res.json([]);
     }
 
@@ -130,6 +133,7 @@ router.get('/my', async (req, res) => {
       ]
     });
 
+    console.log('✅ [tasks/my] Found', tasks.length, 'tasks for teamMember:', teamMember.id);
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching my tasks:', error);
