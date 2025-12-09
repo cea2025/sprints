@@ -26,7 +26,13 @@ export default function DataManagement() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
-  const [teamFormData, setTeamFormData] = useState({ name: '', role: '', capacity: '' });
+  const [teamFormData, setTeamFormData] = useState({ 
+    name: '', 
+    role: '', 
+    capacity: '',
+    email: '',           // אימייל להרשאת כניסה (אופציונלי)
+    accessRole: 'MEMBER' // רמת הרשאה במערכת
+  });
   
   // Allowed Emails
   const [allowedEmails, setAllowedEmails] = useState([]);
@@ -43,10 +49,8 @@ export default function DataManagement() {
   useEffect(() => {
     if (!currentOrganization) return;
     fetchTeamMembers();
-    if (isAdmin) {
-      fetchAllowedEmails();
-    }
-  }, [isAdmin, currentOrganization?.id]);
+    fetchAllowedEmails(); // תמיד טוען כדי להציג badge הרשאה
+  }, [currentOrganization?.id]);
 
   // ==================== Team Members ====================
   
@@ -96,7 +100,7 @@ export default function DataManagement() {
   const resetTeamForm = () => {
     setShowTeamForm(false);
     setEditingMember(null);
-    setTeamFormData({ name: '', role: '', capacity: '' });
+    setTeamFormData({ name: '', role: '', capacity: '', email: '', accessRole: 'MEMBER' });
   };
 
   // ==================== Allowed Emails ====================
@@ -194,44 +198,84 @@ export default function DataManagement() {
           {/* Team Form */}
           {showTeamForm && (
             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800">
-              <form onSubmit={handleTeamSubmit} className="flex flex-wrap gap-3 items-end">
-                <div className="flex-1 min-w-[150px]">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">שם</label>
-                  <input
-                    type="text"
-                    value={teamFormData.name}
-                    onChange={e => setTeamFormData({...teamFormData, name: e.target.value})}
-                    className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                    required
-                  />
+              <form onSubmit={handleTeamSubmit} className="space-y-3">
+                {/* שורה ראשונה - פרטי חבר צוות */}
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">שם *</label>
+                    <input
+                      type="text"
+                      value={teamFormData.name}
+                      onChange={e => setTeamFormData({...teamFormData, name: e.target.value})}
+                      className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">תפקיד *</label>
+                    <input
+                      type="text"
+                      value={teamFormData.role}
+                      onChange={e => setTeamFormData({...teamFormData, role: e.target.value})}
+                      className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">קיבולת</label>
+                    <input
+                      type="number"
+                      value={teamFormData.capacity}
+                      onChange={e => setTeamFormData({...teamFormData, capacity: e.target.value})}
+                      className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 min-w-[150px]">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">תפקיד</label>
-                  <input
-                    type="text"
-                    value={teamFormData.role}
-                    onChange={e => setTeamFormData({...teamFormData, role: e.target.value})}
-                    className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                    required
-                  />
+                
+                {/* שורה שנייה - הרשאת כניסה למערכת */}
+                <div className="flex flex-wrap gap-3 items-end pt-2 border-t border-indigo-200 dark:border-indigo-700">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      <Mail size={12} className="inline ml-1" />
+                      אימייל לכניסה (אופציונלי)
+                    </label>
+                    <input
+                      type="email"
+                      value={teamFormData.email}
+                      onChange={e => setTeamFormData({...teamFormData, email: e.target.value})}
+                      placeholder="user@example.com"
+                      className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  {teamFormData.email && (
+                    <div className="w-36">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">רמת הרשאה</label>
+                      <select
+                        value={teamFormData.accessRole}
+                        onChange={e => setTeamFormData({...teamFormData, accessRole: e.target.value})}
+                        className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                      >
+                        {Object.values(ROLES).map(role => (
+                          <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">
+                      {editingMember ? 'עדכן' : 'הוסף'}
+                    </button>
+                    <button type="button" onClick={resetTeamForm} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">
+                      ביטול
+                    </button>
+                  </div>
                 </div>
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">קיבולת</label>
-                  <input
-                    type="number"
-                    value={teamFormData.capacity}
-                    onChange={e => setTeamFormData({...teamFormData, capacity: e.target.value})}
-                    className="w-full px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">
-                    {editingMember ? 'עדכן' : 'הוסף'}
-                  </button>
-                  <button type="button" onClick={resetTeamForm} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">
-                    ביטול
-                  </button>
-                </div>
+                
+                {teamFormData.email && (
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                    💡 האימייל יתווסף אוטומטית לרשימת המיילים המורשים
+                  </p>
+                )}
               </form>
             </div>
           )}
@@ -244,7 +288,14 @@ export default function DataManagement() {
                 <p>אין חברי צוות</p>
               </div>
             ) : (
-              teamMembers.map(member => (
+              teamMembers.map(member => {
+                // מחפש אם יש אימייל מורשה לחבר הצוות
+                const linkedEmail = allowedEmails.find(e => 
+                  e.name === member.name || 
+                  (member.user?.email && e.email === member.user.email)
+                );
+                
+                return (
                 <div 
                   key={member.id} 
                   className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
@@ -260,10 +311,19 @@ export default function DataManagement() {
                     <div>
                       <div className="font-medium text-gray-900 dark:text-white">{member.name}</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">{member.role}</div>
+                      {linkedEmail && (
+                        <div className="text-xs text-gray-400 dark:text-gray-500">{linkedEmail.email}</div>
+                      )}
                     </div>
                     {member.capacity && (
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
                         {member.capacity} נק'
+                      </span>
+                    )}
+                    {/* Badge הרשאה */}
+                    {linkedEmail && (
+                      <span className={`text-xs px-2 py-1 rounded ${ROLE_COLORS[linkedEmail.role]}`}>
+                        {ROLE_LABELS[linkedEmail.role]}
                       </span>
                     )}
                     {!member.isActive && (
@@ -275,8 +335,19 @@ export default function DataManagement() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => {
+                        // מחפש אם יש אימייל מורשה לחבר הצוות הזה
+                        const linkedEmail = allowedEmails.find(e => 
+                          e.name === member.name || 
+                          (member.user?.email && e.email === member.user.email)
+                        );
                         setEditingMember(member);
-                        setTeamFormData({ name: member.name, role: member.role, capacity: member.capacity || '' });
+                        setTeamFormData({ 
+                          name: member.name, 
+                          role: member.role, 
+                          capacity: member.capacity || '',
+                          email: linkedEmail?.email || member.user?.email || '',
+                          accessRole: linkedEmail?.role || 'MEMBER'
+                        });
                         setShowTeamForm(true);
                       }}
                       className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"
@@ -304,7 +375,7 @@ export default function DataManagement() {
                     </button>
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </div>

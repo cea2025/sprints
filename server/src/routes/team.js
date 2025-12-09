@@ -89,12 +89,13 @@ router.get('/:id', async (req, res) => {
 });
 
 // @route   POST /api/team
-// @desc    Create a new team member
+// @desc    Create a new team member (with optional email for access)
 router.post('/', auditMiddleware('TeamMember'), async (req, res) => {
   try {
-    const { name, role, capacity, userId } = req.body;
+    const { name, role, capacity, userId, email, accessRole } = req.body;
     const organizationId = await getOrganizationId(req);
 
+    // יצירת חבר צוות
     const teamMember = await prisma.teamMember.create({
       data: {
         name,
@@ -106,6 +107,43 @@ router.post('/', auditMiddleware('TeamMember'), async (req, res) => {
       }
     });
 
+    // אם יש אימייל - יצירת/עדכון AllowedEmail אוטומטית
+    if (email && organizationId) {
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // בדיקה אם האימייל כבר קיים
+      const existingEmail = await prisma.allowedEmail.findFirst({
+        where: { 
+          organizationId,
+          email: normalizedEmail 
+        }
+      });
+
+      if (existingEmail) {
+        // עדכון התפקיד אם השתנה
+        if (accessRole && existingEmail.role !== accessRole) {
+          await prisma.allowedEmail.update({
+            where: { id: existingEmail.id },
+            data: { 
+              role: accessRole,
+              name: name // עדכון השם גם
+            }
+          });
+        }
+      } else {
+        // יצירת אימייל מורשה חדש
+        await prisma.allowedEmail.create({
+          data: {
+            organizationId,
+            email: normalizedEmail,
+            name,
+            role: accessRole || 'MEMBER',
+            addedBy: req.user.id
+          }
+        });
+      }
+    }
+
     res.status(201).json(teamMember);
   } catch (error) {
     console.error('Error creating team member:', error);
@@ -114,10 +152,11 @@ router.post('/', auditMiddleware('TeamMember'), async (req, res) => {
 });
 
 // @route   PUT /api/team/:id
-// @desc    Update a team member
+// @desc    Update a team member (with optional email for access)
 router.put('/:id', captureOldEntity(prisma.teamMember), auditMiddleware('TeamMember'), async (req, res) => {
   try {
-    const { name, role, capacity, isActive } = req.body;
+    const { name, role, capacity, isActive, email, accessRole } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     const teamMember = await prisma.teamMember.update({
       where: { id: req.params.id },
@@ -129,6 +168,41 @@ router.put('/:id', captureOldEntity(prisma.teamMember), auditMiddleware('TeamMem
         updatedBy: req.user.id
       }
     });
+
+    // אם יש אימייל - יצירת/עדכון AllowedEmail אוטומטית
+    if (email && organizationId) {
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // בדיקה אם האימייל כבר קיים
+      const existingEmail = await prisma.allowedEmail.findFirst({
+        where: { 
+          organizationId,
+          email: normalizedEmail 
+        }
+      });
+
+      if (existingEmail) {
+        // עדכון התפקיד והשם
+        await prisma.allowedEmail.update({
+          where: { id: existingEmail.id },
+          data: { 
+            role: accessRole || existingEmail.role,
+            name: name || existingEmail.name
+          }
+        });
+      } else {
+        // יצירת אימייל מורשה חדש
+        await prisma.allowedEmail.create({
+          data: {
+            organizationId,
+            email: normalizedEmail,
+            name,
+            role: accessRole || 'MEMBER',
+            addedBy: req.user.id
+          }
+        });
+      }
+    }
 
     res.json(teamMember);
   } catch (error) {
