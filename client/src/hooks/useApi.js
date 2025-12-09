@@ -1,8 +1,14 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '../components/ui/Toast';
 
+// Get organization ID from localStorage (works outside of React context)
+const getOrganizationId = () => {
+  return localStorage.getItem('currentOrgId') || null;
+};
+
 /**
  * Custom hook for API calls with loading, error states and toast notifications
+ * Automatically includes X-Organization-Id header for multi-tenant support
  */
 export function useApi() {
   const [loading, setLoading] = useState(false);
@@ -22,11 +28,16 @@ export function useApi() {
     setError(null);
 
     try {
+      // Get current organization ID
+      const organizationId = getOrganizationId();
+      
       const fetchOptions = {
         method,
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          // Add organization ID header for multi-tenant API calls
+          ...(organizationId ? { 'X-Organization-Id': organizationId } : {}),
           ...headers,
         },
       };

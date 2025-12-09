@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
+const { getOrganizationId } = require('../middleware/organization');
 
 const router = express.Router();
 
@@ -12,14 +13,19 @@ router.use(isAuthenticated);
 router.get('/', async (req, res) => {
   try {
     const today = new Date();
+    const organizationId = await getOrganizationId(req);
     
     // Get current quarter info
     const currentQuarter = Math.ceil((today.getMonth() + 1) / 3);
     const currentYear = today.getFullYear();
 
+    // Organization filter for all queries
+    const orgFilter = organizationId ? { organizationId } : {};
+
     // Get current sprint (by date or most recent)
     let currentSprint = await prisma.sprint.findFirst({
       where: {
+        ...orgFilter,
         startDate: { lte: today },
         endDate: { gte: today }
       },
@@ -41,6 +47,7 @@ router.get('/', async (req, res) => {
     if (!currentSprint) {
       currentSprint = await prisma.sprint.findFirst({
         where: {
+          ...orgFilter,
           startDate: { gt: today }
         },
         orderBy: { startDate: 'asc' },
@@ -62,6 +69,7 @@ router.get('/', async (req, res) => {
     // If still no sprint, get most recent
     if (!currentSprint) {
       currentSprint = await prisma.sprint.findFirst({
+        where: orgFilter,
         orderBy: { startDate: 'desc' },
         include: {
           sprintRocks: {
@@ -94,6 +102,7 @@ router.get('/', async (req, res) => {
     // Get current quarter rocks with progress
     const rocks = await prisma.rock.findMany({
       where: {
+        ...orgFilter,
         year: currentYear,
         quarter: currentQuarter
       },
@@ -137,6 +146,7 @@ router.get('/', async (req, res) => {
 
     // Get objectives
     const objectives = await prisma.objective.findMany({
+      where: orgFilter,
       include: {
         owner: true,
         rocks: {
@@ -170,17 +180,17 @@ router.get('/', async (req, res) => {
 
     // Get overall stats
     const totalRocks = await prisma.rock.count({
-      where: { year: currentYear, quarter: currentQuarter }
+      where: { ...orgFilter, year: currentYear, quarter: currentQuarter }
     });
     
     const completedRocks = await prisma.rock.count({
-      where: { year: currentYear, quarter: currentQuarter, progress: 100 }
+      where: { ...orgFilter, year: currentYear, quarter: currentQuarter, progress: 100 }
     });
 
-    const totalStories = await prisma.story.count();
-    const totalObjectives = await prisma.objective.count();
+    const totalStories = await prisma.story.count({ where: orgFilter });
+    const totalObjectives = await prisma.objective.count({ where: orgFilter });
     const activeTeamMembers = await prisma.teamMember.count({
-      where: { isActive: true }
+      where: { ...orgFilter, isActive: true }
     });
 
     res.json({

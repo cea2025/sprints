@@ -1,27 +1,12 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
+const { getOrganizationId } = require('../middleware/organization');
 
 const router = express.Router();
 
 // Apply authentication to all routes
 router.use(isAuthenticated);
-
-// Helper to get organization ID from session or default
-const getOrganizationId = async (req) => {
-  // Try to get from session first
-  if (req.session?.organizationId) {
-    return req.session.organizationId;
-  }
-  
-  // Otherwise, get the first organization the user belongs to
-  const membership = await prisma.organizationMember.findFirst({
-    where: { userId: req.user.id, isActive: true },
-    include: { organization: true }
-  });
-  
-  return membership?.organizationId || null;
-};
 
 // @route   GET /api/sprints
 // @desc    Get all sprints
