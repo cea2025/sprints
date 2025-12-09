@@ -449,9 +449,46 @@ export default function Stories() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                    {/* Tasks expand button */}
+                    {getStoryTasks(story.id).length > 0 && (
+                      <button
+                        onClick={() => toggleStoryExpansion(story.id)}
+                        className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors flex items-center gap-1"
+                        title="הצג משימות"
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                        <span className="text-xs">{getStoryTasks(story.id).length}</span>
+                        {expandedStories[story.id] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
+              
+              {/* Tasks List - Expandable */}
+              {expandedStories[story.id] && getStoryTasks(story.id).length > 0 && (
+                <div className="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3">
+                  <div className="space-y-2">
+                    {getStoryTasks(story.id).map(task => (
+                      <div
+                        key={task.id}
+                        className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm"
+                      >
+                        {getTaskStatusIcon(task.status)}
+                        <span className={`flex-1 ${task.status === 'DONE' ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {task.code && <span className="text-gray-400 ml-1">{task.code}</span>}
+                          {task.title}
+                        </span>
+                        {task.owner && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {task.owner.name}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
