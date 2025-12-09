@@ -37,12 +37,13 @@ function SprintBoard() {
   });
 
   useEffect(() => {
-    if (!currentOrganization) return;
+    if (!currentOrganization?.id) return;
     
+    const orgId = currentOrganization.id;
     Promise.all([
-      apiFetch(`/api/sprints/${id}`).then(r => r.json()),
-      apiFetch('/api/rocks').then(r => r.json()),
-      apiFetch('/api/team').then(r => r.json())
+      apiFetch(`/api/sprints/${id}`, { organizationId: orgId }).then(r => r.json()),
+      apiFetch('/api/rocks', { organizationId: orgId }).then(r => r.json()),
+      apiFetch('/api/team', { organizationId: orgId }).then(r => r.json())
     ])
       .then(([sprintData, rocksData, teamData]) => {
         setSprint(sprintData);

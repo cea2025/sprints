@@ -3,37 +3,38 @@
  * Automatically includes organization ID header for multi-tenant support
  */
 
-// Get organization ID from localStorage
-const getOrganizationId = () => {
+// Get organization ID from localStorage (fallback)
+const getOrganizationIdFromStorage = () => {
   return localStorage.getItem('currentOrgId') || null;
 };
 
 /**
  * Fetch wrapper that includes organization context
  * @param {string} url - API URL
- * @param {object} options - Fetch options
+ * @param {object} options - Fetch options (can include organizationId)
  * @returns {Promise<Response>}
  */
 export async function apiFetch(url, options = {}) {
-  const organizationId = getOrganizationId();
+  // PRIORITY: Use explicit organizationId > localStorage
+  const organizationId = options.organizationId || getOrganizationIdFromStorage();
   
   // DEBUG: Log what's being sent
   console.log(`🔍 [API] ${options.method || 'GET'} ${url}`, {
     organizationId,
-    localStorage: {
-      currentOrgId: localStorage.getItem('currentOrgId'),
-      currentOrgSlug: localStorage.getItem('currentOrgSlug')
-    }
+    source: options.organizationId ? 'EXPLICIT' : 'localStorage'
   });
+  
+  // Remove organizationId from options to not include it in body
+  const { organizationId: _, ...fetchOptions } = options;
   
   const headers = {
     'Content-Type': 'application/json',
     ...(organizationId ? { 'X-Organization-Id': organizationId } : {}),
-    ...options.headers,
+    ...fetchOptions.headers,
   };
   
   return fetch(url, {
-    ...options,
+    ...fetchOptions,
     credentials: 'include',
     headers,
   });

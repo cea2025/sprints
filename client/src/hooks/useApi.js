@@ -1,10 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useContext } from 'react';
 import { useToast } from '../components/ui/Toast';
-
-// Get organization ID from localStorage (works outside of React context)
-const getOrganizationId = () => {
-  return localStorage.getItem('currentOrgId') || null;
-};
+import OrganizationContext from '../context/OrganizationContext';
 
 /**
  * Custom hook for API calls with loading, error states and toast notifications
@@ -14,6 +10,10 @@ export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const toast = useToast();
+  
+  // Try to get organization from context (if available)
+  const orgContext = useContext(OrganizationContext);
+  const currentOrgId = orgContext?.currentOrganization?.id;
 
   const request = useCallback(async (url, options = {}) => {
     const { 
@@ -21,15 +21,21 @@ export function useApi() {
       body, 
       showToast = true,
       successMessage,
-      headers = {}
+      headers = {},
+      organizationId // Allow explicit override
     } = options;
 
     setLoading(true);
     setError(null);
 
     try {
-      // Get current organization ID
-      const organizationId = getOrganizationId();
+      // PRIORITY: explicit > context > localStorage
+      const orgId = organizationId || currentOrgId || localStorage.getItem('currentOrgId');
+      
+      console.log(`🔍 [useApi] ${method} ${url}`, { 
+        orgId, 
+        source: organizationId ? 'explicit' : currentOrgId ? 'context' : 'localStorage'
+      });
       
       const fetchOptions = {
         method,
@@ -37,7 +43,7 @@ export function useApi() {
         headers: {
           'Content-Type': 'application/json',
           // Add organization ID header for multi-tenant API calls
-          ...(organizationId ? { 'X-Organization-Id': organizationId } : {}),
+          ...(orgId ? { 'X-Organization-Id': orgId } : {}),
           ...headers,
         },
       };
@@ -76,9 +82,9 @@ export function useApi() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, currentOrgId]);
 
-  return { loading, error, request };
+  return { loading, error, request, currentOrgId };
 }
 
 export default useApi;

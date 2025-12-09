@@ -25,10 +25,13 @@ function Dashboard() {
 
   useEffect(() => {
     // Wait for organization to be set before fetching
-    if (!currentOrganization) return;
+    if (!currentOrganization?.id) return;
+    
+    console.log('📊 [Dashboard] Fetching data for org:', currentOrganization.name, currentOrganization.id);
     
     setLoading(true);
-    apiFetch('/api/dashboard')
+    // CRITICAL: Pass organization ID explicitly to avoid race condition with localStorage
+    apiFetch('/api/dashboard', { organizationId: currentOrganization.id })
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch');
         return res.json();

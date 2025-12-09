@@ -19,9 +19,9 @@ function Team() {
   });
 
   useEffect(() => {
-    if (!currentOrganization) return;
+    if (!currentOrganization?.id) return;
     
-    apiFetch('/api/team')
+    apiFetch('/api/team', { organizationId: currentOrganization.id })
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setTeamMembers(data);
