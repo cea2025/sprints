@@ -197,35 +197,36 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Order: פרויקטים, סלעים, אבני דרך, משימות */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="פרויקטים"
+          value={overallStats.totalObjectives}
+          icon={Target}
+          gradient="from-purple-500 to-purple-600"
+          delay={0}
+        />
         <StatCard
           title="סלעים"
           value={overallStats.completedRocks}
           total={overallStats.totalRocks}
           icon={Mountain}
           gradient="from-blue-500 to-blue-600"
-          delay={0}
+          delay={1}
         />
         <StatCard
           title="אבני דרך"
           value={overallStats.totalStories}
           icon={ListTodo}
-          gradient="from-emerald-500 to-emerald-600"
-          delay={1}
-        />
-        <StatCard
-          title="פרויקטים"
-          value={overallStats.totalObjectives}
-          icon={Target}
-          gradient="from-purple-500 to-purple-600"
+          gradient="from-orange-500 to-orange-600"
           delay={2}
         />
         <StatCard
-          title="ספרינט נוכחי"
-          value={currentSprint?.name || 'אין'}
-          icon={Zap}
-          gradient="from-orange-500 to-orange-600"
+          title="משימות"
+          value={myTasks.filter(t => t.status !== 'DONE').length}
+          total={myTasks.length}
+          icon={CheckSquare}
+          gradient="from-emerald-500 to-teal-600"
           delay={3}
         />
       </div>
