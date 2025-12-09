@@ -140,7 +140,7 @@ async function migrate() {
     // ===============================================
     // שלב 5: עדכון Objectives עם organizationId
     // ===============================================
-    console.log('\n🎯 שלב 5: עדכון מטרות-על...');
+    console.log('\n🎯 שלב 5: עדכון פרויקטים...');
     
     const objectivesUpdated = await prisma.objective.updateMany({
       where: { organizationId: null },
@@ -149,7 +149,7 @@ async function migrate() {
         createdBy: firstAdminId
       }
     });
-    console.log(`   ✅ עודכנו ${objectivesUpdated.count} מטרות-על`);
+    console.log(`   ✅ עודכנו ${objectivesUpdated.count} פרויקטים`);
 
     // ===============================================
     // שלב 6: עדכון Rocks עם organizationId
@@ -225,7 +225,7 @@ async function migrate() {
     console.log(`   🏢 ארגון: ${organization.name}`);
     console.log(`   👥 חברי ארגון: ${verification[0]}`);
     console.log(`   👤 חברי צוות: ${verification[1]}`);
-    console.log(`   🎯 מטרות-על: ${verification[2]}`);
+    console.log(`   🎯 פרויקטים: ${verification[2]}`);
     console.log(`   🪨 סלעים: ${verification[3]}`);
     console.log(`   🏃 ספרינטים: ${verification[4]}`);
     console.log(`   📋 אבני דרך: ${verification[5]}`);

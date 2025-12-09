@@ -116,7 +116,7 @@ router.post('/', auditMiddleware('Objective'), async (req, res) => {
   } catch (error) {
     console.error('Error creating objective:', error);
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'קוד מטרת-על כבר קיים' });
+      return res.status(400).json({ error: 'קוד פרויקט כבר קיים' });
     }
     res.status(500).json({ error: 'Failed to create objective: ' + error.message });
   }
@@ -164,13 +164,13 @@ router.delete('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objec
     });
 
     const message = rocksCount > 0 
-      ? `מטרת-על נמחקה. ${rocksCount} סלעים עברו ל"סלעים ללא מטרה"`
-      : 'מטרת-על נמחקה בהצלחה';
+      ? `פרויקט נמחק. ${rocksCount} סלעים עברו ל"סלעים ללא פרויקט"`
+      : 'פרויקט נמחק בהצלחה';
 
     res.json({ message, affectedRocks: rocksCount });
   } catch (error) {
     console.error('Error deleting objective:', error);
-    res.status(500).json({ error: 'שגיאה במחיקת מטרת-העל' });
+    res.status(500).json({ error: 'שגיאה במחיקת הפרויקט' });
   }
 });
 

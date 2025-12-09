@@ -36,7 +36,7 @@ const ENTITY_LABELS = {
   Sprint: 'ספרינט',
   Rock: 'סלע',
   Story: 'אבן דרך',
-  Objective: 'יעד',
+  Objective: 'פרויקט',
   TeamMember: 'חבר צוות',
   Organization: 'ארגון',
   User: 'משתמש',
@@ -376,7 +376,7 @@ export default function AuditLogs() {
                   <option value="Sprint">ספרינט</option>
                   <option value="Rock">סלע</option>
                   <option value="Story">אבן דרך</option>
-                  <option value="Objective">יעד</option>
+                  <option value="Objective">פרויקט</option>
                   <option value="TeamMember">חבר צוות</option>
                   <option value="Organization">ארגון</option>
                   <option value="User">משתמש</option>

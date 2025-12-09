@@ -203,7 +203,7 @@ export default function Rocks() {
       <SearchFilter
         value={searchTerm}
         onChange={setSearchTerm}
-        placeholder="חיפוש לפי קוד, שם, תיאור, אחראי או מטרת-על..."
+        placeholder="חיפוש לפי קוד, שם, תיאור, אחראי או פרויקט..."
       />
 
       {/* Filters */}
@@ -233,7 +233,7 @@ export default function Rocks() {
           onChange={e => setFilters({...filters, objectiveId: e.target.value})}
           className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
         >
-          <option value="">כל מטרות-העל</option>
+          <option value="">כל הפרויקטים</option>
           {objectives.map(obj => (
             <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
           ))}
@@ -245,7 +245,7 @@ export default function Rocks() {
           className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white text-sm"
         >
           <option value="">כל הקישורים</option>
-          <option value="no-objective">🪨 ללא מטרה</option>
+          <option value="no-objective">🪨 ללא פרויקט</option>
           <option value="no-stories">🪨 ללא אבני דרך</option>
         </select>
 
@@ -522,7 +522,7 @@ export default function Rocks() {
               {/* Objective */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  מטרת-על
+                  פרויקט
                 </label>
                 <select
                   value={formData.objectiveId}

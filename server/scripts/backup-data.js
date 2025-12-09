@@ -81,7 +81,7 @@ async function backup() {
     console.log('\n📊 סיכום:');
     console.log(`   • משתמשים: ${users.length}`);
     console.log(`   • חברי צוות: ${teamMembers.length}`);
-    console.log(`   • מטרות-על: ${objectives.length}`);
+    console.log(`   • פרויקטים: ${objectives.length}`);
     console.log(`   • סלעים: ${rocks.length}`);
     console.log(`   • ספרינטים: ${sprints.length}`);
     console.log(`   • קשרי ספרינט-סלע: ${sprintRocks.length}`);

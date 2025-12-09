@@ -15,7 +15,9 @@ import {
   Link as LinkIcon,
   User,
   Building2,
-  Settings
+  Settings,
+  CheckSquare,
+  Circle
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 import { Battery, BatteryCompact } from '../components/ui/Battery';
@@ -26,6 +28,7 @@ import { apiFetch } from '../utils/api';
 function Dashboard() {
   const [data, setData] = useState(null);
   const [orphans, setOrphans] = useState(null);
+  const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('user'); // 'user' or 'all'
@@ -53,13 +56,14 @@ function Dashboard() {
     }
     const queryString = params.toString() ? `?${params.toString()}` : '';
     
-    // Fetch dashboard data, orphans summary and sprints in parallel
+    // Fetch dashboard data, orphans summary, sprints and tasks in parallel
     Promise.all([
       apiFetch(`/api/dashboard${queryString}`, { organizationId: currentOrganization.id }),
       apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id }),
-      apiFetch('/api/sprints', { organizationId: currentOrganization.id })
+      apiFetch('/api/sprints', { organizationId: currentOrganization.id }),
+      apiFetch('/api/tasks/my', { organizationId: currentOrganization.id })
     ])
-      .then(async ([dashRes, orphansRes, sprintsRes]) => {
+      .then(async ([dashRes, orphansRes, sprintsRes, tasksRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
         const dashData = await dashRes.json();
         setData(dashData);
@@ -72,6 +76,11 @@ function Dashboard() {
         if (sprintsRes.ok) {
           const sprintsData = await sprintsRes.json();
           setSprints(Array.isArray(sprintsData) ? sprintsData : []);
+        }
+        
+        if (tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          setMyTasks(Array.isArray(tasksData) ? tasksData : []);
         }
       })
       .catch(err => setError(err.message))
@@ -133,6 +142,23 @@ function Dashboard() {
     setShowSprintSelector(false);
   };
 
+  const handleTaskStatusToggle = async (taskId, currentStatus) => {
+    const newStatus = currentStatus === 'DONE' ? 'TODO' : currentStatus === 'TODO' ? 'IN_PROGRESS' : 'DONE';
+    try {
+      const res = await apiFetch(`/api/tasks/${taskId}/status`, {
+        organizationId: currentOrganization.id,
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (res.ok) {
+        setMyTasks(myTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      }
+    } catch (err) {
+      console.error('Error updating task status:', err);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -189,7 +215,7 @@ function Dashboard() {
           delay={1}
         />
         <StatCard
-          title="מטרות-על"
+          title="פרויקטים"
           value={overallStats.totalObjectives}
           icon={Target}
           gradient="from-purple-500 to-purple-600"
@@ -203,6 +229,84 @@ function Dashboard() {
           delay={3}
         />
       </div>
+
+      {/* My Tasks Section - Show in user mode */}
+      {viewMode === 'user' && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.15s' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                <CheckSquare className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">המשימות שלי</h2>
+            </div>
+            <Link
+              to={`${basePath}/tasks`}
+              className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium group"
+            >
+              <span>כל המשימות</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          {myTasks.length === 0 ? (
+            <div className="text-center py-6">
+              <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
+                >
+                  <button
+                    onClick={() => handleTaskStatusToggle(task.id, task.status)}
+                    className={`p-1 rounded-lg transition-colors ${
+                      task.status === 'IN_PROGRESS'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-emerald-600'
+                    }`}
+                    title={task.status === 'TODO' ? 'התחל' : task.status === 'IN_PROGRESS' ? 'סיים' : 'פתוח מחדש'}
+                  >
+                    {task.status === 'IN_PROGRESS' ? (
+                      <Clock className="w-4 h-4" />
+                    ) : (
+                      <Circle className="w-4 h-4" />
+                    )}
+                  </button>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                      {task.title}
+                    </p>
+                    {task.story && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 truncate">
+                        📋 {task.story.title}
+                      </p>
+                    )}
+                  </div>
+
+                  {task.priority > 0 && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      task.priority === 2 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                    }`}>
+                      {task.priority === 2 ? 'דחוף' : 'גבוה'}
+                    </span>
+                  )}
+                </div>
+              ))}
+              
+              {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                  +{myTasks.filter(t => t.status !== 'DONE').length - 5} משימות נוספות
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Orphans Widget */}
       {orphans && orphans.total > 0 && (
@@ -371,13 +475,13 @@ function Dashboard() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.4s' }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              מטרות-על
+              פרויקטים
             </h2>
             <Link
               to={`${basePath}/objectives`}
               className="flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium group"
             >
-              <span>כל המטרות</span>
+              <span>כל הפרויקטים</span>
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </Link>
           </div>
@@ -552,7 +656,7 @@ function OrphansWidget({ orphans, basePath }) {
   const items = [
     { 
       key: 'objectivesWithoutRocks',
-      label: 'מטרות ללא סלעים', 
+      label: 'פרויקטים ללא סלעים', 
       count: orphans.objectivesWithoutRocks, 
       icon: '🎯',
       link: `${basePath}/objectives?filter=no-rocks`,
@@ -560,7 +664,7 @@ function OrphansWidget({ orphans, basePath }) {
     },
     { 
       key: 'rocksWithoutObjective',
-      label: 'סלעים ללא מטרה', 
+      label: 'סלעים ללא פרויקט', 
       count: orphans.rocksWithoutObjective, 
       icon: '🪨',
       link: `${basePath}/rocks?filter=no-objective`,

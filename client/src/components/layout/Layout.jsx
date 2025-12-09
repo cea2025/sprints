@@ -9,7 +9,8 @@ import {
   Target,
   Mountain, 
   Zap, 
-  ListTodo, 
+  ListTodo,
+  CheckSquare,
   Users, 
   LogOut,
   Menu,
@@ -49,10 +50,11 @@ function Layout() {
 
   const navigation = [
     { name: 'דשבורד', href: `${basePath}/dashboard`, icon: LayoutDashboard },
-    { name: 'מטרות-על', href: `${basePath}/objectives`, icon: Target },
+    { name: 'פרויקטים', href: `${basePath}/objectives`, icon: Target },
     { name: 'סלעים', href: `${basePath}/rocks`, icon: Mountain },
-    { name: 'ספרינטים', href: `${basePath}/sprints`, icon: Zap },
     { name: 'אבני דרך', href: `${basePath}/stories`, icon: ListTodo },
+    { name: 'משימות', href: `${basePath}/tasks`, icon: CheckSquare },
+    { name: 'ספרינטים', href: `${basePath}/sprints`, icon: Zap },
     { name: 'צוות', href: `${basePath}/team`, icon: Users },
     { name: 'ניהול נתונים', href: `${basePath}/data`, icon: Database },
     // Admin links - only shown for admins/managers

@@ -13,6 +13,7 @@ const objectivesRoutes = require('./routes/objectives');
 const rocksRoutes = require('./routes/rocks');
 const sprintsRoutes = require('./routes/sprints');
 const storiesRoutes = require('./routes/stories');
+const tasksRoutes = require('./routes/tasks');
 const teamRoutes = require('./routes/team');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
@@ -63,11 +64,11 @@ const sessionConfig = {
   }
 };
 
-// Use PostgreSQL session store in production
-if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
+// Use PostgreSQL session store when DATABASE_URL is available
+if (process.env.DATABASE_URL) {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   });
   
   sessionConfig.store = new pgSession({
@@ -75,7 +76,10 @@ if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
     tableName: 'session', // Table name for sessions
     createTableIfMissing: true // Auto-create table if it doesn't exist
   });
-  sessionConfig.proxy = true;
+  
+  if (process.env.NODE_ENV === 'production') {
+    sessionConfig.proxy = true;
+  }
   
   console.log('✅ Using PostgreSQL session store');
 } else {
@@ -104,6 +108,7 @@ app.use('/api/objectives', objectivesRoutes);
 app.use('/api/rocks', rocksRoutes);
 app.use('/api/sprints', sprintsRoutes);
 app.use('/api/stories', storiesRoutes);
+app.use('/api/tasks', tasksRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);

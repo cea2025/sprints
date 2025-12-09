@@ -35,14 +35,14 @@ router.get('/summary', async (req, res) => {
       storiesWithoutRock,
       storiesWithoutSprint
     ] = await Promise.all([
-      // מטרות-על ללא סלעים
+      // פרויקטים ללא סלעים
       prisma.objective.count({
         where: {
           ...orgFilter,
           rocks: { none: {} }
         }
       }),
-      // סלעים ללא מטרה
+      // סלעים ללא פרויקט
       prisma.rock.count({
         where: {
           ...orgFilter,

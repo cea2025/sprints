@@ -1,6 +1,6 @@
 /**
  * Objective Schemas
- * סכמות אימות למטרות-על
+ * סכמות אימות לפרויקטים
  */
 
 const { z } = require('zod');

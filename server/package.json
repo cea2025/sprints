@@ -14,7 +14,6 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -27,7 +26,8 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.0",
     "nodemon": "^3.1.7",
-    "prisma": "^5.22.0"
+    "prisma": "^6.19.0"
   }
 }

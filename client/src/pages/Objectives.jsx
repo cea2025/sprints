@@ -55,7 +55,7 @@ export default function Objectives() {
     const result = await request(url, {
       method,
       body: formData,
-      successMessage: editingObjective ? 'מטרת-על עודכנה בהצלחה' : 'מטרת-על נוצרה בהצלחה'
+      successMessage: editingObjective ? 'פרויקט עודכן בהצלחה' : 'פרויקט נוצר בהצלחה'
     });
 
     if (result) {
@@ -77,11 +77,11 @@ export default function Objectives() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('האם למחוק את מטרת-העל?')) return;
+    if (!confirm('האם למחוק את הפרויקט?')) return;
 
     const result = await request(`/api/objectives/${id}`, {
       method: 'DELETE',
-      successMessage: 'מטרת-על נמחקה בהצלחה'
+      successMessage: 'פרויקט נמחקה בהצלחה'
     });
 
     if (result) {
@@ -99,8 +99,29 @@ export default function Objectives() {
     });
   };
 
+  // Generate next available code (01, 02, 03...)
+  const generateNextCode = () => {
+    if (objectives.length === 0) return '01';
+    
+    // Extract numeric codes and find the max
+    const numericCodes = objectives
+      .map(obj => parseInt(obj.code, 10))
+      .filter(num => !isNaN(num));
+    
+    if (numericCodes.length === 0) return '01';
+    
+    const maxCode = Math.max(...numericCodes);
+    const nextCode = maxCode + 1;
+    return nextCode.toString().padStart(2, '0');
+  };
+
   const openNewModal = () => {
     resetForm();
+    // Set suggested next code
+    setFormData(prev => ({
+      ...prev,
+      code: generateNextCode()
+    }));
     setIsModalOpen(true);
   };
 
@@ -130,9 +151,9 @@ export default function Objectives() {
             <Target className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">מטרות-על</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">פרויקטים</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              מטרות אסטרטגיות שמאגדות סלעים
+              פרויקטים שמאגדים סלעים
             </p>
           </div>
         </div>
@@ -141,7 +162,7 @@ export default function Objectives() {
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/25"
         >
           <Plus className="w-5 h-5" />
-          <span>מטרת-על חדשה</span>
+          <span>פרויקט חדש</span>
         </button>
       </div>
 
@@ -160,12 +181,12 @@ export default function Objectives() {
           onChange={e => setOrphanFilter(e.target.value)}
           className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white text-sm"
         >
-          <option value="">כל המטרות</option>
+          <option value="">כל הפרויקטים</option>
           <option value="no-rocks">🎯 ללא סלעים</option>
         </select>
         
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filteredObjectives.length} מטרות-על
+          {filteredObjectives.length} פרויקטים
         </span>
       </div>
 
@@ -181,16 +202,16 @@ export default function Objectives() {
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
           <div className="text-4xl mb-4">🎯</div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            אין עדיין מטרות-על
+            אין עדיין פרויקטים
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            צור את מטרת-העל הראשונה שלך
+            צור את הפרויקט הראשונה שלך
           </p>
           <button
             onClick={openNewModal}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
           >
-            צור מטרת-על
+            צור פרויקט
           </button>
         </div>
       ) : filteredObjectives.length === 0 ? (
@@ -284,7 +305,7 @@ export default function Objectives() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-              {editingObjective ? 'עריכת מטרת-על' : 'מטרת-על חדשה'}
+              {editingObjective ? 'עריכת פרויקט' : 'פרויקט חדש'}
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -296,11 +317,11 @@ export default function Objectives() {
                   type="text"
                   value={formData.code}
                   onChange={e => setFormData({...formData, code: e.target.value})}
-                  placeholder="OBJ-01"
+                  placeholder="01"
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">מזהה ייחודי למטרה</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">מספר רץ (01, 02, 03...)</p>
               </div>
 
               <div>
@@ -311,7 +332,7 @@ export default function Objectives() {
                   type="text"
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="שם מטרת-העל"
+                  placeholder="שם הפרויקט"
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
@@ -324,7 +345,7 @@ export default function Objectives() {
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  placeholder="תיאור מטרת-העל..."
+                  placeholder="תיאור הפרויקט..."
                   rows={3}
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white resize-none"
                 />

@@ -30,7 +30,7 @@ const AVAILABLE_ENTITIES = [
   { value: 'Rock', label: 'סלעים' },
   { value: 'Story', label: 'אבני דרך' },
   { value: 'Sprint', label: 'ספרינטים' },
-  { value: 'Objective', label: 'מטרות' },
+  { value: 'Objective', label: 'פרויקטים' },
   { value: 'TeamMember', label: 'חברי צוות' },
   { value: 'User', label: 'משתמשים' }
 ];

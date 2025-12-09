@@ -12,17 +12,19 @@ import Rocks from './pages/Rocks';
 import Sprints from './pages/Sprints';
 import SprintBoard from './pages/SprintBoard';
 import Stories from './pages/Stories';
+import Tasks from './pages/Tasks';
 import Team from './pages/Team';
 import Admin from './pages/Admin';
 import DataManagement from './pages/DataManagement';
 import SelectOrganization from './pages/SelectOrganization';
 import OrganizationSettings from './pages/OrganizationSettings';
 import AuditLogs from './pages/AuditLogs';
+import CreateOrganization from './pages/CreateOrganization';
 
 // Providers
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthContext, AuthProvider } from './context/AuthContext';
+import { AuthContext } from './context/AuthContext';
 import { OrganizationProvider } from './context/OrganizationContext';
 
 // Re-export useAuth from context
@@ -391,6 +393,11 @@ function App() {
                   user ? <SelectOrganization /> : <Navigate to="/login" replace />
                 } />
 
+                {/* Create Organization */}
+                <Route path="/create-organization" element={
+                  user ? <CreateOrganization /> : <Navigate to="/login" replace />
+                } />
+
                 {/* Super Admin Routes */}
                 <Route path="/super-admin" element={
                   user?.isSuperAdmin ? <SuperAdminDashboard /> : <Navigate to="/" replace />
@@ -407,6 +414,7 @@ function App() {
                   <Route path="sprints" element={<Sprints />} />
                   <Route path="sprints/:id" element={<SprintBoard />} />
                   <Route path="stories" element={<Stories />} />
+                  <Route path="tasks" element={<Tasks />} />
                   <Route path="team" element={<Team />} />
                   <Route path="admin" element={<Admin />} />
                   <Route path="data" element={<DataManagement />} />

@@ -49,7 +49,7 @@ async function restore(backupFileName) {
     console.log(`📊 גיבוי מתאריך: ${backup.timestamp}`);
     console.log(`   • משתמשים: ${backup.counts.users}`);
     console.log(`   • חברי צוות: ${backup.counts.teamMembers}`);
-    console.log(`   • מטרות-על: ${backup.counts.objectives}`);
+    console.log(`   • פרויקטים: ${backup.counts.objectives}`);
     console.log(`   • סלעים: ${backup.counts.rocks}`);
     console.log(`   • ספרינטים: ${backup.counts.sprints}`);
     console.log(`   • אבני דרך: ${backup.counts.stories}`);
@@ -138,7 +138,7 @@ async function restore(backupFileName) {
           }
         });
       }
-      console.log(`   ✅ ${backup.data.objectives.length} מטרות-על`);
+      console.log(`   ✅ ${backup.data.objectives.length} פרויקטים`);
     }
 
     // Rocks

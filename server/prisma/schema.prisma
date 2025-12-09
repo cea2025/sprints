@@ -19,6 +19,13 @@ enum UserRole {
   VIEWER     // View only
 }
 
+enum TaskStatus {
+  TODO        // לעשות
+  IN_PROGRESS // בתהליך
+  DONE        // הושלם
+  CANCELLED   // בוטל
+}
+
 // ==================== ORGANIZATION (Multi-tenant) ====================
 
 model Organization {
@@ -36,6 +43,7 @@ model Organization {
   rocks         Rock[]
   sprints       Sprint[]
   stories       Story[]
+  tasks         Task[]
   allowedEmails AllowedEmail[]
   featureFlags  FeatureFlag[]
   
@@ -120,6 +128,8 @@ model TeamMember {
   ownedRocks      Rock[]
   ownedStories    Story[]
   ownedObjectives Objective[]
+  ownedTasks      Task[]       @relation("TaskOwner")
+  createdTasks    Task[]       @relation("TaskCreator")
   
   // Audit
   createdAt DateTime @default(now())
@@ -135,7 +145,7 @@ model TeamMember {
 }
 
 // ==================== OBJECTIVE ====================
-// מטרת-על - ללא תאריך, רק מאגדת סלעים
+// פרויקט - ללא תאריך, רק מאגד סלעים
 
 model Objective {
   id          String   @id @default(uuid())
@@ -319,6 +329,51 @@ model Story {
   @@index([ownerId])
   @@index([isBlocked])
   @@index([organizationId, sprintId])
+  
+  // Relations
+  tasks       Task[]
+}
+
+// ==================== TASK (משימה) ====================
+// משימות קשורות לאבני דרך או עצמאיות
+
+model Task {
+  id              String       @id @default(cuid())
+  title           String       // כותרת המשימה
+  description     String?      // תיאור (אופציונלי)
+  status          TaskStatus   @default(TODO)
+  priority        Int          @default(0)  // 0=רגיל, 1=גבוה, 2=דחוף
+  dueDate         DateTime?    // תאריך יעד (אופציונלי)
+  completedAt     DateTime?    // מתי הושלמה
+  sortOrder       Int          @default(0)  // סדר בתוך אבן דרך
+  
+  // קשר לאבן דרך - אופציונלי (null = משימה עצמאית)
+  storyId         String?
+  story           Story?       @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  
+  // אחראי על המשימה
+  ownerId         String
+  owner           TeamMember   @relation("TaskOwner", fields: [ownerId], references: [id])
+  
+  // מי יצר את המשימה
+  createdById     String?
+  createdBy       TeamMember?  @relation("TaskCreator", fields: [createdById], references: [id])
+  
+  // Organization (multi-tenant)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  // Audit
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // אינדקסים לביצועים
+  @@index([organizationId])
+  @@index([ownerId])
+  @@index([storyId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([organizationId, ownerId, status])  // שאילתה נפוצה: "המשימות שלי"
 }
 
 // ==================== ACCESS CONTROL ====================

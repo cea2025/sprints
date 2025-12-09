@@ -23,36 +23,36 @@ router.get('/google', (req, res, next) => {
 // @route   GET /api/auth/google/callback
 // @desc    Google OAuth callback - redirects based on user's organizations
 router.get('/google/callback', (req, res, next) => {
+  const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173';
+  
   if (!isGoogleOAuthConfigured()) {
-    return res.redirect('/login?error=oauth_not_configured');
+    return res.redirect(`${baseUrl}/login?error=oauth_not_configured`);
   }
   
   passport.authenticate('google', async (err, user, info) => {
     // Handle errors
     if (err) {
       console.error('OAuth error:', err);
-      return res.redirect('/login?error=server_error');
+      return res.redirect(`${baseUrl}/login?error=server_error`);
     }
     
     // User not authorized (not in test users list or other Google restriction)
     if (!user) {
       const errorType = info?.message || 'unauthorized';
-      return res.redirect(`/login?error=${encodeURIComponent(errorType)}`);
+      return res.redirect(`${baseUrl}/login?error=${encodeURIComponent(errorType)}`);
     }
     
     // Check if user is active
     if (!user.isActive) {
-      return res.redirect('/login?error=account_disabled');
+      return res.redirect(`${baseUrl}/login?error=account_disabled`);
     }
     
     // Login the user
     req.logIn(user, async (loginErr) => {
       if (loginErr) {
         console.error('Login error:', loginErr);
-        return res.redirect('/login?error=login_failed');
+        return res.redirect(`${baseUrl}/login?error=login_failed`);
       }
-      
-      const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173';
       
       try {
         // Super Admin - redirect to super admin dashboard
