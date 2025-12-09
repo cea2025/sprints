@@ -37,6 +37,7 @@ model Organization {
   sprints       Sprint[]
   stories       Story[]
   allowedEmails AllowedEmail[]
+  featureFlags  FeatureFlag[]
   
   // Audit
   createdAt   DateTime @default(now())
@@ -337,7 +338,7 @@ model AllowedEmail {
   @@index([email])
 }
 
-// ==================== AUDIT LOG (Optional) ====================
+// ==================== AUDIT LOG ====================
 
 model AuditLog {
   id             String   @id @default(uuid())
@@ -360,4 +361,84 @@ model AuditLog {
   
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
+}
+
+// ==================== CONFIGURATION TABLES ====================
+// הגדרות מאוחסנות ב-DB במקום בקוד
+
+// הגדרות מערכת גלובליות
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+}
+
+// הרשאות - הגדרת כל ההרשאות האפשריות במערכת
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique   // 'rocks:create', 'sprints:delete'
+  name        String             // 'יצירת סלעים'
+  category    String?            // 'rocks', 'sprints', 'admin'
+  description String?
+  
+  roles       RolePermission[]
+}
+
+// תפקידים דינמיים - החלפת ה-enum הקשיח
+model Role {
+  id          String   @id @default(uuid())
+  code        String   @unique   // 'ADMIN', 'MANAGER', 'CUSTOM_ROLE'
+  name        String             // 'מנהל', 'מנהל פרויקט'
+  description String?
+  color       String?            // '#FF5733' for UI
+  hierarchy   Int      @default(100) // Lower = more powerful
+  isSystem    Boolean  @default(false) // System roles can't be deleted
+  
+  permissions RolePermission[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// קשר בין תפקידים להרשאות (M:N)
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  @@id([roleId, permissionId])
+}
+
+// דגלי פיצ'רים - הפעלה/כיבוי של תכונות
+model FeatureFlag {
+  id             String   @id @default(uuid())
+  key            String   // 'dark_mode', 'ai_assistant'
+  isEnabled      Boolean  @default(false)
+  
+  // אם null = גלובלי, אחרת ספציפי לארגון
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  description    String?
+  
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([key, organizationId])
+}
+
+// מיילים של Super Admins - במקום hardcoded בקוד
+model SuperAdminEmail {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  note      String?
+  isActive  Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  createdBy String?
 }

@@ -4,10 +4,35 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Super Admin emails - these get automatic SA status
-const SUPER_ADMIN_EMAILS = [
-  'a0504105090@gmail.com'
-];
+// Cache for super admin emails (refreshed periodically)
+let superAdminEmailsCache = [];
+let cacheLastUpdated = 0;
+const CACHE_TTL = 60000; // 1 minute
+
+/**
+ * Get super admin emails from database (with caching)
+ */
+async function getSuperAdminEmails() {
+  const now = Date.now();
+  if (now - cacheLastUpdated < CACHE_TTL && superAdminEmailsCache.length > 0) {
+    return superAdminEmailsCache;
+  }
+  
+  try {
+    const admins = await prisma.superAdminEmail.findMany({
+      where: { isActive: true },
+      select: { email: true }
+    });
+    superAdminEmailsCache = admins.map(a => a.email.toLowerCase());
+    cacheLastUpdated = now;
+  } catch (error) {
+    // Table might not exist yet - use fallback
+    console.log('SuperAdminEmail table not ready, using fallback');
+    superAdminEmailsCache = ['a0504105090@gmail.com'];
+  }
+  
+  return superAdminEmailsCache;
+}
 
 // Serialize user for the session
 passport.serializeUser((user, done) => {
@@ -37,7 +62,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails[0].value.toLowerCase();
-        const isSuperAdminEmail = SUPER_ADMIN_EMAILS.includes(email);
+        const superAdminEmails = await getSuperAdminEmails();
+        const isSuperAdminEmail = superAdminEmails.includes(email);
         
         // Check if user already exists
         let user = await prisma.user.findUnique({
