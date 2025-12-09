@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, UserX, UserCheck, Users, X, Trash2 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { Skeleton } from '../components/ui/Skeleton';
+import { useOrganization } from '../context/OrganizationContext';
+import { apiFetch } from '../utils/api';
 
 function Team() {
   const [teamMembers, setTeamMembers] = useState([]);
@@ -9,6 +11,7 @@ function Team() {
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const toast = useToast();
+  const { currentOrganization } = useOrganization();
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -16,13 +19,15 @@ function Team() {
   });
 
   useEffect(() => {
-    fetch('/api/team', { credentials: 'include' })
+    if (!currentOrganization) return;
+    
+    apiFetch('/api/team')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setTeamMembers(data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentOrganization?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,10 +37,8 @@ function Team() {
       : '/api/team';
     const method = editingMember ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(formData)
     });
 
@@ -55,10 +58,8 @@ function Team() {
   };
 
   const handleToggleActive = async (member) => {
-    const res = await fetch(`/api/team/${member.id}`, {
+    const res = await apiFetch(`/api/team/${member.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ ...member, isActive: !member.isActive })
     });
 
@@ -84,9 +85,8 @@ function Team() {
   const handleDelete = async (member) => {
     if (!confirm(`האם למחוק את ${member.name}?`)) return;
 
-    const res = await fetch(`/api/team/${member.id}`, {
-      method: 'DELETE',
-      credentials: 'include'
+    const res = await apiFetch(`/api/team/${member.id}`, {
+      method: 'DELETE'
     });
 
     if (res.ok) {

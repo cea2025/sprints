@@ -14,14 +14,21 @@ import {
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 import { Battery, BatteryCompact } from '../components/ui/Battery';
+import { useOrganization } from '../context/OrganizationContext';
+import { apiFetch } from '../utils/api';
 
 function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { currentOrganization } = useOrganization();
 
   useEffect(() => {
-    fetch('/api/dashboard', { credentials: 'include' })
+    // Wait for organization to be set before fetching
+    if (!currentOrganization) return;
+    
+    setLoading(true);
+    apiFetch('/api/dashboard')
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch');
         return res.json();
@@ -29,7 +36,7 @@ function Dashboard() {
       .then(setData)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentOrganization?.id]);
 
   if (loading) {
     return (

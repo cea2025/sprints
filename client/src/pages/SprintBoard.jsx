@@ -4,6 +4,8 @@ import { ArrowRight, Plus, GripVertical, X } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { SkeletonKanban } from '../components/ui/Skeleton';
 import { BatteryCompact, ProgressInput } from '../components/ui/Battery';
+import { useOrganization } from '../context/OrganizationContext';
+import { apiFetch } from '../utils/api';
 
 // Columns based on progress ranges
 const columns = [
@@ -23,6 +25,7 @@ function SprintBoard() {
   const [draggedStory, setDraggedStory] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const toast = useToast();
+  const { currentOrganization } = useOrganization();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -34,24 +37,24 @@ function SprintBoard() {
   });
 
   useEffect(() => {
+    if (!currentOrganization) return;
+    
     Promise.all([
-      fetch(`/api/sprints/${id}`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/rocks', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/team', { credentials: 'include' }).then(r => r.json())
+      apiFetch(`/api/sprints/${id}`).then(r => r.json()),
+      apiFetch('/api/rocks').then(r => r.json()),
+      apiFetch('/api/team').then(r => r.json())
     ])
       .then(([sprintData, rocksData, teamData]) => {
         setSprint(sprintData);
-        setRocks(rocksData);
-        setTeamMembers(teamData);
+        setRocks(Array.isArray(rocksData) ? rocksData : []);
+        setTeamMembers(Array.isArray(teamData) ? teamData : []);
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, currentOrganization?.id]);
 
   const handleProgressChange = async (storyId, progress, isBlocked = false) => {
-    const res = await fetch(`/api/stories/${storyId}/progress`, {
+    const res = await apiFetch(`/api/stories/${storyId}/progress`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ progress, isBlocked })
     });
 
@@ -138,10 +141,8 @@ function SprintBoard() {
       return;
     }
     
-    const res = await fetch('/api/stories', {
+    const res = await apiFetch('/api/stories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({
         ...formData,
         sprintId: id
