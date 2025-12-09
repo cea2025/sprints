@@ -48,9 +48,12 @@ async function setupRLS() {
           CREATE POLICY org_isolation_policy ON "${table}"
           FOR ALL
           USING (
-            "organizationId" = current_setting('app.organization_id', true)::uuid
-            OR current_setting('app.organization_id', true) IS NULL
-            OR current_setting('app.organization_id', true) = ''
+            CASE 
+              WHEN current_setting('app.organization_id', true) IS NULL 
+                   OR current_setting('app.organization_id', true) = '' 
+              THEN true
+              ELSE "organizationId"::text = current_setting('app.organization_id', true)
+            END
           );
         `);
         console.log(`   ✓ Policy created`);
