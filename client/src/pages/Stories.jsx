@@ -5,13 +5,15 @@ import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
-import { ListTodo, Plus, Edit2, Trash2 } from 'lucide-react';
+import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Stories() {
   const [stories, setStories] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [expandedStories, setExpandedStories] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     sprintId: '',
@@ -44,6 +46,7 @@ export default function Stories() {
     fetchSprints();
     fetchRocks();
     fetchTeamMembers();
+    fetchTasks();
   }, [filters, currentOrganization?.id]);
 
   const fetchStories = async () => {
@@ -80,6 +83,33 @@ export default function Stories() {
   const fetchTeamMembers = async () => {
     const data = await request('/api/team', { showToast: false });
     if (data && Array.isArray(data)) setTeamMembers(data);
+  };
+
+  const fetchTasks = async () => {
+    const data = await request('/api/tasks', { showToast: false });
+    if (data && Array.isArray(data)) setTasks(data);
+  };
+
+  // Get tasks for a specific story
+  const getStoryTasks = (storyId) => {
+    return tasks.filter(task => task.storyId === storyId);
+  };
+
+  // Toggle story expansion
+  const toggleStoryExpansion = (storyId) => {
+    setExpandedStories(prev => ({
+      ...prev,
+      [storyId]: !prev[storyId]
+    }));
+  };
+
+  // Task status icon
+  const getTaskStatusIcon = (status) => {
+    switch (status) {
+      case 'DONE': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case 'IN_PROGRESS': return <Clock className="w-4 h-4 text-blue-500" />;
+      default: return <Circle className="w-4 h-4 text-gray-400" />;
+    }
   };
 
   const handleSubmit = async (e) => {

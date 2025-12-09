@@ -86,8 +86,15 @@ export default function Tasks() {
   };
 
   const fetchStories = async () => {
-    const data = await request('/api/stories', { showToast: false });
-    if (data && Array.isArray(data)) setStories(data);
+    const data = await request('/api/stories?limit=200', { showToast: false });
+    // Handle both array and paginated response formats
+    if (data) {
+      if (Array.isArray(data)) {
+        setStories(data);
+      } else if (data.data && Array.isArray(data.data)) {
+        setStories(data.data);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
