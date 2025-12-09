@@ -321,6 +321,58 @@ class OrganizationService {
       role: membership.role
     };
   }
+
+  /**
+   * Set current sprint for organization
+   */
+  async setCurrentSprint(organizationId, sprintId, userId) {
+    // Verify sprint exists and belongs to this organization
+    if (sprintId) {
+      const sprint = await prisma.sprint.findFirst({
+        where: {
+          id: sprintId,
+          organizationId
+        }
+      });
+
+      if (!sprint) {
+        throw new NotFoundError('הספרינט לא נמצא');
+      }
+    }
+
+    // Update organization settings with current sprint
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true }
+    });
+
+    const currentSettings = organization?.settings || {};
+    const newSettings = {
+      ...currentSettings,
+      currentSprintId: sprintId || null
+    };
+
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        settings: newSettings
+      }
+    });
+
+    return { success: true, currentSprintId: sprintId };
+  }
+
+  /**
+   * Get current sprint ID for organization
+   */
+  async getCurrentSprintId(organizationId) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true }
+    });
+
+    return organization?.settings?.currentSprintId || null;
+  }
 }
 
 module.exports = new OrganizationService();

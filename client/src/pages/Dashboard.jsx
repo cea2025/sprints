@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
   Mountain, 
   Zap, 
@@ -12,11 +12,15 @@ import {
   ArrowLeft,
   Target,
   AlertTriangle,
-  Link as LinkIcon
+  Link as LinkIcon,
+  User,
+  Building2,
+  Settings
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 import { Battery, BatteryCompact } from '../components/ui/Battery';
 import { useOrganization } from '../context/OrganizationContext';
+import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
 function Dashboard() {
@@ -24,7 +28,15 @@ function Dashboard() {
   const [orphans, setOrphans] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('user'); // 'user' or 'all'
+  const [sprints, setSprints] = useState([]);
+  const [showSprintSelector, setShowSprintSelector] = useState(false);
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
+  const { slug } = useParams();
+  
+  // Base path for links
+  const basePath = slug ? `/${slug}` : '';
 
   useEffect(() => {
     // Wait for organization to be set before fetching
@@ -34,12 +46,20 @@ function Dashboard() {
     
     setLoading(true);
     
-    // Fetch dashboard data and orphans summary in parallel
+    // Build query params
+    const params = new URLSearchParams();
+    if (viewMode === 'user' && user?.teamMemberId) {
+      params.append('userId', user.teamMemberId);
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    
+    // Fetch dashboard data, orphans summary and sprints in parallel
     Promise.all([
-      apiFetch('/api/dashboard', { organizationId: currentOrganization.id }),
-      apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id })
+      apiFetch(`/api/dashboard${queryString}`, { organizationId: currentOrganization.id }),
+      apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id }),
+      apiFetch('/api/sprints', { organizationId: currentOrganization.id })
     ])
-      .then(async ([dashRes, orphansRes]) => {
+      .then(async ([dashRes, orphansRes, sprintsRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
         const dashData = await dashRes.json();
         setData(dashData);
@@ -48,10 +68,15 @@ function Dashboard() {
           const orphansData = await orphansRes.json();
           setOrphans(orphansData);
         }
+        
+        if (sprintsRes.ok) {
+          const sprintsData = await sprintsRes.json();
+          setSprints(Array.isArray(sprintsData) ? sprintsData : []);
+        }
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, viewMode, user?.teamMemberId]);
 
   if (loading) {
     return (
@@ -80,16 +105,70 @@ function Dashboard() {
     );
   }
 
-  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {} } = data || {};
+  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [] } = data || {};
+  
+  // Use user-specific data when in user mode, otherwise use all data
+  const displayRocks = viewMode === 'user' ? userRocks : rocks;
+  const displayMilestones = viewMode === 'user' ? userMilestones : [];
+
+  const handleSetCurrentSprint = async (sprintId) => {
+    try {
+      const res = await fetch('/api/organizations/current-sprint', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Organization-Id': currentOrganization.id
+        },
+        credentials: 'include',
+        body: JSON.stringify({ sprintId })
+      });
+      
+      if (res.ok) {
+        // Refresh dashboard data
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Error setting current sprint:', err);
+    }
+    setShowSprintSelector(false);
+  };
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="animate-slide-in-up">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">דשבורד</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          רבעון {currentQuarter?.quarter || 4} / {currentQuarter?.year || 2025}
-        </p>
+      <div className="animate-slide-in-up flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">דשבורד</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            רבעון {currentQuarter?.quarter || 4} / {currentQuarter?.year || 2025}
+          </p>
+        </div>
+        
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl p-1 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <button
+            onClick={() => setViewMode('user')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              viewMode === 'user'
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <User size={14} />
+            <span>שלי</span>
+          </button>
+          <button
+            onClick={() => setViewMode('all')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              viewMode === 'all'
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <Building2 size={14} />
+            <span>הכל</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -127,70 +206,143 @@ function Dashboard() {
 
       {/* Orphans Widget */}
       {orphans && orphans.total > 0 && (
-        <OrphansWidget orphans={orphans} />
+        <OrphansWidget orphans={orphans} basePath={basePath} />
       )}
 
-      {/* Current Sprint */}
-      {currentSprint && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.2s' }}>
-          <div className="flex items-center justify-between mb-6">
+      {/* Current Sprint - with selector */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.2s' }}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {currentSprint.name}
-              </h2>
-              {currentSprint.goal && (
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {currentSprint?.name || 'אין ספרינט נוכחי'}
+                </h2>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSprintSelector(!showSprintSelector)}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    title="בחר ספרינט נוכחי"
+                  >
+                    <Settings size={16} />
+                  </button>
+                  
+                  {/* Sprint Selector Dropdown */}
+                  {showSprintSelector && (
+                    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 min-w-[200px] max-h-64 overflow-y-auto">
+                      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">בחר ספרינט נוכחי</span>
+                      </div>
+                      {sprints.map(sprint => (
+                        <button
+                          key={sprint.id}
+                          onClick={() => handleSetCurrentSprint(sprint.id)}
+                          className={`w-full text-right px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                            currentSprint?.id === sprint.id ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          {sprint.name}
+                        </button>
+                      ))}
+                      {sprints.length === 0 && (
+                        <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          אין ספרינטים
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {currentSprint?.goal && (
                 <p className="text-gray-500 dark:text-gray-400 mt-1">{currentSprint.goal}</p>
               )}
             </div>
-            <Link
-              to="/stories"
-              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
+          </div>
+          <Link
+            to={`${basePath}/stories`}
+            className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
+          >
+            <span>צפה באבני דרך</span>
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          </Link>
+        </div>
+
+        {/* Sprint Stats */}
+        {currentSprint?.stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <SprintStatCard
+              label="לביצוע"
+              value={currentSprint.stats.todo}
+              icon={Clock}
+              color="gray"
+            />
+            <SprintStatCard
+              label="בתהליך"
+              value={currentSprint.stats.inProgress}
+              icon={TrendingUp}
+              color="blue"
+            />
+            <SprintStatCard
+              label="חסום"
+              value={currentSprint.stats.blocked}
+              icon={Ban}
+              color="red"
+            />
+            <SprintStatCard
+              label="הושלם"
+              value={currentSprint.stats.done}
+              icon={CheckCircle2}
+              color="green"
+            />
+          </div>
+        )}
+        
+        {!currentSprint && (
+          <div className="text-center py-8">
+            <Zap className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400 mb-3">אין ספרינט נוכחי מוגדר</p>
+            <button
+              onClick={() => setShowSprintSelector(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
             >
-              <span>צפה באבני דרך</span>
+              בחר ספרינט
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* User Milestones - Show first when in user mode */}
+      {viewMode === 'user' && displayMilestones.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.25s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              אבני הדרך שלי
+            </h2>
+            <Link
+              to={`${basePath}/stories`}
+              className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium group"
+            >
+              <span>כל אבני הדרך</span>
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             </Link>
           </div>
 
-          {/* Sprint Stats */}
-          {currentSprint.stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <SprintStatCard
-                label="לביצוע"
-                value={currentSprint.stats.todo}
-                icon={Clock}
-                color="gray"
-              />
-              <SprintStatCard
-                label="בתהליך"
-                value={currentSprint.stats.inProgress}
-                icon={TrendingUp}
-                color="blue"
-              />
-              <SprintStatCard
-                label="חסום"
-                value={currentSprint.stats.blocked}
-                icon={Ban}
-                color="red"
-              />
-              <SprintStatCard
-                label="הושלם"
-                value={currentSprint.stats.done}
-                icon={CheckCircle2}
-                color="green"
-              />
-            </div>
-          )}
+          <div className="space-y-3">
+            {displayMilestones.map((milestone, index) => (
+              <MilestoneCard key={milestone.id} milestone={milestone} index={index} />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Rocks */}
+      {/* Rocks - User's rocks or all rocks */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            סלעים - Q{currentQuarter.quarter}
+            {viewMode === 'user' ? 'הסלעים שלי' : `סלעים - Q${currentQuarter?.quarter || 4}`}
           </h2>
           <Link
-            to="/rocks"
+            to={`${basePath}/rocks`}
             className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium group"
           >
             <span>כל הסלעים</span>
@@ -198,31 +350,31 @@ function Dashboard() {
           </Link>
         </div>
 
-        {rocks.length === 0 ? (
+        {displayRocks.length === 0 ? (
           <div className="text-center py-12">
             <Mountain className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-500 dark:text-gray-400">
-              אין סלעים לרבעון הנוכחי
+              {viewMode === 'user' ? 'אין לך סלעים מוקצים' : 'אין סלעים לרבעון הנוכחי'}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {rocks.map((rock, index) => (
+            {displayRocks.map((rock, index) => (
               <RockCard key={rock.id} rock={rock} index={index} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Objectives */}
-      {objectives && objectives.length > 0 && (
+      {/* Objectives - Show only in 'all' mode */}
+      {viewMode === 'all' && objectives && objectives.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.4s' }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               מטרות-על
             </h2>
             <Link
-              to="/objectives"
+              to={`${basePath}/objectives`}
               className="flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium group"
             >
               <span>כל המטרות</span>
@@ -349,14 +501,61 @@ function RockCard({ rock, index }) {
   );
 }
 
-function OrphansWidget({ orphans }) {
+function MilestoneCard({ milestone, index }) {
+  return (
+    <div 
+      className={`border rounded-xl p-4 hover:shadow-md transition-all animate-slide-in-up ${
+        milestone.isBlocked 
+          ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10' 
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50'
+      }`}
+      style={{ animationDelay: `${0.3 + index * 0.05}s` }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className={`font-medium ${
+              milestone.isBlocked 
+                ? 'text-red-800 dark:text-red-300' 
+                : 'text-gray-900 dark:text-white'
+            }`}>
+              {milestone.title}
+            </h3>
+            {milestone.isBlocked && (
+              <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium rounded-full">
+                🚫 חסום
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {milestone.rock && (
+              <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
+                🪨 {milestone.rock.code}
+              </span>
+            )}
+            {milestone.sprint && (
+              <span className="px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+                🏃 {milestone.sprint.name}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="mr-4">
+          <BatteryCompact progress={milestone.progress || 0} isBlocked={milestone.isBlocked} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrphansWidget({ orphans, basePath }) {
   const items = [
     { 
       key: 'objectivesWithoutRocks',
       label: 'מטרות ללא סלעים', 
       count: orphans.objectivesWithoutRocks, 
       icon: '🎯',
-      link: '/objectives?filter=no-rocks',
+      link: `${basePath}/objectives?filter=no-rocks`,
       color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
     },
     { 
@@ -364,7 +563,7 @@ function OrphansWidget({ orphans }) {
       label: 'סלעים ללא מטרה', 
       count: orphans.rocksWithoutObjective, 
       icon: '🪨',
-      link: '/rocks?filter=no-objective',
+      link: `${basePath}/rocks?filter=no-objective`,
       color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
     },
     { 
@@ -372,7 +571,7 @@ function OrphansWidget({ orphans }) {
       label: 'סלעים ללא אבנ"ד', 
       count: orphans.rocksWithoutStories, 
       icon: '🪨',
-      link: '/rocks?filter=no-stories',
+      link: `${basePath}/rocks?filter=no-stories`,
       color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
     },
     { 
@@ -380,7 +579,7 @@ function OrphansWidget({ orphans }) {
       label: 'אבנ"ד ללא סלע', 
       count: orphans.storiesWithoutRock, 
       icon: '📋',
-      link: '/stories?filter=no-rock',
+      link: `${basePath}/stories?filter=no-rock`,
       color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
     },
     { 
@@ -388,7 +587,7 @@ function OrphansWidget({ orphans }) {
       label: 'אבנ"ד בהמתנה', 
       count: orphans.storiesWithoutSprint, 
       icon: '⏳',
-      link: '/stories?filter=backlog',
+      link: `${basePath}/stories?filter=backlog`,
       color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
     }
   ].filter(item => item.count > 0);

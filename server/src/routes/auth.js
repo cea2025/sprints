@@ -129,6 +129,21 @@ router.get('/me', async (req, res) => {
         role: m.role
       }));
 
+      // Get teamMember info if exists
+      let teamMemberId = null;
+      if (req.user.teamMember) {
+        teamMemberId = req.user.teamMember.id;
+      } else {
+        // Try to find teamMember by user ID
+        const teamMember = await prisma.teamMember.findUnique({
+          where: { userId: req.user.id },
+          select: { id: true }
+        });
+        if (teamMember) {
+          teamMemberId = teamMember.id;
+        }
+      }
+
       res.json({
         user: {
           id: req.user.id,
@@ -139,6 +154,7 @@ router.get('/me', async (req, res) => {
           isActive: req.user.isActive,
           isSuperAdmin: req.user.isSuperAdmin || false,
           teamMember: req.user.teamMember,
+          teamMemberId,
           organizations,
           organizationCount: organizations.length
         }
@@ -155,6 +171,7 @@ router.get('/me', async (req, res) => {
           isActive: req.user.isActive,
           isSuperAdmin: req.user.isSuperAdmin || false,
           teamMember: req.user.teamMember,
+          teamMemberId: req.user.teamMember?.id || null,
           organizations: [],
           organizationCount: 0
         }

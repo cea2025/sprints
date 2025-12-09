@@ -14,6 +14,7 @@ router.get('/', async (req, res) => {
   try {
     const today = new Date();
     const organizationId = await getOrganizationId(req);
+    const { userId } = req.query; // Optional: filter by user's team member ID
     
     // Get current quarter info
     const currentQuarter = Math.ceil((today.getMonth() + 1) / 3);
@@ -22,26 +23,60 @@ router.get('/', async (req, res) => {
     // Organization filter for all queries
     const orgFilter = organizationId ? { organizationId } : {};
 
-    // Get current sprint (by date or most recent)
-    let currentSprint = await prisma.sprint.findFirst({
-      where: {
-        ...orgFilter,
-        startDate: { lte: today },
-        endDate: { gte: today }
-      },
-      include: {
-        sprintRocks: {
-          include: {
-            rock: true
-          }
-        },
-        stories: {
-          include: {
-            owner: true
+    // Check if organization has a manually set current sprint
+    let currentSprintId = null;
+    if (organizationId) {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true }
+      });
+      currentSprintId = organization?.settings?.currentSprintId;
+    }
+
+    // Get current sprint - first check if manually set, then by date, then most recent
+    let currentSprint = null;
+    
+    if (currentSprintId) {
+      // Use manually set sprint
+      currentSprint = await prisma.sprint.findUnique({
+        where: { id: currentSprintId },
+        include: {
+          sprintRocks: {
+            include: {
+              rock: true
+            }
+          },
+          stories: {
+            include: {
+              owner: true
+            }
           }
         }
-      }
-    });
+      });
+    }
+    
+    if (!currentSprint) {
+      // Fall back to sprint by date
+      currentSprint = await prisma.sprint.findFirst({
+        where: {
+          ...orgFilter,
+          startDate: { lte: today },
+          endDate: { gte: today }
+        },
+        include: {
+          sprintRocks: {
+            include: {
+              rock: true
+            }
+          },
+          stories: {
+            include: {
+              owner: true
+            }
+          }
+        }
+      });
+    }
 
     // If no current sprint, get next upcoming
     if (!currentSprint) {
@@ -193,6 +228,90 @@ router.get('/', async (req, res) => {
       where: { ...orgFilter, isActive: true }
     });
 
+    // Get user-specific rocks and milestones if userId is provided
+    let userRocks = [];
+    let userMilestones = [];
+    
+    if (userId) {
+      // Get rocks owned by user
+      const userRocksData = await prisma.rock.findMany({
+        where: {
+          ...orgFilter,
+          year: currentYear,
+          quarter: currentQuarter,
+          ownerId: userId
+        },
+        include: {
+          owner: true,
+          objective: true,
+          stories: {
+            select: {
+              id: true,
+              progress: true,
+              isBlocked: true
+            }
+          }
+        },
+        orderBy: { code: 'asc' }
+      });
+
+      userRocks = userRocksData.map(rock => {
+        const totalStories = rock.stories.length;
+        const doneStories = rock.stories.filter(s => s.progress === 100).length;
+        const calculatedProgress = totalStories > 0
+          ? Math.round(rock.stories.reduce((sum, s) => sum + s.progress, 0) / totalStories)
+          : 0;
+        const effectiveProgress = rock.progress > 0 ? rock.progress : calculatedProgress;
+        
+        return {
+          id: rock.id,
+          code: rock.code,
+          name: rock.name,
+          progress: effectiveProgress,
+          owner: rock.owner,
+          objective: rock.objective,
+          totalStories,
+          doneStories,
+          blockedStories: rock.stories.filter(s => s.isBlocked).length,
+          isCarriedOver: rock.isCarriedOver,
+          carriedFromQuarter: rock.carriedFromQuarter
+        };
+      });
+
+      // Get milestones (stories) owned by user in current sprint
+      const userStoriesData = await prisma.story.findMany({
+        where: {
+          ...orgFilter,
+          ownerId: userId,
+          sprintId: currentSprint?.id
+        },
+        include: {
+          rock: {
+            select: { id: true, code: true, name: true }
+          },
+          sprint: {
+            select: { id: true, name: true }
+          },
+          owner: true
+        },
+        orderBy: [
+          { isBlocked: 'desc' },
+          { progress: 'asc' }
+        ]
+      });
+
+      userMilestones = userStoriesData.map(story => ({
+        id: story.id,
+        title: story.title,
+        description: story.description,
+        progress: story.progress,
+        isBlocked: story.isBlocked,
+        rock: story.rock,
+        sprint: story.sprint,
+        owner: story.owner
+      }));
+    }
+
     res.json({
       currentQuarter: {
         year: currentYear,
@@ -209,6 +328,8 @@ router.get('/', async (req, res) => {
       } : null,
       objectives: objectivesWithProgress,
       rocks: rocksWithProgress,
+      userRocks,
+      userMilestones,
       overallStats: {
         totalRocks,
         completedRocks,

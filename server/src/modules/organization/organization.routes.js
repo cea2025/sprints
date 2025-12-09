@@ -80,6 +80,22 @@ router.post('/select', validateBody(selectOrganizationSchema), asyncHandler(asyn
 }));
 
 /**
+ * @route   PUT /api/organizations/current-sprint
+ * @desc    Set current sprint for the active organization
+ */
+router.put('/current-sprint', asyncHandler(async (req, res) => {
+  const { sprintId } = req.body;
+  const organizationId = req.session.organizationId || req.headers['x-organization-id'];
+  
+  if (!organizationId) {
+    return res.status(400).json({ error: 'לא נבחר ארגון פעיל' });
+  }
+  
+  const result = await organizationService.setCurrentSprint(organizationId, sprintId, req.user.id);
+  res.json(result);
+}));
+
+/**
  * @route   GET /api/organizations/by-slug/:slug
  * @desc    Get organization by slug (for URL routing)
  */
