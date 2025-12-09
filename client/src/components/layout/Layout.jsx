@@ -22,7 +22,8 @@ import {
   Building2,
   ChevronDown,
   Settings,
-  Crown
+  Crown,
+  FileText
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -54,8 +55,11 @@ function Layout() {
     { name: 'אבני דרך', href: `${basePath}/stories`, icon: ListTodo },
     { name: 'צוות', href: `${basePath}/team`, icon: Users },
     { name: 'ניהול נתונים', href: `${basePath}/data`, icon: Database },
-    // Admin link - only shown for admins
-    ...(isAdmin ? [{ name: 'ניהול מערכת', href: `${basePath}/admin`, icon: Shield }] : []),
+    // Admin links - only shown for admins/managers
+    ...(isAdmin ? [
+      { name: 'ניהול מערכת', href: `${basePath}/admin`, icon: Shield },
+      { name: 'לוג ביקורת', href: `${basePath}/audit`, icon: FileText }
+    ] : []),
   ];
 
   const handleLogout = async () => {

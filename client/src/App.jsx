@@ -17,6 +17,7 @@ import Admin from './pages/Admin';
 import DataManagement from './pages/DataManagement';
 import SelectOrganization from './pages/SelectOrganization';
 import OrganizationSettings from './pages/OrganizationSettings';
+import AuditLogs from './pages/AuditLogs';
 
 // Providers
 import { ToastProvider } from './components/ui/Toast';
@@ -410,6 +411,7 @@ function App() {
                   <Route path="admin" element={<Admin />} />
                   <Route path="data" element={<DataManagement />} />
                   <Route path="settings" element={<OrganizationSettings />} />
+                  <Route path="audit" element={<AuditLogs />} />
                 </Route>
 
                 {/* Legacy routes - redirect to select organization */}
