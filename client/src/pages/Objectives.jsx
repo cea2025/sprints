@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
@@ -19,14 +20,16 @@ export default function Objectives() {
   });
   
   const { loading, request } = useApi();
+  const { currentOrganization } = useOrganization();
 
   // חיפוש בשדות
   const filteredObjectives = useSearch(objectives, ['code', 'name', 'description', 'owner.name'], searchTerm);
 
   useEffect(() => {
+    if (!currentOrganization) return;
     fetchObjectives();
     fetchTeamMembers();
-  }, []);
+  }, [currentOrganization?.id]);
 
   const fetchObjectives = async () => {
     const data = await request('/api/objectives');

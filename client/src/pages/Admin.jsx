@@ -8,6 +8,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
+import { useOrganization } from '../context/OrganizationContext';
+import { apiFetch } from '../utils/api';
 import { ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS } from '../constants/roles';
 import { 
   Plus, Trash2, Mail, UserPlus, Users, CheckCircle, XCircle, 
@@ -19,6 +21,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export default function Admin() {
   const navigate = useNavigate();
   const { isAdmin } = usePermissions();
+  const { currentOrganization } = useOrganization();
   const [activeTab, setActiveTab] = useState('organizations');
   const [users, setUsers] = useState([]);
   const [allowedEmails, setAllowedEmails] = useState([]);
@@ -48,19 +51,17 @@ export default function Admin() {
 
   // Fetch data
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && currentOrganization) {
       fetchOrganizations();
       fetchUsers();
       fetchAllowedEmails();
       fetchStats();
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentOrganization?.id]);
 
   const fetchOrganizations = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/organizations`, {
-        credentials: 'include'
-      });
+      const res = await apiFetch(`${API_URL}/api/organizations`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setOrganizations(data);
@@ -72,9 +73,7 @@ export default function Admin() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/users`, {
-        credentials: 'include'
-      });
+      const res = await apiFetch(`${API_URL}/api/admin/users`);
       if (!res.ok) throw new Error('שגיאה בטעינת המשתמשים');
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
@@ -87,9 +86,7 @@ export default function Admin() {
 
   const fetchAllowedEmails = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/allowed-emails`, {
-        credentials: 'include'
-      });
+      const res = await apiFetch(`${API_URL}/api/admin/allowed-emails`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setAllowedEmails(data);
@@ -101,9 +98,7 @@ export default function Admin() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/stats`, {
-        credentials: 'include'
-      });
+      const res = await apiFetch(`${API_URL}/api/admin/stats`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -141,10 +136,8 @@ export default function Admin() {
         ? `${API_URL}/api/organizations/${editingOrg.id}`
         : `${API_URL}/api/organizations`;
       
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: editingOrg ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(newOrg)
       });
 
@@ -178,10 +171,8 @@ export default function Admin() {
   // User handlers
   const updateUserRole = async (userId, newRole) => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/users/${userId}/role`, {
+      const res = await apiFetch(`${API_URL}/api/admin/users/${userId}/role`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ role: newRole })
       });
       
@@ -203,10 +194,8 @@ export default function Admin() {
     }
     
     try {
-      const res = await fetch(`${API_URL}/api/admin/users/${userId}/status`, {
+      const res = await apiFetch(`${API_URL}/api/admin/users/${userId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ isActive: !currentStatus })
       });
       
@@ -228,10 +217,8 @@ export default function Admin() {
     
     setAddingEmail(true);
     try {
-      const res = await fetch(`${API_URL}/api/admin/allowed-emails`, {
+      const res = await apiFetch(`${API_URL}/api/admin/allowed-emails`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(newEmail)
       });
       
@@ -257,9 +244,8 @@ export default function Admin() {
     }
     
     try {
-      const res = await fetch(`${API_URL}/api/admin/allowed-emails/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
+      const res = await apiFetch(`${API_URL}/api/admin/allowed-emails/${id}`, {
+        method: 'DELETE'
       });
       
       if (!res.ok) {

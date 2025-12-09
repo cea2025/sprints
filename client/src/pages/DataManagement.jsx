@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
 import { useApi } from '../hooks/useApi';
+import { useOrganization } from '../context/OrganizationContext';
 import { 
   Users, Mail, Plus, Trash2, Edit2, UserCheck, UserX, X, 
   Database, ChevronDown, ChevronUp 
@@ -17,6 +18,7 @@ export default function DataManagement() {
   const navigate = useNavigate();
   const { isAdmin, isManager } = usePermissions();
   const { loading, request } = useApi();
+  const { currentOrganization } = useOrganization();
   
   const [activeSection, setActiveSection] = useState('team');
   
@@ -39,11 +41,12 @@ export default function DataManagement() {
   }, [isAdmin, isManager, navigate]);
 
   useEffect(() => {
+    if (!currentOrganization) return;
     fetchTeamMembers();
     if (isAdmin) {
       fetchAllowedEmails();
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentOrganization?.id]);
 
   // ==================== Team Members ====================
   

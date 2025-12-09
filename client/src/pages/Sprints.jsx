@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 
@@ -33,11 +34,13 @@ export default function Sprints() {
   });
 
   const { loading, request } = useApi();
+  const { currentOrganization } = useOrganization();
 
   useEffect(() => {
+    if (!currentOrganization) return;
     fetchSprints();
     fetchRocks();
-  }, [filters.year, filters.quarter]);
+  }, [filters.year, filters.quarter, currentOrganization?.id]);
 
   const fetchSprints = async () => {
     let url = '/api/sprints';

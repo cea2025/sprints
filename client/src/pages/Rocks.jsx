@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useOrganization } from '../context/OrganizationContext';
 import { Battery, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
@@ -38,15 +39,17 @@ export default function Rocks() {
   });
 
   const { loading, request } = useApi();
+  const { currentOrganization } = useOrganization();
 
   // חיפוש בשדות
   const filteredRocks = useSearch(rocks, ['code', 'name', 'description', 'owner.name', 'objective.name'], searchTerm);
 
   useEffect(() => {
+    if (!currentOrganization) return;
     fetchRocks();
     fetchObjectives();
     fetchTeamMembers();
-  }, [filters.year, filters.quarter, filters.objectiveId]);
+  }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id]);
 
   const fetchRocks = async () => {
     let url = '/api/rocks';

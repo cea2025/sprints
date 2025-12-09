@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useOrganization } from '../context/OrganizationContext';
 import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
@@ -30,16 +31,18 @@ export default function Stories() {
   });
 
   const { loading, request } = useApi();
+  const { currentOrganization } = useOrganization();
 
   // חיפוש בשדות
   const filteredStories = useSearch(stories, ['title', 'description', 'owner.name', 'sprint.name', 'rock.code', 'rock.name'], searchTerm);
 
   useEffect(() => {
+    if (!currentOrganization) return;
     fetchStories();
     fetchSprints();
     fetchRocks();
     fetchTeamMembers();
-  }, [filters]);
+  }, [filters, currentOrganization?.id]);
 
   const fetchStories = async () => {
     let url = '/api/stories';
