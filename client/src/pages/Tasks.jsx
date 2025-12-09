@@ -46,6 +46,7 @@ export default function Tasks() {
     type: '' // 'standalone' or ''
   });
   const [formData, setFormData] = useState({
+    code: '',
     title: '',
     description: '',
     storyId: '',
@@ -129,6 +130,7 @@ export default function Tasks() {
   const handleEdit = (task) => {
     setEditingTask(task);
     setFormData({
+      code: task.code || '',
       title: task.title,
       description: task.description || '',
       storyId: task.storyId || '',
@@ -152,9 +154,29 @@ export default function Tasks() {
     }
   };
 
+  // Generate next available code (m-01, m-02, m-03...)
+  const generateNextCode = () => {
+    if (tasks.length === 0) return 'm-01';
+    
+    // Extract numeric codes from m-XX format and find the max
+    const numericCodes = tasks
+      .map(task => {
+        const match = task.code?.match(/^m-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter(num => num !== null);
+    
+    if (numericCodes.length === 0) return 'm-01';
+    
+    const maxCode = Math.max(...numericCodes);
+    const nextCode = maxCode + 1;
+    return `m-${nextCode.toString().padStart(2, '0')}`;
+  };
+
   const resetForm = () => {
     setEditingTask(null);
     setFormData({
+      code: '',
       title: '',
       description: '',
       storyId: '',
@@ -168,9 +190,12 @@ export default function Tasks() {
     resetForm();
     // Set default owner to current user's team member
     const currentTeamMember = teamMembers.find(tm => tm.userId === user?.id);
-    if (currentTeamMember) {
-      setFormData(prev => ({ ...prev, ownerId: currentTeamMember.id }));
-    }
+    // Set suggested next code
+    setFormData(prev => ({ 
+      ...prev, 
+      code: generateNextCode(),
+      ownerId: currentTeamMember?.id || ''
+    }));
     setIsModalOpen(true);
   };
 
@@ -392,18 +417,33 @@ export default function Tasks() {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  כותרת <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="מה צריך לעשות?"
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
-                  required
-                />
+              {/* Code and Title Row */}
+              <div className="flex gap-3">
+                <div className="w-24">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    קוד
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={e => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="m-01"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    כותרת <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="מה צריך לעשות?"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
               </div>
 
               <div>

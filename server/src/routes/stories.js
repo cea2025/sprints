@@ -176,13 +176,14 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new story
 router.post('/', auditMiddleware('Story'), async (req, res) => {
   try {
-    const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
     const organizationId = await getOrganizationId(req);
 
     // sprintId is now optional - stories without sprint go to "backlog" (אבני דרך בהמתנה)
 
     const story = await prisma.story.create({
       data: {
+        code: code || null,
         title,
         description,
         progress: progress ? parseInt(progress) : 0,
@@ -195,6 +196,7 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
       },
       select: {
         id: true,
+        code: true,
         title: true,
         description: true,
         progress: true,
@@ -230,7 +232,7 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
 // @desc    Update a story
 router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), async (req, res) => {
   try {
-    const { title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
 
     // sprintId can be null (moves to backlog) or a valid ID
     // Empty string means "unset" -> null (backlog)
@@ -239,6 +241,7 @@ router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), asy
     const story = await prisma.story.update({
       where: { id: req.params.id },
       data: {
+        code: code !== undefined ? (code || null) : undefined,
         title,
         description,
         progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
@@ -250,6 +253,7 @@ router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), asy
       },
       select: {
         id: true,
+        code: true,
         title: true,
         description: true,
         progress: true,

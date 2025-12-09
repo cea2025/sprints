@@ -99,20 +99,23 @@ export default function Objectives() {
     });
   };
 
-  // Generate next available code (01, 02, 03...)
+  // Generate next available code (p-01, p-02, p-03...)
   const generateNextCode = () => {
-    if (objectives.length === 0) return '01';
+    if (objectives.length === 0) return 'p-01';
     
-    // Extract numeric codes and find the max
+    // Extract numeric codes from p-XX format and find the max
     const numericCodes = objectives
-      .map(obj => parseInt(obj.code, 10))
+      .map(obj => {
+        const match = obj.code?.match(/^p-(\d+)$/);
+        return match ? parseInt(match[1], 10) : parseInt(obj.code, 10);
+      })
       .filter(num => !isNaN(num));
     
-    if (numericCodes.length === 0) return '01';
+    if (numericCodes.length === 0) return 'p-01';
     
     const maxCode = Math.max(...numericCodes);
     const nextCode = maxCode + 1;
-    return nextCode.toString().padStart(2, '0');
+    return `p-${nextCode.toString().padStart(2, '0')}`;
   };
 
   const openNewModal = () => {
@@ -317,7 +320,7 @@ export default function Objectives() {
                   type="text"
                   value={formData.code}
                   onChange={e => setFormData({...formData, code: e.target.value})}
-                  placeholder="01"
+                  placeholder="p-01"
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                   required
                 />

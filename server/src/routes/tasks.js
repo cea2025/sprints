@@ -235,7 +235,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { title, description, storyId, ownerId, priority, dueDate } = req.body;
+    const { code, title, description, storyId, ownerId, priority, dueDate } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'כותרת המשימה היא שדה חובה' });
@@ -266,6 +266,7 @@ router.post('/', async (req, res) => {
 
     const task = await prisma.task.create({
       data: {
+        code: code?.trim() || null,
         title: title.trim(),
         description: description?.trim() || null,
         storyId: storyId || null,
@@ -309,7 +310,7 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { title, description, storyId, ownerId, priority, dueDate, status } = req.body;
+    const { code, title, description, storyId, ownerId, priority, dueDate, status } = req.body;
 
     // Check task exists and belongs to organization
     const existingTask = await prisma.task.findFirst({
@@ -325,6 +326,7 @@ router.put('/:id', async (req, res) => {
 
     const updateData = {};
 
+    if (code !== undefined) updateData.code = code?.trim() || null;
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description?.trim() || null;
     if (storyId !== undefined) updateData.storyId = storyId || null;

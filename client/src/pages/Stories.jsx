@@ -22,6 +22,7 @@ export default function Stories() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStory, setEditingStory] = useState(null);
   const [formData, setFormData] = useState({
+    code: '',
     title: '',
     description: '',
     progress: 0,
@@ -108,6 +109,7 @@ export default function Stories() {
   const handleEdit = (story) => {
     setEditingStory(story);
     setFormData({
+      code: story.code || '',
       title: story.title,
       description: story.description || '',
       progress: story.progress || 0,
@@ -157,11 +159,31 @@ export default function Stories() {
     }
   };
 
+  // Generate next available code (ed-01, ed-02, ed-03...)
+  const generateNextCode = () => {
+    if (stories.length === 0) return 'ed-01';
+    
+    // Extract numeric codes from ed-XX format and find the max
+    const numericCodes = stories
+      .map(story => {
+        const match = story.code?.match(/^ed-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter(num => num !== null);
+    
+    if (numericCodes.length === 0) return 'ed-01';
+    
+    const maxCode = Math.max(...numericCodes);
+    const nextCode = maxCode + 1;
+    return `ed-${nextCode.toString().padStart(2, '0')}`;
+  };
+
   const resetForm = () => {
     setEditingStory(null);
     // Pre-select the first team member as default owner for better UX
     const defaultOwner = teamMembers.length > 0 ? teamMembers[0].id : '';
     setFormData({
+      code: '',
       title: '',
       description: '',
       progress: 0,
@@ -174,6 +196,11 @@ export default function Stories() {
 
   const openNewModal = () => {
     resetForm();
+    // Set suggested next code
+    setFormData(prev => ({
+      ...prev,
+      code: generateNextCode()
+    }));
     setIsModalOpen(true);
   };
 
@@ -409,19 +436,33 @@ export default function Stories() {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  כותרת <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({...formData, title: e.target.value})}
-                  placeholder="שם אבן הדרך"
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                  required
-                />
+              {/* Code and Title Row */}
+              <div className="flex gap-3">
+                <div className="w-24">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    קוד
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={e => setFormData({...formData, code: e.target.value})}
+                    placeholder="ed-01"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    כותרת <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({...formData, title: e.target.value})}
+                    placeholder="שם אבן הדרך"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Description */}

@@ -145,20 +145,33 @@ export default function Rocks() {
     });
   };
 
-  const openNewModal = () => {
-    resetForm();
-    setIsModalOpen(true);
+  // Generate next available code (s-01, s-02, s-03...)
+  const generateNextCode = () => {
+    if (rocks.length === 0) return 's-01';
+    
+    // Extract numeric codes from s-XX format and find the max
+    const numericCodes = rocks
+      .map(rock => {
+        const match = rock.code?.match(/^s-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter(num => num !== null);
+    
+    if (numericCodes.length === 0) return 's-01';
+    
+    const maxCode = Math.max(...numericCodes);
+    const nextCode = maxCode + 1;
+    return `s-${nextCode.toString().padStart(2, '0')}`;
   };
 
-  const generateCode = () => {
-    const existingCodes = rocks.map(r => r.code);
-    let num = 1;
-    let code;
-    do {
-      code = `${formData.year}-Q${formData.quarter}-${String(num).padStart(2, '0')}`;
-      num++;
-    } while (existingCodes.includes(code));
-    setFormData({ ...formData, code });
+  const openNewModal = () => {
+    resetForm();
+    // Set suggested next code
+    setFormData(prev => ({
+      ...prev,
+      code: generateNextCode()
+    }));
+    setIsModalOpen(true);
   };
 
   if (loading && rocks.length === 0) {
@@ -410,7 +423,7 @@ export default function Rocks() {
                     type="text"
                     value={formData.code}
                     onChange={e => setFormData({...formData, code: e.target.value})}
-                    placeholder="2025-Q4-01"
+                    placeholder="s-01"
                     className="flex-1 px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     required
                   />

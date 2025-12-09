@@ -290,6 +290,7 @@ model SprintRock {
 
 model Story {
   id          String   @id @default(uuid())
+  code        String?  // "ed-01" - קוד אבן דרך
   title       String
   description String?
   
@@ -339,6 +340,7 @@ model Story {
 
 model Task {
   id              String       @id @default(cuid())
+  code            String?      // "m-01" - קוד משימה
   title           String       // כותרת המשימה
   description     String?      // תיאור (אופציונלי)
   status          TaskStatus   @default(TODO)
