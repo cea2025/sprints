@@ -230,81 +230,133 @@ function Dashboard() {
         />
       </div>
 
-      {/* My Tasks Section - Show in user mode */}
+      {/* User Mode: Side by Side - My Milestones (Right) | My Tasks (Left) */}
       {viewMode === 'user' && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.15s' }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
-                <CheckSquare className="w-5 h-5 text-white" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-in-up" style={{ animationDelay: '0.15s' }}>
+          {/* אבני הדרך שלי - Right Side */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-1 lg:order-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg">
+                  <ListTodo className="w-5 h-5 text-white" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">אבני הדרך שלי</h2>
               </div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">המשימות שלי</h2>
+              <Link
+                to={`${basePath}/stories`}
+                className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 text-sm font-medium group"
+              >
+                <span>הכל</span>
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              </Link>
             </div>
-            <Link
-              to={`${basePath}/tasks`}
-              className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium group"
-            >
-              <span>כל המשימות</span>
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            </Link>
+
+            {displayMilestones.length === 0 ? (
+              <div className="text-center py-8">
+                <ListTodo className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">אין אבני דרך מוקצות</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {displayMilestones.slice(0, 5).map((milestone) => (
+                  <div
+                    key={milestone.id}
+                    className={`p-3 rounded-xl border ${
+                      milestone.isBlocked 
+                        ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' 
+                        : 'border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    } transition-all`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      {milestone.code && (
+                        <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-mono">
+                          {milestone.code}
+                        </span>
+                      )}
+                      <h3 className={`font-medium text-sm flex-1 truncate ${milestone.isBlocked ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                        {milestone.title}
+                      </h3>
+                      {milestone.isBlocked && <span className="text-red-500 text-xs">🚫</span>}
+                    </div>
+                    <Battery progress={milestone.progress || 0} size="xs" />
+                  </div>
+                ))}
+                {displayMilestones.length > 5 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                    +{displayMilestones.length - 5} נוספות
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
-          {myTasks.length === 0 ? (
-            <div className="text-center py-6">
-              <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
+          {/* המשימות שלי - Left Side */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 order-2 lg:order-2">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                  <CheckSquare className="w-5 h-5 text-white" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">המשימות שלי</h2>
+              </div>
+              <Link
+                to={`${basePath}/tasks`}
+                className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium group"
+              >
+                <span>הכל</span>
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              </Link>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
-                >
-                  <button
-                    onClick={() => handleTaskStatusToggle(task.id, task.status)}
-                    className={`p-1 rounded-lg transition-colors ${
-                      task.status === 'IN_PROGRESS'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-emerald-600'
-                    }`}
-                    title={task.status === 'TODO' ? 'התחל' : task.status === 'IN_PROGRESS' ? 'סיים' : 'פתוח מחדש'}
+
+            {myTasks.filter(t => t.status !== 'DONE').length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
                   >
-                    {task.status === 'IN_PROGRESS' ? (
-                      <Clock className="w-4 h-4" />
-                    ) : (
-                      <Circle className="w-4 h-4" />
-                    )}
-                  </button>
-                  
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {task.title}
-                    </p>
-                    {task.story && (
-                      <p className="text-xs text-purple-600 dark:text-purple-400 truncate">
-                        📋 {task.story.title}
-                      </p>
+                    <button
+                      onClick={() => handleTaskStatusToggle(task.id, task.status)}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        task.status === 'IN_PROGRESS'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-emerald-600'
+                      }`}
+                      title={task.status === 'TODO' ? 'התחל' : 'סיים'}
+                    >
+                      {task.status === 'IN_PROGRESS' ? <Clock className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{task.title}</p>
+                      {task.story && (
+                        <p className="text-xs text-purple-600 dark:text-purple-400 truncate">📋 {task.story.title}</p>
+                      )}
+                    </div>
+
+                    {task.priority > 0 && (
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        task.priority === 2 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                      }`}>
+                        {task.priority === 2 ? 'דחוף' : 'גבוה'}
+                      </span>
                     )}
                   </div>
-
-                  {task.priority > 0 && (
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      task.priority === 2 ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
-                    }`}>
-                      {task.priority === 2 ? 'דחוף' : 'גבוה'}
-                    </span>
-                  )}
-                </div>
-              ))}
-              
-              {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
-                  +{myTasks.filter(t => t.status !== 'DONE').length - 5} משימות נוספות
-                </p>
-              )}
-            </div>
-          )}
+                ))}
+                
+                {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                    +{myTasks.filter(t => t.status !== 'DONE').length - 5} נוספות
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -415,95 +467,8 @@ function Dashboard() {
         )}
       </div>
 
-      {/* User Milestones - Show first when in user mode */}
-      {viewMode === 'user' && displayMilestones.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.25s' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              אבני הדרך שלי
-            </h2>
-            <Link
-              to={`${basePath}/stories`}
-              className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium group"
-            >
-              <span>כל אבני הדרך</span>
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {displayMilestones.map((milestone, index) => (
-              <MilestoneCard key={milestone.id} milestone={milestone} index={index} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* User Mode: My Milestones | All Mode: Rocks */}
-      {viewMode === 'user' ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">אבני הדרך שלי</h2>
-            <Link
-              to={`${basePath}/stories`}
-              className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium group"
-            >
-              <span>כל אבני הדרך</span>
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          {displayMilestones.length === 0 ? (
-            <div className="text-center py-12">
-              <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">אין לך אבני דרך מוקצות</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {displayMilestones.slice(0, 5).map((milestone) => (
-                <div
-                  key={milestone.id}
-                  className={`p-4 rounded-xl border ${
-                    milestone.isBlocked 
-                      ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' 
-                      : 'border-gray-100 dark:border-gray-700'
-                  } hover:shadow-sm transition-all`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {milestone.code && (
-                        <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-mono">
-                          {milestone.code}
-                        </span>
-                      )}
-                      <h3 className={`font-medium ${milestone.isBlocked ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                        {milestone.title}
-                      </h3>
-                      {milestone.isBlocked && (
-                        <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded">🚫 חסום</span>
-                      )}
-                    </div>
-                    {milestone.sprint && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">🏃 {milestone.sprint.name}</span>
-                    )}
-                  </div>
-                  <Battery progress={milestone.progress || 0} size="sm" />
-                  {milestone.rock && (
-                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      🪨 {milestone.rock.code} - {milestone.rock.name}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {displayMilestones.length > 5 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
-                  +{displayMilestones.length - 5} אבני דרך נוספות
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
+      {/* All Mode: Rocks */}
+      {viewMode === 'all' && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
