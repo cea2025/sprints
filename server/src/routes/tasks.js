@@ -21,7 +21,7 @@ router.use(isAuthenticated);
  */
 router.get('/', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/my', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -143,7 +143,7 @@ router.get('/my', async (req, res) => {
  */
 router.get('/story/:storyId', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -182,7 +182,7 @@ router.get('/story/:storyId', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -230,7 +230,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -305,7 +305,7 @@ router.post('/', async (req, res) => {
  */
 router.put('/:id', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -372,7 +372,7 @@ router.put('/:id', async (req, res) => {
  */
 router.patch('/:id/status', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -426,7 +426,7 @@ router.patch('/:id/status', async (req, res) => {
  */
 router.put('/reorder', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
@@ -467,7 +467,7 @@ router.put('/reorder', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const organizationId = getOrganizationId(req);
+    const organizationId = await getOrganizationId(req);
     if (!organizationId) {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
