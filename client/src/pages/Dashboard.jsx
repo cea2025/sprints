@@ -49,11 +49,13 @@ function Dashboard() {
     
     setLoading(true);
     
-    // Build query params
+    // Build query params - always send userId to get user milestones for side panel
     const params = new URLSearchParams();
-    if (viewMode === 'user' && user?.teamMemberId) {
+    if (user?.teamMemberId) {
       params.append('userId', user.teamMemberId);
     }
+    // Also send viewMode so API knows what stats to return
+    params.append('viewMode', viewMode);
     const queryString = params.toString() ? `?${params.toString()}` : '';
     
     // Fetch dashboard data, orphans summary, sprints and tasks in parallel
