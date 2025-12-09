@@ -112,6 +112,24 @@ export default function Stories() {
     }
   };
 
+  // Toggle task status: TODO -> IN_PROGRESS -> DONE -> TODO
+  const handleTaskStatusToggle = async (task) => {
+    const statusOrder = ['TODO', 'IN_PROGRESS', 'DONE'];
+    const currentIndex = statusOrder.indexOf(task.status);
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+
+    const result = await request(`/api/tasks/${task.id}/status`, {
+      method: 'PATCH',
+      body: { status: nextStatus },
+      showToast: false
+    });
+
+    if (result) {
+      // Update local tasks state
+      setTasks(tasks.map(t => t.id === task.id ? { ...t, status: nextStatus } : t));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -472,18 +490,31 @@ export default function Stories() {
                     {getStoryTasks(story.id).map(task => (
                       <div
                         key={task.id}
-                        className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm"
+                        className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm"
                       >
-                        {getTaskStatusIcon(task.status)}
-                        <span className={`flex-1 ${task.status === 'DONE' ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                          {task.code && <span className="text-gray-400 ml-1">{task.code}</span>}
-                          {task.title}
-                        </span>
-                        {task.owner && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {task.owner.name}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleTaskStatusToggle(task)}
+                            className="hover:scale-110 transition-transform cursor-pointer"
+                            title={`סטטוס: ${task.status === 'TODO' ? 'לעשות' : task.status === 'IN_PROGRESS' ? 'בתהליך' : 'הושלם'} - לחץ לשינוי`}
+                          >
+                            {getTaskStatusIcon(task.status)}
+                          </button>
+                          <div className="flex-1">
+                            <span className={task.status === 'DONE' ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-300'}>
+                              {task.code && <span className="text-emerald-600 dark:text-emerald-400 ml-1 font-mono text-xs">{task.code}</span>}
+                              {task.title}
+                            </span>
+                            {task.description && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{task.description}</p>
+                            )}
+                          </div>
+                          {task.owner && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {task.owner.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
