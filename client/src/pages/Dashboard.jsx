@@ -72,15 +72,13 @@ function Dashboard() {
     params.append('viewMode', viewMode);
     const queryString = params.toString() ? `?${params.toString()}` : '';
     
-    // Fetch dashboard data, orphans summary, sprints and tasks in parallel
-    // For "all" mode, fetch all tasks; for "user" mode, fetch user's tasks
-    const tasksEndpoint = viewMode === 'all' ? '/api/tasks' : '/api/tasks/my';
-    
+    // Fetch dashboard data, orphans summary, sprints and user tasks in parallel
+    // Dashboard API now returns allMilestones and allTasks for "all" mode
     Promise.all([
       apiFetch(`/api/dashboard${queryString}`, { organizationId: currentOrganization.id }),
       apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id }),
       apiFetch('/api/sprints', { organizationId: currentOrganization.id }),
-      apiFetch(tasksEndpoint, { organizationId: currentOrganization.id })
+      apiFetch('/api/tasks/my', { organizationId: currentOrganization.id })  // Always fetch user's tasks for "user" mode
     ])
       .then(async ([dashRes, orphansRes, sprintsRes, tasksRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
@@ -88,6 +86,7 @@ function Dashboard() {
         console.log('📊 [Dashboard] API returned:', {
           userMilestones: dashData.userMilestones?.length || 0,
           allMilestones: dashData.allMilestones?.length || 0,
+          allTasks: dashData.allTasks?.length || 0,
           userRocks: dashData.userRocks?.length || 0
         });
         setData(dashData);
@@ -104,7 +103,7 @@ function Dashboard() {
         
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
-          console.log('📊 [Dashboard] Tasks API returned:', tasksData?.length || 0, 'tasks (', viewMode, 'mode)');
+          console.log('📊 [Dashboard] User tasks:', tasksData?.length || 0);
           setMyTasks(Array.isArray(tasksData) ? tasksData : []);
         }
       })
@@ -139,11 +138,12 @@ function Dashboard() {
     );
   }
 
-  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [], allMilestones = [] } = data || {};
+  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [], allMilestones = [], allTasks = [] } = data || {};
   
   // Use user-specific data in "user" mode, all data in "all" mode
   const displayRocks = viewMode === 'user' ? userRocks : rocks;
   const displayMilestones = viewMode === 'user' ? userMilestones : allMilestones;
+  const displayTasks = viewMode === 'user' ? myTasks : allTasks;
 
   const handleSetCurrentSprint = async (sprintId) => {
     try {
@@ -177,7 +177,12 @@ function Dashboard() {
       });
       
       if (res.ok) {
+        // Update both myTasks and allTasks in data
         setMyTasks(myTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+        setData(prev => ({
+          ...prev,
+          allTasks: (prev.allTasks || []).map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+        }));
       }
     } catch (err) {
       console.error('Error updating task status:', err);
@@ -248,8 +253,8 @@ function Dashboard() {
         />
         <StatCard
           title="משימות"
-          value={myTasks.filter(t => t.status !== 'DONE').length}
-          total={myTasks.length}
+          value={displayTasks.filter(t => t.status !== 'DONE').length}
+          total={displayTasks.length}
           icon={CheckSquare}
           gradient="from-emerald-500 to-teal-600"
           delay={3}
@@ -307,6 +312,9 @@ function Dashboard() {
                     </h3>
                     {milestone.isBlocked && <span className="text-red-500 text-xs">🚫</span>}
                   </div>
+                  {viewMode === 'all' && milestone.owner && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">👤 {milestone.owner.name}</p>
+                  )}
                   <Battery progress={milestone.progress || 0} size="xs" />
                 </div>
               ))}
@@ -339,14 +347,14 @@ function Dashboard() {
             </Link>
           </div>
 
-          {myTasks.filter(t => t.status !== 'DONE').length === 0 ? (
+          {displayTasks.filter(t => t.status !== 'DONE').length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
               <p className="text-gray-500 dark:text-gray-400 text-sm">אין משימות פתוחות</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {myTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
+              {displayTasks.filter(t => t.status !== 'DONE').slice(0, 5).map((task) => (
                 <div
                   key={task.id}
                   className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all"
@@ -368,6 +376,9 @@ function Dashboard() {
                     {task.story && (
                       <p className="text-xs text-purple-600 dark:text-purple-400 truncate">📋 {task.story.title}</p>
                     )}
+                    {viewMode === 'all' && task.owner && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">👤 {task.owner.name}</p>
+                    )}
                   </div>
 
                   {task.priority > 0 && (
@@ -380,9 +391,9 @@ function Dashboard() {
                 </div>
               ))}
               
-              {myTasks.filter(t => t.status !== 'DONE').length > 5 && (
+              {displayTasks.filter(t => t.status !== 'DONE').length > 5 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
-                  +{myTasks.filter(t => t.status !== 'DONE').length - 5} נוספות
+                  +{displayTasks.filter(t => t.status !== 'DONE').length - 5} נוספות
                 </p>
               )}
             </div>

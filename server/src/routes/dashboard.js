@@ -321,11 +321,12 @@ router.get('/', async (req, res) => {
       console.log('✅ [dashboard] Found', userMilestones.length, 'userMilestones');
     }
 
-    // Get ALL incomplete milestones for "all" view
+    // Get ALL milestones for "all" view (sorted by progress - incomplete first)
+    console.log('🔍 [dashboard] Fetching allMilestones with orgFilter:', orgFilter);
     const allMilestonesData = await prisma.story.findMany({
       where: {
-        ...orgFilter,
-        progress: { lt: 100 } // Show incomplete milestones
+        ...orgFilter
+        // Removed progress filter - show ALL milestones
       },
       include: {
         rock: {
@@ -337,11 +338,13 @@ router.get('/', async (req, res) => {
         owner: true
       },
       orderBy: [
-        { isBlocked: 'desc' },
-        { progress: 'asc' }
+        { progress: 'asc' },     // Incomplete first (lower progress)
+        { isBlocked: 'desc' },   // Blocked items next
+        { updatedAt: 'desc' }    // Most recently updated
       ],
-      take: 20 // Limit for performance
+      take: 30 // Show up to 30 milestones
     });
+    console.log('✅ [dashboard] Found', allMilestonesData.length, 'allMilestones');
 
     const allMilestones = allMilestonesData.map(story => ({
       id: story.id,
@@ -352,6 +355,37 @@ router.get('/', async (req, res) => {
       rock: story.rock,
       sprint: story.sprint,
       owner: story.owner
+    }));
+
+    // Get ALL tasks for "all" view (not cancelled)
+    console.log('🔍 [dashboard] Fetching allTasks with orgFilter:', orgFilter);
+    const allTasksData = await prisma.task.findMany({
+      where: {
+        ...orgFilter,
+        status: { not: 'CANCELLED' }
+      },
+      include: {
+        owner: true,
+        story: {
+          select: { id: true, title: true }
+        }
+      },
+      orderBy: [
+        { status: 'asc' },      // TODO first, then IN_PROGRESS, then DONE
+        { createdAt: 'desc' }
+      ],
+      take: 30
+    });
+    console.log('✅ [dashboard] Found', allTasksData.length, 'allTasks');
+
+    const allTasks = allTasksData.map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      dueDate: task.dueDate,
+      story: task.story,
+      owner: task.owner
     }));
 
     res.json({
@@ -372,7 +406,8 @@ router.get('/', async (req, res) => {
       rocks: rocksWithProgress,
       userRocks,
       userMilestones,
-      allMilestones,  // NEW: All milestones for "all" view
+      allMilestones,  // All milestones for "all" view
+      allTasks,       // All tasks for "all" view
       overallStats: {
         totalRocks,
         completedRocks,
