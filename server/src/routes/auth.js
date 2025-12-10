@@ -131,6 +131,12 @@ router.get('/me', async (req, res) => {
 
       // Get all teamMembers for this user (one per organization)
       const teamMembers = req.user.teamMembers || [];
+      
+      console.log('🔍 [auth/me] User teamMembers:', teamMembers.map(tm => ({ 
+        id: tm.id, 
+        name: tm.name, 
+        organizationId: tm.organizationId 
+      })));
 
       res.json({
         user: {
