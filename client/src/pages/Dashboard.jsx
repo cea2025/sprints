@@ -42,12 +42,18 @@ function Dashboard() {
   
   // Get teamMemberId for current organization
   const teamMemberId = user?.teamMembers?.find(tm => tm.organizationId === currentOrganization?.id)?.id;
+  
+  // Debug logging
+  console.log('🔍 [Dashboard] user.teamMembers:', user?.teamMembers);
+  console.log('🔍 [Dashboard] currentOrganization:', currentOrganization?.id);
+  console.log('🔍 [Dashboard] calculated teamMemberId:', teamMemberId);
 
   useEffect(() => {
     // Wait for organization to be set before fetching
     if (!currentOrganization?.id) return;
     
     console.log('📊 [Dashboard] Fetching data for org:', currentOrganization.name, currentOrganization.id);
+    console.log('📊 [Dashboard] With teamMemberId:', teamMemberId);
     
     setLoading(true);
     
@@ -70,6 +76,10 @@ function Dashboard() {
       .then(async ([dashRes, orphansRes, sprintsRes, tasksRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
         const dashData = await dashRes.json();
+        console.log('📊 [Dashboard] API returned:', {
+          userMilestones: dashData.userMilestones?.length || 0,
+          userRocks: dashData.userRocks?.length || 0
+        });
         setData(dashData);
         
         if (orphansRes.ok) {
@@ -84,6 +94,7 @@ function Dashboard() {
         
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
+          console.log('📊 [Dashboard] Tasks API returned:', tasksData?.length || 0, 'tasks');
           setMyTasks(Array.isArray(tasksData) ? tasksData : []);
         }
       })
