@@ -102,8 +102,8 @@ router.get('/me', async (req, res) => {
     try {
       const prisma = require('../lib/prisma');
       
-      // Get user's organizations
-      const memberships = await prisma.organizationMember.findMany({
+      // Get user's organizations from OrganizationMember table
+      const orgMemberships = await prisma.organizationMember.findMany({
         where: {
           userId: req.user.id,
           isActive: true,
@@ -121,7 +121,7 @@ router.get('/me', async (req, res) => {
         }
       });
 
-      const organizations = memberships.map(m => ({
+      const organizations = orgMemberships.map(m => ({
         id: m.organization.id,
         name: m.organization.name,
         slug: m.organization.slug,
@@ -129,7 +129,7 @@ router.get('/me', async (req, res) => {
         role: m.role
       }));
 
-      // Get all memberships for this user (one per organization) - NEW
+      // Get all memberships for this user (one per organization) - NEW Membership model
       const memberships = req.user.memberships || [];
       
       // LEGACY: Also include teamMembers for backwards compatibility
