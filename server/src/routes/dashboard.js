@@ -322,7 +322,7 @@ router.get('/', async (req, res) => {
     }
 
     // Get ALL milestones for "all" view (sorted by progress - incomplete first)
-    console.log('🔍 [dashboard] Fetching allMilestones with orgFilter:', orgFilter);
+    console.log('🔍 [dashboard] Fetching allMilestones with orgFilter:', JSON.stringify(orgFilter));
     const allMilestonesData = await prisma.story.findMany({
       where: {
         ...orgFilter
