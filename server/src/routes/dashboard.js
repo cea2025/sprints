@@ -278,12 +278,12 @@ router.get('/', async (req, res) => {
         };
       });
 
-      // Get milestones (stories) owned by user in current sprint
+      // Get milestones (stories) owned by user (all, not just current sprint)
       const userStoriesData = await prisma.story.findMany({
         where: {
           ...orgFilter,
           ownerId: userId,
-          sprintId: currentSprint?.id
+          progress: { lt: 100 } // Show incomplete milestones
         },
         include: {
           rock: {
