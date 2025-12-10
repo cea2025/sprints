@@ -8,7 +8,7 @@ const isAuthenticated = (req, res, next) => {
 
 // Middleware to check if user has a team member profile
 const hasTeamMember = (req, res, next) => {
-  if (req.isAuthenticated() && req.user.teamMember) {
+  if (req.isAuthenticated() && req.user.teamMembers && req.user.teamMembers.length > 0) {
     return next();
   }
   res.status(403).json({ error: 'No team member profile found' });

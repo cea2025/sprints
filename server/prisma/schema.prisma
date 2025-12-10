@@ -97,7 +97,7 @@ model User {
   
   // Relations
   organizations OrganizationMember[]
-  teamMember    TeamMember?
+  teamMembers   TeamMember[]  // User can be in multiple orgs
   alertPreferences UserAlertPreferences[]
   
   createdAt     DateTime @default(now())
@@ -121,7 +121,7 @@ model TeamMember {
   organization   Organization? @relation(fields: [organizationId], references: [id])
   
   // Link to User (optional)
-  userId    String?  @unique
+  userId    String?
   user      User?    @relation(fields: [userId], references: [id])
   
   // Relations
@@ -139,6 +139,7 @@ model TeamMember {
   deletedAt DateTime?
   deletedBy String?
   
+  @@unique([userId, organizationId]) // One teamMember per user per org
   @@index([organizationId])
   @@index([isActive])
   @@index([name])

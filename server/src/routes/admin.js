@@ -28,7 +28,7 @@ router.get('/users', requirePermission('users:read'), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       include: {
-        teamMember: true
+        teamMembers: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -50,7 +50,7 @@ router.get('/users/:id', requirePermission('users:read'), async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
       include: {
-        teamMember: {
+        teamMembers: {
           include: {
             ownedRocks: true,
             ownedStories: true
@@ -98,7 +98,7 @@ router.patch('/users/:id/role', requirePermission('users:manage-roles'), async (
     const user = await prisma.user.update({
       where: { id },
       data: { role },
-      include: { teamMember: true }
+      include: { teamMembers: true }
     });
 
     res.json(user);
@@ -128,7 +128,7 @@ router.patch('/users/:id/status', requirePermission('users:update'), async (req,
     const user = await prisma.user.update({
       where: { id },
       data: { isActive },
-      include: { teamMember: true }
+      include: { teamMembers: true }
     });
 
     res.json(user);

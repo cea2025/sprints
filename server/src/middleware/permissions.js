@@ -136,9 +136,9 @@ function requireOwnershipOr(permission, ownerField = 'ownerId') {
 function isOwner(req, resource, ownerField = 'ownerId') {
   if (!req.user || !resource) return false;
   
-  // Check if user's teamMember is the owner
-  if (req.user.teamMember && resource[ownerField]) {
-    return req.user.teamMember.id === resource[ownerField];
+  // Check if any of user's teamMembers is the owner
+  if (req.user.teamMembers && Array.isArray(req.user.teamMembers) && resource[ownerField]) {
+    return req.user.teamMembers.some(tm => tm.id === resource[ownerField]);
   }
   
   return false;

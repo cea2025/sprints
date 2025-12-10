@@ -40,6 +40,9 @@ function Dashboard() {
   
   // Base path for links
   const basePath = slug ? `/${slug}` : '';
+  
+  // Get teamMemberId for current organization
+  const teamMemberId = user?.teamMembers?.find(tm => tm.organizationId === currentOrganization?.id)?.id;
 
   useEffect(() => {
     // Wait for organization to be set before fetching
@@ -51,8 +54,8 @@ function Dashboard() {
     
     // Build query params - always send userId to get user milestones for side panel
     const params = new URLSearchParams();
-    if (user?.teamMemberId) {
-      params.append('userId', user.teamMemberId);
+    if (teamMemberId) {
+      params.append('userId', teamMemberId);
     }
     // Also send viewMode so API knows what stats to return
     params.append('viewMode', viewMode);
@@ -87,7 +90,7 @@ function Dashboard() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [currentOrganization?.id, viewMode, user?.teamMemberId]);
+  }, [currentOrganization?.id, viewMode, teamMemberId]);
 
   if (loading) {
     return (
