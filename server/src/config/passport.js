@@ -39,12 +39,15 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-// Deserialize user from the session
+// Deserialize user from the session - now includes memberships
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { teamMembers: true }
+      include: { 
+        memberships: true,  // NEW: Use memberships
+        teamMembers: true   // LEGACY: Keep for backwards compatibility
+      }
     });
     done(null, user);
   } catch (error) {
@@ -93,18 +96,27 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             data: updateData
           });
           
+          // AUTO-LINK: Link user to any unlinked Memberships with matching email
+          await autoLinkMemberships(user.id, email);
+          
           return done(null, user);
         }
         
-        // New user - check allowed emails
-        // First check for any allowed email entries for this user
+        // ==================== NEW USER ====================
+        
+        // Check if there's a Membership for this email (NEW way)
+        const memberships = await prisma.membership.findMany({
+          where: { email: email }
+        });
+        
+        // Also check legacy AllowedEmail (for backwards compatibility)
         const allowedEmails = await prisma.allowedEmail.findMany({
           where: { email: email }
         });
 
         // Super admin can always register
-        if (allowedEmails.length === 0 && !isSuperAdminEmail) {
-          console.log(`❌ Login rejected: ${email} not in allowed list`);
+        if (memberships.length === 0 && allowedEmails.length === 0 && !isSuperAdminEmail) {
+          console.log(`❌ Login rejected: ${email} not in any organization`);
           return done(null, false, { message: 'unauthorized' });
         }
 
@@ -122,21 +134,33 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
         console.log(`✅ New user created: ${email}${isSuperAdminEmail ? ' (Super Admin)' : ''}`);
 
-        // Add user to organizations based on AllowedEmail entries
+        // AUTO-LINK: Link user to all Memberships with matching email
+        const linkedCount = await autoLinkMemberships(user.id, email);
+        if (linkedCount > 0) {
+          console.log(`   🔗 Auto-linked to ${linkedCount} memberships`);
+        }
+
+        // LEGACY: Add user to organizations based on AllowedEmail entries
         for (const allowedEmail of allowedEmails) {
           if (allowedEmail.organizationId) {
             try {
-              await prisma.organizationMember.create({
-                data: {
+              await prisma.organizationMember.upsert({
+                where: {
+                  userId_organizationId: {
+                    userId: user.id,
+                    organizationId: allowedEmail.organizationId
+                  }
+                },
+                create: {
                   userId: user.id,
                   organizationId: allowedEmail.organizationId,
                   role: allowedEmail.role || 'VIEWER'
-                }
+                },
+                update: {} // Don't update if exists
               });
-              console.log(`   ➕ Added to organization ${allowedEmail.organizationId} as ${allowedEmail.role || 'VIEWER'}`);
+              console.log(`   ➕ Added to organization ${allowedEmail.organizationId} (legacy)`);
             } catch (e) {
-              // Ignore if already member
-              console.log(`   ℹ️ Already member of organization ${allowedEmail.organizationId}`);
+              // Ignore errors
             }
           }
         }
@@ -151,6 +175,34 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   console.log('✅ Google OAuth configured');
 } else {
   console.log('⚠️ Google OAuth not configured - GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing');
+}
+
+/**
+ * Auto-link user to Memberships by email
+ * This is the key function that connects User to Membership automatically
+ */
+async function autoLinkMemberships(userId, email) {
+  try {
+    const result = await prisma.membership.updateMany({
+      where: {
+        email: email,
+        userId: null  // Only link unlinked memberships
+      },
+      data: {
+        userId: userId,
+        joinedAt: new Date()
+      }
+    });
+    
+    if (result.count > 0) {
+      console.log(`   🔗 Auto-linked ${email} to ${result.count} membership(s)`);
+    }
+    
+    return result.count;
+  } catch (error) {
+    console.error('Error auto-linking memberships:', error);
+    return 0;
+  }
 }
 
 module.exports = passport;

@@ -129,13 +129,18 @@ router.get('/me', async (req, res) => {
         role: m.role
       }));
 
-      // Get all teamMembers for this user (one per organization)
+      // Get all memberships for this user (one per organization) - NEW
+      const memberships = req.user.memberships || [];
+      
+      // LEGACY: Also include teamMembers for backwards compatibility
       const teamMembers = req.user.teamMembers || [];
       
-      console.log('🔍 [auth/me] User teamMembers:', teamMembers.map(tm => ({ 
-        id: tm.id, 
-        name: tm.name, 
-        organizationId: tm.organizationId 
+      console.log('🔍 [auth/me] User memberships:', memberships.map(m => ({ 
+        id: m.id, 
+        name: m.name, 
+        email: m.email,
+        role: m.role,
+        organizationId: m.organizationId 
       })));
 
       res.json({
@@ -147,7 +152,8 @@ router.get('/me', async (req, res) => {
           role: req.user.role,
           isActive: req.user.isActive,
           isSuperAdmin: req.user.isSuperAdmin || false,
-          teamMembers, // Array of all teamMembers across orgs
+          memberships,  // NEW: Array of all memberships across orgs
+          teamMembers,  // LEGACY: Keep for backwards compatibility
           organizations,
           organizationCount: organizations.length
         }
@@ -163,6 +169,7 @@ router.get('/me', async (req, res) => {
           role: req.user.role,
           isActive: req.user.isActive,
           isSuperAdmin: req.user.isSuperAdmin || false,
+          memberships: req.user.memberships || [],
           teamMembers: req.user.teamMembers || [],
           organizations: [],
           organizationCount: 0

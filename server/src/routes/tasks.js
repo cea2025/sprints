@@ -90,25 +90,41 @@ router.get('/my', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    // Get user's teamMemberId
-    const teamMember = await prisma.teamMember.findFirst({
+    // Get user's membership (NEW) or teamMember (legacy)
+    let membership = await prisma.membership.findFirst({
       where: {
         userId: req.user.id,
         organizationId
       }
     });
+    
+    // Fallback to legacy TeamMember if no Membership found
+    let teamMember = null;
+    if (!membership) {
+      teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: req.user.id,
+          organizationId
+        }
+      });
+    }
 
-    console.log('🔍 [tasks/my] userId:', req.user.id, 'orgId:', organizationId, 'teamMember:', teamMember?.id || 'NOT FOUND');
+    const memberId = membership?.id || teamMember?.id;
+    console.log('🔍 [tasks/my] userId:', req.user.id, 'orgId:', organizationId, 'membership:', membership?.id, 'teamMember:', teamMember?.id);
 
-    if (!teamMember) {
-      console.log('⚠️ [tasks/my] No teamMember found for user');
+    if (!memberId) {
+      console.log('⚠️ [tasks/my] No membership or teamMember found for user');
       return res.json([]);
     }
 
+    // Query by BOTH ownerId (legacy) AND membershipId (new)
     const tasks = await prisma.task.findMany({
       where: {
         organizationId,
-        ownerId: teamMember.id,
+        OR: [
+          { ownerId: memberId },
+          { membershipId: memberId }
+        ],
         status: { not: 'CANCELLED' }
       },
       include: {
@@ -133,7 +149,7 @@ router.get('/my', async (req, res) => {
       ]
     });
 
-    console.log('✅ [tasks/my] Found', tasks.length, 'tasks for teamMember:', teamMember.id);
+    console.log('✅ [tasks/my] Found', tasks.length, 'tasks for member:', memberId);
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching my tasks:', error);

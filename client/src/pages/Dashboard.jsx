@@ -40,27 +40,33 @@ function Dashboard() {
   // Base path for links
   const basePath = slug ? `/${slug}` : '';
   
-  // Get teamMemberId for current organization
-  const teamMemberId = user?.teamMembers?.find(tm => tm.organizationId === currentOrganization?.id)?.id;
+  // Get membership for current organization (NEW - uses memberships)
+  const currentMembership = user?.memberships?.find(m => m.organizationId === currentOrganization?.id);
+  // For backwards compatibility, also check teamMembers
+  const legacyTeamMember = user?.teamMembers?.find(tm => tm.organizationId === currentOrganization?.id);
+  
+  // Use membership ID, fall back to teamMember ID for legacy support
+  const membershipId = currentMembership?.id || legacyTeamMember?.id;
   
   // Debug logging
-  console.log('🔍 [Dashboard] user.teamMembers:', user?.teamMembers);
+  console.log('🔍 [Dashboard] user.memberships:', user?.memberships);
   console.log('🔍 [Dashboard] currentOrganization:', currentOrganization?.id);
-  console.log('🔍 [Dashboard] calculated teamMemberId:', teamMemberId);
+  console.log('🔍 [Dashboard] currentMembership:', currentMembership);
+  console.log('🔍 [Dashboard] membershipId:', membershipId);
 
   useEffect(() => {
     // Wait for organization to be set before fetching
     if (!currentOrganization?.id) return;
     
     console.log('📊 [Dashboard] Fetching data for org:', currentOrganization.name, currentOrganization.id);
-    console.log('📊 [Dashboard] With teamMemberId:', teamMemberId);
+    console.log('📊 [Dashboard] With membershipId:', membershipId);
     
     setLoading(true);
     
     // Build query params - always send userId to get user milestones for side panel
     const params = new URLSearchParams();
-    if (teamMemberId) {
-      params.append('userId', teamMemberId);
+    if (membershipId) {
+      params.append('userId', membershipId);
     }
     // Also send viewMode so API knows what stats to return
     params.append('viewMode', viewMode);
@@ -100,7 +106,7 @@ function Dashboard() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [currentOrganization?.id, viewMode, teamMemberId]);
+  }, [currentOrganization?.id, viewMode, membershipId]);
 
   if (loading) {
     return (

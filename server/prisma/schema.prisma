@@ -37,14 +37,15 @@ model Organization {
   settings    Json?    // { theme, language, etc }
   
   // Relations
-  members       OrganizationMember[]
-  teamMembers   TeamMember[]
+  members       OrganizationMember[]  // LEGACY - will be removed
+  teamMembers   TeamMember[]          // LEGACY - will be removed
+  memberships   Membership[] @relation("OrgMemberships")  // NEW
   objectives    Objective[]
   rocks         Rock[]
   sprints       Sprint[]
   stories       Story[]
   tasks         Task[]
-  allowedEmails AllowedEmail[]
+  allowedEmails AllowedEmail[]  // LEGACY - will be removed
   featureFlags  FeatureFlag[]
   
   // Audit System
@@ -96,8 +97,9 @@ model User {
   role          UserRole @default(VIEWER)
   
   // Relations
-  organizations OrganizationMember[]
-  teamMembers   TeamMember[]  // User can be in multiple orgs
+  organizations OrganizationMember[]  // LEGACY - will be removed
+  teamMembers   TeamMember[]          // LEGACY - will be removed
+  memberships   Membership[] @relation("UserMemberships")  // NEW
   alertPreferences UserAlertPreferences[]
   
   createdAt     DateTime @default(now())
@@ -107,7 +109,52 @@ model User {
   @@index([isSuperAdmin])
 }
 
-// ==================== TEAM MEMBER ====================
+// ==================== MEMBERSHIP (NEW - replaces TeamMember + OrganizationMember + AllowedEmail) ====================
+
+model Membership {
+  id              String   @id @default(uuid())
+  
+  // Who - email is the primary identifier
+  email           String   // Always required - the identifier
+  name            String   // Display name
+  
+  // Link to User (set when user logs in)
+  userId          String?
+  user            User?    @relation("UserMemberships", fields: [userId], references: [id])
+  
+  // Where
+  organizationId  String
+  organization    Organization @relation("OrgMemberships", fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Role & Permissions
+  role            UserRole @default(VIEWER)
+  
+  // Profile in organization
+  jobTitle        String?  // תפקיד (מנכ"ל, מפתח, וכו')
+  capacity        Int?     // נקודות לספרינט
+  isActive        Boolean  @default(true)
+  
+  // Owned items (same relations as old TeamMember)
+  ownedRocks      Rock[]       @relation("MembershipRocks")
+  ownedStories    Story[]      @relation("MembershipStories")
+  ownedObjectives Objective[]  @relation("MembershipObjectives")
+  ownedTasks      Task[]       @relation("MembershipTasks")
+  createdTasks    Task[]       @relation("MembershipCreatedTasks")
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  invitedBy       String?  // Who invited this member
+  joinedAt        DateTime? // When user actually logged in
+  
+  @@unique([email, organizationId])  // One person per org
+  @@index([organizationId])
+  @@index([userId])
+  @@index([email])
+  @@index([isActive])
+}
+
+// ==================== TEAM MEMBER (LEGACY - will be removed after migration) ====================
 
 model TeamMember {
   id        String   @id @default(uuid())
@@ -150,7 +197,7 @@ model TeamMember {
 
 model Objective {
   id          String   @id @default(uuid())
-  code        String   // "OBJ-01" - unique per organization
+  code        String   // "p-01" - unique per organization
   name        String
   description String?
   
@@ -158,9 +205,13 @@ model Objective {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   
-  // Owner
+  // Owner (LEGACY - TeamMember)
   ownerId     String?
   owner       TeamMember? @relation(fields: [ownerId], references: [id])
+  
+  // Owner (NEW - Membership)
+  membershipId String?
+  membership   Membership? @relation("MembershipObjectives", fields: [membershipId], references: [id])
   
   // Relations
   rocks       Rock[]
@@ -176,6 +227,7 @@ model Objective {
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([ownerId])
+  @@index([membershipId])
 }
 
 // ==================== ROCK ====================
@@ -183,7 +235,7 @@ model Objective {
 
 model Rock {
   id              String   @id @default(uuid())
-  code            String   // "2025-Q4-01" - unique per organization
+  code            String   // "s-01" - unique per organization
   name            String
   description     String?
   
@@ -203,9 +255,13 @@ model Rock {
   organizationId  String?
   organization    Organization? @relation(fields: [organizationId], references: [id])
   
-  // Owner
+  // Owner (LEGACY - TeamMember)
   ownerId         String?
   owner           TeamMember? @relation(fields: [ownerId], references: [id])
+  
+  // Owner (NEW - Membership)
+  membershipId    String?
+  membership      Membership? @relation("MembershipRocks", fields: [membershipId], references: [id])
   
   // Objective
   objectiveId     String?
@@ -313,9 +369,13 @@ model Story {
   rockId      String?
   rock        Rock?    @relation(fields: [rockId], references: [id], onDelete: SetNull)
   
-  // אחראי - אופציונלי
+  // אחראי (LEGACY - TeamMember)
   ownerId     String?
   owner       TeamMember? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  
+  // אחראי (NEW - Membership)
+  membershipId String?
+  membership   Membership? @relation("MembershipStories", fields: [membershipId], references: [id])
   
   // Audit
   createdAt   DateTime @default(now())
@@ -329,6 +389,7 @@ model Story {
   @@index([sprintId])
   @@index([rockId])
   @@index([ownerId])
+  @@index([membershipId])
   @@index([isBlocked])
   @@index([organizationId, sprintId])
   
@@ -354,13 +415,21 @@ model Task {
   storyId         String?
   story           Story?       @relation(fields: [storyId], references: [id], onDelete: SetNull)
   
-  // אחראי על המשימה
-  ownerId         String
-  owner           TeamMember   @relation("TaskOwner", fields: [ownerId], references: [id])
+  // אחראי על המשימה (LEGACY - TeamMember)
+  ownerId         String?
+  owner           TeamMember?  @relation("TaskOwner", fields: [ownerId], references: [id])
   
-  // מי יצר את המשימה
+  // מי יצר את המשימה (LEGACY - TeamMember)
   createdById     String?
   createdBy       TeamMember?  @relation("TaskCreator", fields: [createdById], references: [id])
+  
+  // אחראי על המשימה (NEW - Membership)
+  membershipId    String?
+  membership      Membership?  @relation("MembershipTasks", fields: [membershipId], references: [id])
+  
+  // מי יצר את המשימה (NEW - Membership)
+  creatorMembershipId String?
+  creatorMembership   Membership?  @relation("MembershipCreatedTasks", fields: [creatorMembershipId], references: [id])
   
   // Organization (multi-tenant)
   organizationId  String
@@ -373,10 +442,12 @@ model Task {
   // אינדקסים לביצועים
   @@index([organizationId])
   @@index([ownerId])
+  @@index([membershipId])
   @@index([storyId])
   @@index([status])
   @@index([dueDate])
   @@index([organizationId, ownerId, status])  // שאילתה נפוצה: "המשימות שלי"
+  @@index([organizationId, membershipId, status])  // NEW: query by membership
 }
 
 // ==================== ACCESS CONTROL ====================

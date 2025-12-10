@@ -233,13 +233,16 @@ router.get('/', async (req, res) => {
     let userMilestones = [];
     
     if (userId) {
-      // Get rocks owned by user
+      // Get rocks owned by user (query BOTH legacy ownerId AND new membershipId)
       const userRocksData = await prisma.rock.findMany({
         where: {
           ...orgFilter,
           year: currentYear,
           quarter: currentQuarter,
-          ownerId: userId
+          OR: [
+            { ownerId: userId },      // Legacy: TeamMember
+            { membershipId: userId }  // New: Membership
+          ]
         },
         include: {
           owner: true,
@@ -279,11 +282,15 @@ router.get('/', async (req, res) => {
       });
 
       // Get milestones (stories) owned by user (all, not just current sprint)
+      // Query by BOTH ownerId (legacy TeamMember) AND membershipId (new Membership)
       console.log('🔍 [dashboard] Fetching userMilestones for userId:', userId, 'orgFilter:', orgFilter);
       const userStoriesData = await prisma.story.findMany({
         where: {
           ...orgFilter,
-          ownerId: userId,
+          OR: [
+            { ownerId: userId },      // Legacy: TeamMember
+            { membershipId: userId }  // New: Membership
+          ],
           progress: { lt: 100 } // Show incomplete milestones
         },
         include: {
