@@ -120,8 +120,11 @@ app.use('/api/audit', auditRoutes);
 const orphansRoutes = require('./routes/orphans');
 app.use('/api/orphans', orphansRoutes);
 
-// Debug routes (for troubleshooting multi-tenant issues)
-app.use('/api/debug', debugRoutes);
+// Debug routes (for troubleshooting multi-tenant issues) - ONLY in development
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/debug', debugRoutes);
+  console.log('⚠️ Debug routes enabled (development mode)');
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
