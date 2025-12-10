@@ -321,6 +321,39 @@ router.get('/', async (req, res) => {
       console.log('✅ [dashboard] Found', userMilestones.length, 'userMilestones');
     }
 
+    // Get ALL incomplete milestones for "all" view
+    const allMilestonesData = await prisma.story.findMany({
+      where: {
+        ...orgFilter,
+        progress: { lt: 100 } // Show incomplete milestones
+      },
+      include: {
+        rock: {
+          select: { id: true, code: true, name: true }
+        },
+        sprint: {
+          select: { id: true, name: true }
+        },
+        owner: true
+      },
+      orderBy: [
+        { isBlocked: 'desc' },
+        { progress: 'asc' }
+      ],
+      take: 20 // Limit for performance
+    });
+
+    const allMilestones = allMilestonesData.map(story => ({
+      id: story.id,
+      title: story.title,
+      description: story.description,
+      progress: story.progress,
+      isBlocked: story.isBlocked,
+      rock: story.rock,
+      sprint: story.sprint,
+      owner: story.owner
+    }));
+
     res.json({
       currentQuarter: {
         year: currentYear,
@@ -339,6 +372,7 @@ router.get('/', async (req, res) => {
       rocks: rocksWithProgress,
       userRocks,
       userMilestones,
+      allMilestones,  // NEW: All milestones for "all" view
       overallStats: {
         totalRocks,
         completedRocks,

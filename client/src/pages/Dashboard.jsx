@@ -73,17 +73,21 @@ function Dashboard() {
     const queryString = params.toString() ? `?${params.toString()}` : '';
     
     // Fetch dashboard data, orphans summary, sprints and tasks in parallel
+    // For "all" mode, fetch all tasks; for "user" mode, fetch user's tasks
+    const tasksEndpoint = viewMode === 'all' ? '/api/tasks' : '/api/tasks/my';
+    
     Promise.all([
       apiFetch(`/api/dashboard${queryString}`, { organizationId: currentOrganization.id }),
       apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id }),
       apiFetch('/api/sprints', { organizationId: currentOrganization.id }),
-      apiFetch('/api/tasks/my', { organizationId: currentOrganization.id })
+      apiFetch(tasksEndpoint, { organizationId: currentOrganization.id })
     ])
       .then(async ([dashRes, orphansRes, sprintsRes, tasksRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
         const dashData = await dashRes.json();
         console.log('📊 [Dashboard] API returned:', {
           userMilestones: dashData.userMilestones?.length || 0,
+          allMilestones: dashData.allMilestones?.length || 0,
           userRocks: dashData.userRocks?.length || 0
         });
         setData(dashData);
@@ -100,7 +104,7 @@ function Dashboard() {
         
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
-          console.log('📊 [Dashboard] Tasks API returned:', tasksData?.length || 0, 'tasks');
+          console.log('📊 [Dashboard] Tasks API returned:', tasksData?.length || 0, 'tasks (', viewMode, 'mode)');
           setMyTasks(Array.isArray(tasksData) ? tasksData : []);
         }
       })
@@ -135,11 +139,11 @@ function Dashboard() {
     );
   }
 
-  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [] } = data || {};
+  const { currentQuarter, currentSprint, rocks = [], objectives = [], overallStats = {}, userMilestones = [], userRocks = [], allMilestones = [] } = data || {};
   
-  // Use user-specific data - same layout for both modes
+  // Use user-specific data in "user" mode, all data in "all" mode
   const displayRocks = viewMode === 'user' ? userRocks : rocks;
-  const displayMilestones = userMilestones; // Always show user milestones in the side panel
+  const displayMilestones = viewMode === 'user' ? userMilestones : allMilestones;
 
   const handleSetCurrentSprint = async (sprintId) => {
     try {
