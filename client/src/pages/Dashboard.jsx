@@ -4,7 +4,6 @@ import {
   Mountain, 
   Zap, 
   ListTodo, 
-  Users,
   CheckCircle2,
   Clock,
   Ban,
@@ -203,7 +202,7 @@ function Dashboard() {
       </div>
 
       {/* Stats Cards - Order: פרויקטים, סלעים, אבני דרך, משימות */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="פרויקטים"
           value={overallStats.totalObjectives}
@@ -484,19 +483,19 @@ function Dashboard() {
 function StatCard({ title, value, total, icon: Icon, gradient, delay }) {
   return (
     <div 
-      className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
+      className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 animate-slide-in-up border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
       style={{ animationDelay: `${delay * 0.1}s` }}
     >
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
-          <Icon size={24} className="text-white" />
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             {value}
             {total !== undefined && (
-              <span className="text-base font-normal text-gray-400 dark:text-gray-500">
+              <span className="text-sm sm:text-base font-normal text-gray-400 dark:text-gray-500">
                 /{total}
               </span>
             )}
@@ -516,12 +515,12 @@ function SprintStatCard({ label, value, icon: Icon, color }) {
   };
 
   return (
-    <div className={`rounded-xl p-4 ${colors[color]} transition-all hover:scale-105`}>
-      <div className="flex items-center gap-2 mb-1">
-        <Icon size={18} />
-        <span className="text-sm font-medium">{label}</span>
+    <div className={`rounded-lg sm:rounded-xl p-3 sm:p-4 ${colors[color]} transition-all hover:scale-105`}>
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+        <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+        <span className="text-xs sm:text-sm font-medium">{label}</span>
       </div>
-      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xl sm:text-2xl font-bold">{value}</p>
     </div>
   );
 }
