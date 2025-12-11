@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
+const { applyTeamReadScope } = require('../shared/teamScope');
 
 const router = express.Router();
 
@@ -80,8 +81,10 @@ router.get('/', async (req, res) => {
       ];
     }
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     // Get total count for pagination
-    const total = await prisma.story.count({ where });
+    const total = await prisma.story.count({ where: scopedWhere });
 
     // Build orderBy based on sortBy parameter
     let orderBy;
@@ -98,7 +101,7 @@ router.get('/', async (req, res) => {
     }
 
     const stories = await prisma.story.findMany({
-      where,
+      where: scopedWhere,
       select: {
         id: true,
         title: true,
@@ -162,8 +165,10 @@ router.get('/simple', async (req, res) => {
     const where = {};
     if (organizationId) where.organizationId = organizationId;
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const stories = await prisma.story.findMany({
-      where,
+      where: scopedWhere,
       select: {
         id: true,
         title: true,

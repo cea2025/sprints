@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
+const { applyTeamReadScope } = require('../shared/teamScope');
 
 const router = express.Router();
 
@@ -21,8 +22,10 @@ router.get('/', async (req, res) => {
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const sprints = await prisma.sprint.findMany({
-      where,
+      where: scopedWhere,
       include: {
         sprintRocks: {
           include: {

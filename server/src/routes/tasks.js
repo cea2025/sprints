@@ -8,6 +8,7 @@ const router = express.Router();
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { applyTeamReadScope } = require('../shared/teamScope');
 
 // All routes require authentication
 router.use(isAuthenticated);
@@ -81,8 +82,10 @@ router.get('/', async (req, res) => {
       orderBy = [{ storyId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }];
     }
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const tasks = await prisma.task.findMany({
-      where,
+      where: scopedWhere,
       include: {
         owner: {
           select: { id: true, name: true }
@@ -149,15 +152,18 @@ router.get('/my', async (req, res) => {
     }
 
     // Query by BOTH ownerId (legacy) AND membershipId (new)
+    const baseWhere = {
+      organizationId,
+      OR: [
+        { ownerId: memberId },
+        { membershipId: memberId }
+      ],
+      status: { not: 'CANCELLED' }
+    };
+    const scopedWhere = applyTeamReadScope(baseWhere, req);
+
     const tasks = await prisma.task.findMany({
-      where: {
-        organizationId,
-        OR: [
-          { ownerId: memberId },
-          { membershipId: memberId }
-        ],
-        status: { not: 'CANCELLED' }
-      },
+      where: scopedWhere,
       include: {
         owner: {
           select: { id: true, name: true }
@@ -201,11 +207,11 @@ router.get('/story/:storyId', async (req, res) => {
 
     const { storyId } = req.params;
 
+    const baseWhere = { organizationId, storyId };
+    const scopedWhere = applyTeamReadScope(baseWhere, req);
+
     const tasks = await prisma.task.findMany({
-      where: {
-        organizationId,
-        storyId
-      },
+      where: scopedWhere,
       include: {
         owner: {
           select: { id: true, name: true }
