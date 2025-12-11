@@ -48,6 +48,7 @@ model Organization {
   allowedEmails AllowedEmail[] // LEGACY - will be removed
   featureFlags  FeatureFlag[]
   teams         Team[]
+  labels        Label[]
 
   // Audit System
   auditLogs            AuditLog[]
@@ -329,6 +330,7 @@ model Rock {
   // Relations
   stories     Story[]
   sprintRocks SprintRock[]
+  labels      RockLabel[]
 
   // Audit
   createdAt DateTime  @default(now())
@@ -452,7 +454,8 @@ model Story {
   deletedBy String?
 
   // Relations
-  tasks Task[]
+  tasks  Task[]
+  labels StoryLabel[]
 
   // Team scope (nullable = org-wide / legacy behavior)
   teamId String?
@@ -510,6 +513,9 @@ model Task {
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
+  // Labels
+  labels TaskLabel[]
+
   // Audit
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -525,6 +531,73 @@ model Task {
   @@index([organizationId, ownerId, status]) // שאילתה נפוצה: "המשימות שלי"
   @@index([organizationId, membershipId, status]) // NEW: query by membership
   @@index([organizationId, teamId])
+}
+
+// ==================== LABELS (NEW) ====================
+// Predefined labels managed by Admin/Manager, used for filtering and organization.
+
+model Label {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name     String
+  color    String? // hex e.g. #7C3AED
+  isActive Boolean @default(true)
+
+  // Relations
+  rockLabels  RockLabel[]
+  storyLabels StoryLabel[]
+  taskLabels  TaskLabel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+}
+
+model RockLabel {
+  rockId String
+  rock   Rock   @relation(fields: [rockId], references: [id], onDelete: Cascade)
+
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([rockId, labelId])
+  @@index([labelId])
+  @@index([rockId])
+}
+
+model StoryLabel {
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([storyId, labelId])
+  @@index([labelId])
+  @@index([storyId])
+}
+
+model TaskLabel {
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+  @@index([taskId])
 }
 
 // ==================== ACCESS CONTROL ====================
