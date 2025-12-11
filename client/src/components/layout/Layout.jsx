@@ -25,7 +25,8 @@ import {
   ChevronDown,
   Settings,
   Crown,
-  FileText
+  FileText,
+  Tag
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -62,6 +63,7 @@ function Layout() {
     ...(isAdmin ? [
       { name: 'ניהול מערכת', href: `${basePath}/admin`, icon: Shield },
       { name: 'צוותים והרשאות', href: `${basePath}/teams`, icon: Users2 },
+      { name: 'תוויות', href: `${basePath}/labels`, icon: Tag },
       { name: 'לוג ביקורת', href: `${basePath}/audit`, icon: FileText }
     ] : []),
   ];

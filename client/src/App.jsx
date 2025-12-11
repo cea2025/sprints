@@ -21,6 +21,7 @@ import SelectOrganization from './pages/SelectOrganization';
 import OrganizationSettings from './pages/OrganizationSettings';
 import AuditLogs from './pages/AuditLogs';
 import CreateOrganization from './pages/CreateOrganization';
+import Labels from './pages/Labels';
 
 // Providers
 import { ToastProvider } from './components/ui/Toast';
@@ -418,6 +419,7 @@ function App() {
                   <Route path="tasks" element={<Tasks />} />
                   <Route path="team" element={<Team />} />
                   <Route path="teams" element={<Teams />} />
+                  <Route path="labels" element={<Labels />} />
                   <Route path="admin" element={<Admin />} />
                   <Route path="data" element={<DataManagement />} />
                   <Route path="settings" element={<OrganizationSettings />} />
