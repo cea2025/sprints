@@ -111,6 +111,8 @@ router.get('/', async (req, res) => {
         isBlocked: true,
         createdAt: true,
         updatedAt: true,
+        teamId: true,
+        team: { select: { id: true, name: true } },
         sprint: {
           select: {
             id: true,
@@ -174,7 +176,9 @@ router.get('/simple', async (req, res) => {
         id: true,
         title: true,
         progress: true,
-        isBlocked: true
+        isBlocked: true,
+        teamId: true,
+        team: { select: { id: true, name: true } }
       },
       orderBy: { title: 'asc' },
       take: 200

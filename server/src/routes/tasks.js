@@ -91,6 +91,9 @@ router.get('/', async (req, res) => {
         owner: {
           select: { id: true, name: true }
         },
+        team: {
+          select: { id: true, name: true }
+        },
         story: {
           select: { 
             id: true, 
@@ -169,6 +172,9 @@ router.get('/my', async (req, res) => {
         owner: {
           select: { id: true, name: true }
         },
+        team: {
+          select: { id: true, name: true }
+        },
         story: {
           select: { 
             id: true, 
@@ -215,6 +221,9 @@ router.get('/story/:storyId', async (req, res) => {
       where: scopedWhere,
       include: {
         owner: {
+          select: { id: true, name: true }
+        },
+        team: {
           select: { id: true, name: true }
         },
         createdBy: {

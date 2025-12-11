@@ -77,6 +77,8 @@ router.get('/', async (req, res) => {
         carriedFromQuarter: true,
         createdAt: true,
         updatedAt: true,
+        teamId: true,
+        team: { select: { id: true, name: true } },
         owner: {
           select: { id: true, name: true }
         },
@@ -156,7 +158,9 @@ router.get('/simple', async (req, res) => {
       select: {
         id: true,
         code: true,
-        name: true
+        name: true,
+        teamId: true,
+        team: { select: { id: true, name: true } }
       },
       orderBy: { code: 'asc' },
       take: 200
