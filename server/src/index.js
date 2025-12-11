@@ -26,6 +26,7 @@ const auditRoutes = require('./modules/audit/audit.routes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./shared/middleware/error.middleware');
+const { attachPrincipal } = require('./middleware/principal');
 
 // Import passport config
 require('./config/passport');
@@ -91,6 +92,10 @@ app.use(session(sessionConfig));
 // Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Attach org-scoped principal + feature flags (RBAC v2 foundation)
+// Safe: does not enforce permissions; only enriches req/principal.
+app.use('/api', attachPrincipal);
 
 // ==================== API ROUTES ====================
 

@@ -34,12 +34,26 @@ async function getOrganizationId(req) {
       }
     } else {
       // Regular users - verify they have access to this organization
-      const membership = await prisma.organizationMember.findUnique({
+      // Prefer NEW Membership table, fallback to legacy OrganizationMember
+      const membership = await prisma.membership.findFirst({
         where: {
-          userId_organizationId: { userId: req.user.id, organizationId: headerOrgId }
-        }
+          userId: req.user.id,
+          organizationId: headerOrgId,
+          isActive: true
+        },
+        select: { id: true }
       });
-      if (membership) {
+
+      const legacyMembership = !membership
+        ? await prisma.organizationMember.findUnique({
+          where: {
+            userId_organizationId: { userId: req.user.id, organizationId: headerOrgId }
+          },
+          select: { id: true, isActive: true }
+        })
+        : null;
+
+      if (membership || (legacyMembership && legacyMembership.isActive !== false)) {
         await setDbOrganizationContext(headerOrgId);
         return headerOrgId;
       }
@@ -53,16 +67,26 @@ async function getOrganizationId(req) {
   }
   
   // Finally, get first membership
-  const membership = await prisma.organizationMember.findFirst({
+  // Prefer NEW Membership, fallback to legacy OrganizationMember
+  const membership = await prisma.membership.findFirst({
     where: { userId: req.user.id, isActive: true },
     select: { organizationId: true }
   });
+
+  const legacyMembership = !membership
+    ? await prisma.organizationMember.findFirst({
+      where: { userId: req.user.id, isActive: true },
+      select: { organizationId: true }
+    })
+    : null;
   
-  if (membership?.organizationId) {
-    await setDbOrganizationContext(membership.organizationId);
+  const orgId = membership?.organizationId || legacyMembership?.organizationId || null;
+
+  if (orgId) {
+    await setDbOrganizationContext(orgId);
   }
   
-  return membership?.organizationId || null;
+  return orgId;
 }
 
 /**
