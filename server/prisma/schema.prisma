@@ -13,68 +13,69 @@ datasource db {
 // ==================== ENUMS ====================
 
 enum UserRole {
-  ADMIN      // Full access - manage users, all CRUD
-  MANAGER    // Create, edit, delete rocks/sprints/stories
-  MEMBER     // View all, edit own stories
-  VIEWER     // View only
+  ADMIN // Full access - manage users, all CRUD
+  MANAGER // Create, edit, delete rocks/sprints/stories
+  MEMBER // View all, edit own stories
+  VIEWER // View only
 }
 
 enum TaskStatus {
-  TODO        // לעשות
+  TODO // לעשות
   IN_PROGRESS // בתהליך
-  DONE        // הושלם
-  CANCELLED   // בוטל
+  DONE // הושלם
+  CANCELLED // בוטל
 }
 
 // ==================== ORGANIZATION (Multi-tenant) ====================
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique  // "company-abc" - for URLs
-  logo        String?
-  isActive    Boolean  @default(true)
-  settings    Json?    // { theme, language, etc }
-  
+  id       String  @id @default(uuid())
+  name     String
+  slug     String  @unique // "company-abc" - for URLs
+  logo     String?
+  isActive Boolean @default(true)
+  settings Json? // { theme, language, etc }
+
   // Relations
-  members       OrganizationMember[]  // LEGACY - will be removed
-  teamMembers   TeamMember[]          // LEGACY - will be removed
-  memberships   Membership[] @relation("OrgMemberships")  // NEW
+  members       OrganizationMember[] // LEGACY - will be removed
+  teamMembers   TeamMember[] // LEGACY - will be removed
+  memberships   Membership[]         @relation("OrgMemberships") // NEW
   objectives    Objective[]
   rocks         Rock[]
   sprints       Sprint[]
   stories       Story[]
   tasks         Task[]
-  allowedEmails AllowedEmail[]  // LEGACY - will be removed
+  allowedEmails AllowedEmail[] // LEGACY - will be removed
   featureFlags  FeatureFlag[]
-  
+  teams         Team[]
+
   // Audit System
-  auditLogs           AuditLog[]
-  auditAlertConfigs   AuditAlertConfig[]
+  auditLogs            AuditLog[]
+  auditAlertConfigs    AuditAlertConfig[]
   auditRetentionConfig AuditRetentionConfig?
-  
+
   // Audit
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
 }
 
 // קשר בין User לארגונים (M:N)
 model OrganizationMember {
-  id             String   @id @default(uuid())
-  
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  role           UserRole @default(VIEWER)  // תפקיד בארגון הספציפי
-  isActive       Boolean  @default(true)
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+
+  role     UserRole @default(VIEWER) // תפקיד בארגון הספציפי
+  isActive Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([userId, organizationId])
   @@index([userId])
   @@index([organizationId])
@@ -83,28 +84,28 @@ model OrganizationMember {
 // ==================== USER ====================
 
 model User {
-  id            String   @id @default(uuid())
-  googleId      String   @unique
-  email         String   @unique
-  name          String
-  picture       String?
-  isActive      Boolean  @default(true)
-  
+  id       String  @id @default(uuid())
+  googleId String  @unique
+  email    String  @unique
+  name     String
+  picture  String?
+  isActive Boolean @default(true)
+
   // Super Admin - מנהל פלטפורמה שרואה את כל הארגונים
-  isSuperAdmin  Boolean  @default(false)
-  
+  isSuperAdmin Boolean @default(false)
+
   // Legacy role - for backwards compatibility during migration
-  role          UserRole @default(VIEWER)
-  
+  role UserRole @default(VIEWER)
+
   // Relations
-  organizations OrganizationMember[]  // LEGACY - will be removed
-  teamMembers   TeamMember[]          // LEGACY - will be removed
-  memberships   Membership[] @relation("UserMemberships")  // NEW
+  organizations    OrganizationMember[] // LEGACY - will be removed
+  teamMembers      TeamMember[] // LEGACY - will be removed
+  memberships      Membership[]           @relation("UserMemberships") // NEW
   alertPreferences UserAlertPreferences[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([email])
   @@index([isSuperAdmin])
 }
@@ -112,80 +113,128 @@ model User {
 // ==================== MEMBERSHIP (NEW - replaces TeamMember + OrganizationMember + AllowedEmail) ====================
 
 model Membership {
-  id              String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Who - email is the primary identifier
-  email           String   // Always required - the identifier
-  name            String   // Display name
-  
+  email String // Always required - the identifier
+  name  String // Display name
+
   // Link to User (set when user logs in)
-  userId          String?
-  user            User?    @relation("UserMemberships", fields: [userId], references: [id])
-  
+  userId String?
+  user   User?   @relation("UserMemberships", fields: [userId], references: [id])
+
   // Where
-  organizationId  String
-  organization    Organization @relation("OrgMemberships", fields: [organizationId], references: [id], onDelete: Cascade)
-  
+  organizationId String
+  organization   Organization @relation("OrgMemberships", fields: [organizationId], references: [id], onDelete: Cascade)
+
   // Role & Permissions
-  role            UserRole @default(VIEWER)
-  
+  role UserRole @default(VIEWER)
+
   // Profile in organization
-  jobTitle        String?  // תפקיד (מנכ"ל, מפתח, וכו')
-  capacity        Int?     // נקודות לספרינט
-  isActive        Boolean  @default(true)
-  
+  jobTitle String? // תפקיד (מנכ"ל, מפתח, וכו')
+  capacity Int? // נקודות לספרינט
+  isActive Boolean @default(true)
+
   // Owned items (same relations as old TeamMember)
-  ownedRocks      Rock[]       @relation("MembershipRocks")
-  ownedStories    Story[]      @relation("MembershipStories")
-  ownedObjectives Objective[]  @relation("MembershipObjectives")
-  ownedTasks      Task[]       @relation("MembershipTasks")
-  createdTasks    Task[]       @relation("MembershipCreatedTasks")
-  
+  ownedRocks      Rock[]      @relation("MembershipRocks")
+  ownedStories    Story[]     @relation("MembershipStories")
+  ownedObjectives Objective[] @relation("MembershipObjectives")
+  ownedTasks      Task[]      @relation("MembershipTasks")
+  createdTasks    Task[]      @relation("MembershipCreatedTasks")
+
+  // Teams
+  teamMemberships TeamMembership[]
+
   // Audit
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  invitedBy       String?  // Who invited this member
-  joinedAt        DateTime? // When user actually logged in
-  
-  @@unique([email, organizationId])  // One person per org
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invitedBy String? // Who invited this member
+  joinedAt  DateTime? // When user actually logged in
+
+  @@unique([email, organizationId]) // One person per org
   @@index([organizationId])
   @@index([userId])
   @@index([email])
   @@index([isActive])
 }
 
-// ==================== TEAM MEMBER (LEGACY - will be removed after migration) ====================
+// ==================== TEAM (NEW) ====================
+// Team-scoped visibility + permissions within an Organization
 
-model TeamMember {
-  id        String   @id @default(uuid())
-  name      String
-  role      String   // Job title
-  capacity  Int?     // points per sprint
-  isActive  Boolean  @default(true)
-  
-  // Organization
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  
-  // Link to User (optional)
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  
+model Team {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
   // Relations
-  ownedRocks      Rock[]
-  ownedStories    Story[]
-  ownedObjectives Objective[]
-  ownedTasks      Task[]       @relation("TaskOwner")
-  createdTasks    Task[]       @relation("TaskCreator")
-  
+  members    TeamMembership[]
+  objectives Objective[]
+  rocks      Rock[]
+  stories    Story[]
+  tasks      Task[]
+  sprints    Sprint[]
+
   // Audit
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+}
+
+model TeamMembership {
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  // Optional: team-scoped role (future expansion)
+  roleCode String? // e.g. 'TEAM_LEAD'
+
+  createdAt DateTime @default(now())
+
+  @@id([teamId, membershipId])
+  @@index([membershipId])
+}
+
+// ==================== TEAM MEMBER (LEGACY - will be removed after migration) ====================
+
+model TeamMember {
+  id       String  @id @default(uuid())
+  name     String
+  role     String // Job title
+  capacity Int? // points per sprint
+  isActive Boolean @default(true)
+
+  // Organization
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Link to User (optional)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  // Relations
+  ownedRocks      Rock[]
+  ownedStories    Story[]
+  ownedObjectives Objective[]
+  ownedTasks      Task[]      @relation("TaskOwner")
+  createdTasks    Task[]      @relation("TaskCreator")
+
+  // Audit
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
   updatedBy String?
   deletedAt DateTime?
   deletedBy String?
-  
+
   @@unique([userId, organizationId]) // One teamMember per user per org
   @@index([organizationId])
   @@index([isActive])
@@ -196,150 +245,165 @@ model TeamMember {
 // פרויקט - ללא תאריך, רק מאגד סלעים
 
 model Objective {
-  id          String   @id @default(uuid())
-  code        String   // "p-01" - unique per organization
+  id          String  @id @default(uuid())
+  code        String // "p-01" - unique per organization
   name        String
   description String?
-  
+
   // Organization
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   // Owner (LEGACY - TeamMember)
-  ownerId     String?
-  owner       TeamMember? @relation(fields: [ownerId], references: [id])
-  
+  ownerId String?
+  owner   TeamMember? @relation(fields: [ownerId], references: [id])
+
   // Owner (NEW - Membership)
   membershipId String?
   membership   Membership? @relation("MembershipObjectives", fields: [membershipId], references: [id])
-  
+
   // Relations
-  rocks       Rock[]
-  
+  rocks Rock[]
+
+  // Team scope (nullable = org-wide / legacy behavior)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   // Audit
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  deletedBy String?
+
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([organizationId, createdAt])
   @@index([ownerId])
   @@index([membershipId])
+  @@index([organizationId, teamId])
 }
 
 // ==================== ROCK ====================
 // סלע - יעד רבעוני
 
 model Rock {
-  id              String   @id @default(uuid())
-  code            String   // "s-01" - unique per organization
-  name            String
-  description     String?
-  
+  id          String  @id @default(uuid())
+  code        String // "s-01" - unique per organization
+  name        String
+  description String?
+
   // רבעון ושנה
-  year            Int      @default(2025)
-  quarter         Int      @default(4)  // 1-4
-  
+  year    Int @default(2025)
+  quarter Int @default(4) // 1-4
+
   // התקדמות
-  progress        Int      @default(0)      // 0-100, manual override
+  progress Int @default(0) // 0-100, manual override
   // calculatedProgress is computed dynamically, not stored
-  
+
   // גלישה מרבעון קודם
-  isCarriedOver   Boolean  @default(false)
-  carriedFromQuarter Int?  // מאיזה רבעון גלש
-  
+  isCarriedOver      Boolean @default(false)
+  carriedFromQuarter Int? // מאיזה רבעון גלש
+
   // Organization
-  organizationId  String?
-  organization    Organization? @relation(fields: [organizationId], references: [id])
-  
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
   // Owner (LEGACY - TeamMember)
-  ownerId         String?
-  owner           TeamMember? @relation(fields: [ownerId], references: [id])
-  
+  ownerId String?
+  owner   TeamMember? @relation(fields: [ownerId], references: [id])
+
   // Owner (NEW - Membership)
-  membershipId    String?
-  membership      Membership? @relation("MembershipRocks", fields: [membershipId], references: [id])
-  
+  membershipId String?
+  membership   Membership? @relation("MembershipRocks", fields: [membershipId], references: [id])
+
   // Objective
-  objectiveId     String?
-  objective       Objective?  @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
-  
+  objectiveId String?
+  objective   Objective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+
+  // Team scope (nullable = org-wide / legacy behavior)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   // Relations
-  stories         Story[]
-  sprintRocks     SprintRock[]
-  
+  stories     Story[]
+  sprintRocks SprintRock[]
+
   // Audit
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  createdBy       String?
-  updatedBy       String?
-  deletedAt       DateTime?
-  deletedBy       String?
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  deletedBy String?
+
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([organizationId, createdAt])
   @@index([organizationId, year, quarter])
   @@index([objectiveId])
   @@index([ownerId])
+  @@index([organizationId, teamId])
 }
 
 // ==================== SPRINT ====================
 // ספרינט - תקופת עבודה קצובה (בדרך כלל שבועיים)
 
 model Sprint {
-  id             String   @id @default(uuid())
-  name           String   // Auto: "2026-Q2-S5" - unique per organization
-  goal           String?
-  
+  id   String  @id @default(uuid())
+  name String // Auto: "2026-Q2-S5" - unique per organization
+  goal String?
+
   // מזהי ספרינט
-  year           Int      @default(2025)
-  quarter        Int      @default(4)  // 1-4
-  sprintNumber   Int      @default(1)  // 1-6
-  
+  year         Int @default(2025)
+  quarter      Int @default(4) // 1-4
+  sprintNumber Int @default(1) // 1-6
+
   // תאריכים
-  startDate      DateTime
-  endDate        DateTime
-  
+  startDate DateTime
+  endDate   DateTime
+
   // Organization
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   // Relations
-  sprintRocks    SprintRock[]
-  stories        Story[]
-  
+  sprintRocks SprintRock[]
+  stories     Story[]
+
+  // Team scope (nullable = org-wide / legacy behavior)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   // Audit
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdBy      String?
-  updatedBy      String?
-  deletedAt      DateTime?
-  deletedBy      String?
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  deletedBy String?
+
   @@unique([organizationId, name])
   @@index([organizationId])
   @@index([organizationId, year, quarter])
   @@index([startDate, endDate])
+  @@index([organizationId, teamId])
 }
 
 // ==================== SPRINT-ROCK (M:N) ====================
 
 model SprintRock {
-  id        String  @id @default(uuid())
-  
-  sprintId  String
-  sprint    Sprint  @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  
-  rockId    String
-  rock      Rock    @relation(fields: [rockId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  sprintId String
+  sprint   Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  rockId String
+  rock   Rock   @relation(fields: [rockId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
-  
+
   @@unique([sprintId, rockId])
   @@index([sprintId])
   @@index([rockId])
@@ -348,45 +412,52 @@ model SprintRock {
 // ==================== STORY (אבן דרך) ====================
 
 model Story {
-  id          String   @id @default(uuid())
-  code        String?  // "ed-01" - קוד אבן דרך
+  id          String  @id @default(uuid())
+  code        String? // "ed-01" - קוד אבן דרך
   title       String
   description String?
-  
+
   // התקדמות (0-100) - ניתן לעדכון ידני
-  progress    Int      @default(0)
-  
+  progress Int @default(0)
+
   // חסום - כאשר true, ההתקדמות תקועה
-  isBlocked   Boolean  @default(false)
-  
+  isBlocked Boolean @default(false)
+
   // Organization
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   // ספרינט - אופציונלי (אם אין = "אבני דרך בהמתנה")
-  sprintId    String?
-  sprint      Sprint?  @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  
+  sprintId String?
+  sprint   Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+
   // סלע - אופציונלי
-  rockId      String?
-  rock        Rock?    @relation(fields: [rockId], references: [id], onDelete: SetNull)
-  
+  rockId String?
+  rock   Rock?   @relation(fields: [rockId], references: [id], onDelete: SetNull)
+
   // אחראי (LEGACY - TeamMember)
-  ownerId     String?
-  owner       TeamMember? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  
+  ownerId String?
+  owner   TeamMember? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
   // אחראי (NEW - Membership)
   membershipId String?
   membership   Membership? @relation("MembershipStories", fields: [membershipId], references: [id])
-  
+
   // Audit
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  deletedBy String?
+
+  // Relations
+  tasks Task[]
+
+  // Team scope (nullable = org-wide / legacy behavior)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   @@index([organizationId])
   @@index([organizationId, createdAt])
   @@index([sprintId])
@@ -395,52 +466,53 @@ model Story {
   @@index([membershipId])
   @@index([isBlocked])
   @@index([organizationId, sprintId])
-  
-  // Relations
-  tasks       Task[]
 }
 
 // ==================== TASK (משימה) ====================
 // משימות קשורות לאבני דרך או עצמאיות
 
 model Task {
-  id              String       @id @default(cuid())
-  code            String?      // "m-01" - קוד משימה
-  title           String       // כותרת המשימה
-  description     String?      // תיאור (אופציונלי)
-  status          TaskStatus   @default(TODO)
-  priority        Int          @default(0)  // 0=רגיל, 1=גבוה, 2=דחוף
-  dueDate         DateTime?    // תאריך יעד (אופציונלי)
-  completedAt     DateTime?    // מתי הושלמה
-  sortOrder       Int          @default(0)  // סדר בתוך אבן דרך
-  
+  id          String     @id @default(cuid())
+  code        String? // "m-01" - קוד משימה
+  title       String // כותרת המשימה
+  description String? // תיאור (אופציונלי)
+  status      TaskStatus @default(TODO)
+  priority    Int        @default(0) // 0=רגיל, 1=גבוה, 2=דחוף
+  dueDate     DateTime? // תאריך יעד (אופציונלי)
+  completedAt DateTime? // מתי הושלמה
+  sortOrder   Int        @default(0) // סדר בתוך אבן דרך
+
   // קשר לאבן דרך - אופציונלי (null = משימה עצמאית)
-  storyId         String?
-  story           Story?       @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  
+  storyId String?
+  story   Story?  @relation(fields: [storyId], references: [id], onDelete: SetNull)
+
   // אחראי על המשימה (LEGACY - TeamMember)
-  ownerId         String?
-  owner           TeamMember?  @relation("TaskOwner", fields: [ownerId], references: [id])
-  
+  ownerId String?
+  owner   TeamMember? @relation("TaskOwner", fields: [ownerId], references: [id])
+
   // מי יצר את המשימה (LEGACY - TeamMember)
-  createdById     String?
-  createdBy       TeamMember?  @relation("TaskCreator", fields: [createdById], references: [id])
-  
+  createdById String?
+  createdBy   TeamMember? @relation("TaskCreator", fields: [createdById], references: [id])
+
   // אחראי על המשימה (NEW - Membership)
-  membershipId    String?
-  membership      Membership?  @relation("MembershipTasks", fields: [membershipId], references: [id])
-  
+  membershipId String?
+  membership   Membership? @relation("MembershipTasks", fields: [membershipId], references: [id])
+
   // מי יצר את המשימה (NEW - Membership)
   creatorMembershipId String?
-  creatorMembership   Membership?  @relation("MembershipCreatedTasks", fields: [creatorMembershipId], references: [id])
-  
+  creatorMembership   Membership? @relation("MembershipCreatedTasks", fields: [creatorMembershipId], references: [id])
+
   // Organization (multi-tenant)
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Team scope (nullable = org-wide / legacy behavior)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   // Audit
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // אינדקסים לביצועים
   @@index([organizationId])
@@ -450,28 +522,29 @@ model Task {
   @@index([storyId])
   @@index([status])
   @@index([dueDate])
-  @@index([organizationId, ownerId, status])  // שאילתה נפוצה: "המשימות שלי"
-  @@index([organizationId, membershipId, status])  // NEW: query by membership
+  @@index([organizationId, ownerId, status]) // שאילתה נפוצה: "המשימות שלי"
+  @@index([organizationId, membershipId, status]) // NEW: query by membership
+  @@index([organizationId, teamId])
 }
 
 // ==================== ACCESS CONTROL ====================
 
 model AllowedEmail {
-  id          String   @id @default(uuid())
-  email       String   // unique per organization
-  name        String?
-  role        UserRole @default(VIEWER)
-  note        String?
-  
+  id    String   @id @default(uuid())
+  email String // unique per organization
+  name  String?
+  role  UserRole @default(VIEWER)
+  note  String?
+
   // Organization
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   // Audit
-  addedBy     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  addedBy   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([email])
@@ -481,46 +554,46 @@ model AllowedEmail {
 // Designed with abstraction layer for future migration to separate DB per org
 
 model AuditLog {
-  id             String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // ===== Organization (for RLS) =====
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
+
   // ===== Who =====
-  userId         String?
-  userEmail      String?
-  userName       String?
-  userRole       String?      // Role at time of action
-  
+  userId    String?
+  userEmail String?
+  userName  String?
+  userRole  String? // Role at time of action
+
   // ===== What =====
-  action         String       // CREATE, UPDATE, DELETE, LOGIN, etc.
-  category       String       // AUTHENTICATION, DATA_CRUD, ADMINISTRATION, etc.
-  entityType     String       // Rock, Sprint, Story, User, etc.
-  entityId       String?
-  entityName     String?      // Human-readable name for quick reference
-  
+  action     String // CREATE, UPDATE, DELETE, LOGIN, etc.
+  category   String // AUTHENTICATION, DATA_CRUD, ADMINISTRATION, etc.
+  entityType String // Rock, Sprint, Story, User, etc.
+  entityId   String?
+  entityName String? // Human-readable name for quick reference
+
   // ===== Changes (Full Detail) =====
-  oldValues      Json?        // Full snapshot before change
-  newValues      Json?        // Full snapshot after change
-  changedFields  String[]     // ['name', 'progress', 'status']
-  changesSummary String?      // Human-readable: "progress: 50% → 75%"
-  
+  oldValues      Json? // Full snapshot before change
+  newValues      Json? // Full snapshot after change
+  changedFields  String[] // ['name', 'progress', 'status']
+  changesSummary String? // Human-readable: "progress: 50% → 75%"
+
   // ===== Context =====
-  ipAddress      String?
-  userAgent      String?
-  sessionId      String?
-  requestId      String?      // For distributed tracing
-  requestPath    String?      // /api/rocks/123
-  requestMethod  String?      // GET, POST, PUT, DELETE
-  duration       Int?         // Action duration in ms
-  
+  ipAddress     String?
+  userAgent     String?
+  sessionId     String?
+  requestId     String? // For distributed tracing
+  requestPath   String? // /api/rocks/123
+  requestMethod String? // GET, POST, PUT, DELETE
+  duration      Int? // Action duration in ms
+
   // ===== Metadata =====
-  metadata       Json?        // Additional context
-  
+  metadata Json? // Additional context
+
   // ===== Time =====
-  createdAt      DateTime @default(now())
-  
+  createdAt DateTime @default(now())
+
   // ===== Indexes for performance =====
   @@index([organizationId, createdAt])
   @@index([organizationId, userId])
@@ -532,104 +605,104 @@ model AuditLog {
 
 // Alert Configuration per Organization
 model AuditAlertConfig {
-  id             String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  name           String       // "מחיקת רשומות", "כניסות כושלות"
-  description    String?
-  
+
+  name        String // "מחיקת רשומות", "כניסות כושלות"
+  description String?
+
   // What triggers the alert
-  triggerActions String[]     // ['DELETE', 'LOGIN_FAILED']
-  triggerEntities String[]    // ['Rock', 'Story'] or ['*'] for all
-  
+  triggerActions  String[] // ['DELETE', 'LOGIN_FAILED']
+  triggerEntities String[] // ['Rock', 'Story'] or ['*'] for all
+
   // Who receives the alert
-  notifyRoles    String[]     // ['ADMIN', 'MANAGER']
-  notifyUserIds  String[]     // Specific user IDs
-  
+  notifyRoles   String[] // ['ADMIN', 'MANAGER']
+  notifyUserIds String[] // Specific user IDs
+
   // How to send
-  channelEmail   Boolean      @default(true)
-  channelInApp   Boolean      @default(true)
-  channelWebhook Boolean      @default(false)
+  channelEmail   Boolean @default(true)
+  channelInApp   Boolean @default(true)
+  channelWebhook Boolean @default(false)
   webhookUrl     String?
-  webhookSecret  String?      // For signing webhook payloads
-  
+  webhookSecret  String? // For signing webhook payloads
+
   // Settings
-  isActive       Boolean      @default(true)
-  cooldownMinutes Int         @default(5)  // Prevent alert spam
-  
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  createdBy      String?
-  
+  isActive        Boolean @default(true)
+  cooldownMinutes Int     @default(5) // Prevent alert spam
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
   @@index([organizationId, isActive])
 }
 
 // Retention settings per Organization
 model AuditRetentionConfig {
-  id             String   @id @default(uuid())
-  
-  organizationId String   @unique
+  id String @id @default(uuid())
+
+  organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  retentionDays  Int      @default(1095) // 3 years = 1095 days
-  autoArchive    Boolean  @default(true)
-  archiveAfterDays Int    @default(365)  // Move to archive after 1 year
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  updatedBy      String?
+
+  retentionDays    Int     @default(1095) // 3 years = 1095 days
+  autoArchive      Boolean @default(true)
+  archiveAfterDays Int     @default(365) // Move to archive after 1 year
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String?
 }
 
 // User's personal alert preferences
 model UserAlertPreferences {
-  id             String   @id @default(uuid())
-  
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   organizationId String
-  
+
   // Which alerts to receive
-  enabledActions String[]     // ['DELETE', 'ROLE_CHANGED']
-  disabledActions String[]    // Explicitly disabled
-  
+  enabledActions  String[] // ['DELETE', 'ROLE_CHANGED']
+  disabledActions String[] // Explicitly disabled
+
   // Delivery preferences
-  channelEmail   Boolean      @default(true)
-  channelInApp   Boolean      @default(true)
-  
+  channelEmail Boolean @default(true)
+  channelInApp Boolean @default(true)
+
   // Timing
-  digestFrequency String      @default("REALTIME") // REALTIME, HOURLY, DAILY
-  quietHoursStart String?     // "22:00"
-  quietHoursEnd   String?     // "08:00"
-  timezone       String       @default("Asia/Jerusalem")
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+  digestFrequency String  @default("REALTIME") // REALTIME, HOURLY, DAILY
+  quietHoursStart String? // "22:00"
+  quietHoursEnd   String? // "08:00"
+  timezone        String  @default("Asia/Jerusalem")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([userId, organizationId])
 }
 
 // In-app notifications queue
 model AuditNotification {
-  id             String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   organizationId String
-  userId         String       // Recipient
-  
-  alertConfigId  String?      // Which alert config triggered this
-  auditLogId     String?      // Reference to the audit log entry
-  
-  title          String
-  message        String
-  severity       String       @default("info") // low, medium, high, info
-  
-  isRead         Boolean      @default(false)
-  readAt         DateTime?
-  
-  createdAt      DateTime     @default(now())
-  
+  userId         String // Recipient
+
+  alertConfigId String? // Which alert config triggered this
+  auditLogId    String? // Reference to the audit log entry
+
+  title    String
+  message  String
+  severity String @default("info") // low, medium, high, info
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
   @@index([organizationId, userId, isRead])
   @@index([createdAt])
 }
@@ -639,77 +712,77 @@ model AuditNotification {
 
 // הגדרות מערכת גלובליות
 model SystemSetting {
-  id          String   @id @default(uuid())
-  key         String   @unique
+  id          String  @id @default(uuid())
+  key         String  @unique
   value       Json
   description String?
-  
-  updatedAt   DateTime @updatedAt
-  updatedBy   String?
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
 }
 
 // הרשאות - הגדרת כל ההרשאות האפשריות במערכת
 model Permission {
-  id          String   @id @default(uuid())
-  code        String   @unique   // 'rocks:create', 'sprints:delete'
-  name        String             // 'יצירת סלעים'
-  category    String?            // 'rocks', 'sprints', 'admin'
+  id          String  @id @default(uuid())
+  code        String  @unique // 'rocks:create', 'sprints:delete'
+  name        String // 'יצירת סלעים'
+  category    String? // 'rocks', 'sprints', 'admin'
   description String?
-  
-  roles       RolePermission[]
+
+  roles RolePermission[]
 }
 
 // תפקידים דינמיים - החלפת ה-enum הקשיח
 model Role {
-  id          String   @id @default(uuid())
-  code        String   @unique   // 'ADMIN', 'MANAGER', 'CUSTOM_ROLE'
-  name        String             // 'מנהל', 'מנהל פרויקט'
+  id          String  @id @default(uuid())
+  code        String  @unique // 'ADMIN', 'MANAGER', 'CUSTOM_ROLE'
+  name        String // 'מנהל', 'מנהל פרויקט'
   description String?
-  color       String?            // '#FF5733' for UI
-  hierarchy   Int      @default(100) // Lower = more powerful
-  isSystem    Boolean  @default(false) // System roles can't be deleted
-  
+  color       String? // '#FF5733' for UI
+  hierarchy   Int     @default(100) // Lower = more powerful
+  isSystem    Boolean @default(false) // System roles can't be deleted
+
   permissions RolePermission[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // קשר בין תפקידים להרשאות (M:N)
 model RolePermission {
-  roleId       String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
   permissionId String
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  
+
   @@id([roleId, permissionId])
 }
 
 // דגלי פיצ'רים - הפעלה/כיבוי של תכונות
 model FeatureFlag {
-  id             String   @id @default(uuid())
-  key            String   // 'dark_mode', 'ai_assistant'
-  isEnabled      Boolean  @default(false)
-  
+  id        String  @id @default(uuid())
+  key       String // 'dark_mode', 'ai_assistant'
+  isEnabled Boolean @default(false)
+
   // אם null = גלובלי, אחרת ספציפי לארגון
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  description    String?
-  
-  updatedAt      DateTime @updatedAt
-  
+
+  description String?
+
+  updatedAt DateTime @updatedAt
+
   @@unique([key, organizationId])
 }
 
 // מיילים של Super Admins - במקום hardcoded בקוד
 model SuperAdminEmail {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  note      String?
-  isActive  Boolean  @default(true)
-  
+  id       String  @id @default(uuid())
+  email    String  @unique
+  note     String?
+  isActive Boolean @default(true)
+
   createdAt DateTime @default(now())
   createdBy String?
 }
