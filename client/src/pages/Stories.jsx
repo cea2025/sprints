@@ -14,8 +14,6 @@ export default function Stories() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [expandedStories, setExpandedStories] = useState({});
-  const [newTaskInputs, setNewTaskInputs] = useState({}); // Track new task input per story
-  const [addingTaskToStory, setAddingTaskToStory] = useState(null); // Track which story is adding a task
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     sprintId: '',
@@ -25,6 +23,17 @@ export default function Stories() {
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStory, setEditingStory] = useState(null);
+  // Task modal states
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskForStory, setTaskForStory] = useState(null); // Which story we're adding a task to
+  const [taskFormData, setTaskFormData] = useState({
+    code: '',
+    title: '',
+    description: '',
+    status: 'TODO',
+    ownerId: '',
+    dueDate: ''
+  });
   const [formData, setFormData] = useState({
     code: '',
     title: '',
@@ -128,28 +137,53 @@ export default function Stories() {
     return `m-${(maxCode + 1).toString().padStart(2, '0')}`;
   };
 
-  // Handle adding a new task to a story
-  const handleAddTaskToStory = async (storyId) => {
-    const taskTitle = newTaskInputs[storyId]?.trim();
-    if (!taskTitle) return;
+  // Open task modal for a story
+  const openTaskModal = (storyId) => {
+    setTaskForStory(storyId);
+    // Pre-select the story's owner as default owner for the task
+    const story = stories.find(s => s.id === storyId);
+    const defaultOwner = story?.ownerId || (teamMembers.length > 0 ? teamMembers[0].id : '');
+    setTaskFormData({
+      code: generateNextTaskCode(),
+      title: '',
+      description: '',
+      status: 'TODO',
+      ownerId: defaultOwner,
+      dueDate: ''
+    });
+    setIsTaskModalOpen(true);
+  };
+
+  // Handle task form submission
+  const handleTaskSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!taskFormData.title.trim()) {
+      alert('שם המשימה הוא שדה חובה');
+      return;
+    }
+    
+    if (!taskFormData.ownerId) {
+      alert('יש לבחור אחראי למשימה');
+      return;
+    }
 
     const result = await request('/api/tasks', {
       method: 'POST',
       body: {
-        title: taskTitle,
-        code: generateNextTaskCode(),
-        storyId: storyId,
-        status: 'TODO',
+        ...taskFormData,
+        storyId: taskForStory,
         isStandalone: false
       },
       successMessage: 'משימה נוספה בהצלחה'
     });
 
     if (result) {
-      // Clear input and refresh tasks
-      setNewTaskInputs(prev => ({ ...prev, [storyId]: '' }));
-      setAddingTaskToStory(null);
+      setIsTaskModalOpen(false);
+      setTaskForStory(null);
       fetchTasks();
+      // Make sure the story is expanded to show the new task
+      setExpandedStories(prev => ({ ...prev, [taskForStory]: true }));
     }
   };
 
@@ -563,50 +597,14 @@ export default function Stories() {
                       </div>
                     ))}
                     
-                    {/* Add new task input */}
-                    {addingTaskToStory === story.id ? (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                        <Circle className="w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={newTaskInputs[story.id] || ''}
-                          onChange={(e) => setNewTaskInputs(prev => ({ ...prev, [story.id]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddTaskToStory(story.id);
-                            if (e.key === 'Escape') setAddingTaskToStory(null);
-                          }}
-                          placeholder="הקלד שם משימה..."
-                          className="flex-1 px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-emerald-300 dark:border-emerald-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:text-white"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleAddTaskToStory(story.id)}
-                          disabled={!newTaskInputs[story.id]?.trim()}
-                          className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          title="הוסף משימה"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setAddingTaskToStory(null)}
-                          className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                          title="ביטול"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setAddingTaskToStory(story.id);
-                          setExpandedStories(prev => ({ ...prev, [story.id]: true }));
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>הוסף משימה</span>
-                      </button>
-                    )}
+                    {/* Add new task button */}
+                    <button
+                      onClick={() => openTaskModal(story.id)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors border border-dashed border-emerald-300 dark:border-emerald-600"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>הוסף משימה</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -769,6 +767,135 @@ export default function Stories() {
                   className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50"
                 >
                   {loading ? 'שומר...' : (editingStory ? 'עדכן' : 'צור')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Task Modal */}
+      {isTaskModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                משימה חדשה
+              </h2>
+            </div>
+
+            <form onSubmit={handleTaskSubmit} className="space-y-4">
+              {/* Code and Title Row */}
+              <div className="flex gap-3">
+                <div className="w-20">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    קוד
+                  </label>
+                  <input
+                    type="text"
+                    value={taskFormData.code}
+                    onChange={e => setTaskFormData({...taskFormData, code: e.target.value})}
+                    placeholder="m-01"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white text-sm"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    שם המשימה <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={taskFormData.title}
+                    onChange={e => setTaskFormData({...taskFormData, title: e.target.value})}
+                    placeholder="מה צריך לעשות?"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תיאור
+                </label>
+                <textarea
+                  value={taskFormData.description}
+                  onChange={e => setTaskFormData({...taskFormData, description: e.target.value})}
+                  placeholder="פרטים נוספים על המשימה..."
+                  rows={2}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white resize-none"
+                />
+              </div>
+
+              {/* Owner - Required */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  אחראי <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  options={teamMembers}
+                  value={taskFormData.ownerId}
+                  onChange={(value) => setTaskFormData({...taskFormData, ownerId: value})}
+                  placeholder="בחר אחראי"
+                  searchPlaceholder="חפש איש צוות..."
+                  emptyMessage="לא נמצאו אנשי צוות"
+                  getLabel={(member) => member.name}
+                  getValue={(member) => member.id}
+                  getSearchText={(member) => `${member.name} ${member.role || ''}`}
+                  allowClear={false}
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  סטטוס
+                </label>
+                <select
+                  value={taskFormData.status}
+                  onChange={e => setTaskFormData({...taskFormData, status: e.target.value})}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="TODO">לעשות</option>
+                  <option value="IN_PROGRESS">בתהליך</option>
+                  <option value="DONE">הושלם</option>
+                  <option value="BLOCKED">חסום</option>
+                </select>
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תאריך יעד
+                </label>
+                <input
+                  type="date"
+                  value={taskFormData.dueDate}
+                  onChange={e => setTaskFormData({...taskFormData, dueDate: e.target.value})}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setIsTaskModalOpen(false); setTaskForStory(null); }}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'שומר...' : 'צור משימה'}
                 </button>
               </div>
             </form>
