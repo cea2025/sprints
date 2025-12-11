@@ -7,6 +7,7 @@ import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import DateTooltip from '../components/ui/DateTooltip';
 import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -21,6 +22,7 @@ export default function Rocks() {
   const [rocks, setRocks] = useState([]);
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [stories, setStories] = useState([]); // כל אבני הדרך לצורך קישור
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -39,11 +41,13 @@ export default function Rocks() {
     quarter: Math.ceil((new Date().getMonth() + 1) / 3),
     progress: 0,
     ownerId: '',
-    objectiveId: ''
+    objectiveId: '',
+    teamId: ''
   });
 
   const { loading, request } = useApi();
   const { currentOrganization, basePath } = useOrganization();
+  const { isAdmin } = usePermissions();
 
   // חיפוש בשדות
   const filteredRocks = useSearch(rocks, ['code', 'name', 'description', 'owner.name', 'objective.name'], searchTerm);
@@ -54,7 +58,12 @@ export default function Rocks() {
     fetchObjectives();
     fetchTeamMembers();
     fetchStories();
+    if (isAdmin) fetchTeams();
   }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id]);
+  const fetchTeams = async () => {
+    const data = await request('/api/teams', { showToast: false });
+    if (data && Array.isArray(data)) setTeams(data);
+  };
 
   const fetchRocks = async () => {
     let url = '/api/rocks';
@@ -153,7 +162,8 @@ export default function Rocks() {
       progress: rock.progress || 0,
       // Handle both flat IDs and nested objects from API
       ownerId: rock.ownerId || rock.owner?.id || '',
-      objectiveId: rock.objectiveId || rock.objective?.id || ''
+      objectiveId: rock.objectiveId || rock.objective?.id || '',
+      teamId: rock.teamId || rock.team?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -615,6 +625,25 @@ export default function Rocks() {
                   ))}
                 </select>
               </div>
+
+              {/* Team (MANAGER+) */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    צוות
+                  </label>
+                  <select
+                    value={formData.teamId}
+                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ברירת מחדל</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3 pt-4">

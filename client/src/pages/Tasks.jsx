@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import DateTooltip from '../components/ui/DateTooltip';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
   CheckSquare, 
   Plus, 
@@ -38,6 +39,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [stories, setStories] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,12 +55,14 @@ export default function Tasks() {
     storyId: '',
     ownerId: '',
     priority: 0,
-    dueDate: ''
+    dueDate: '',
+    teamId: ''
   });
 
   const { loading, request } = useApi();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const { isAdmin } = usePermissions();
 
   const filteredTasks = useSearch(tasks, ['title', 'description', 'owner.name', 'story.title'], searchTerm);
 
@@ -67,7 +71,12 @@ export default function Tasks() {
     fetchTasks();
     fetchTeamMembers();
     fetchStories();
+    if (isAdmin) fetchTeams();
   }, [currentOrganization?.id, filters]);
+  const fetchTeams = async () => {
+    const data = await request('/api/teams', { showToast: false });
+    if (data && Array.isArray(data)) setTeams(data);
+  };
 
   const fetchTasks = async () => {
     let url = '/api/tasks';
@@ -151,7 +160,8 @@ export default function Tasks() {
       storyId: task.storyId || task.story?.id || '',
       ownerId: task.ownerId || task.owner?.id || '',
       priority: task.priority || 0,
-      dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+      teamId: task.teamId || task.team?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -510,6 +520,24 @@ export default function Tasks() {
                   ))}
                 </select>
               </div>
+
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    צוות
+                  </label>
+                  <select
+                    value={formData.teamId}
+                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ברירת מחדל</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
