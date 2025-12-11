@@ -14,6 +14,8 @@ export default function Stories() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [expandedStories, setExpandedStories] = useState({});
+  const [newTaskInputs, setNewTaskInputs] = useState({}); // Track new task input per story
+  const [addingTaskToStory, setAddingTaskToStory] = useState(null); // Track which story is adding a task
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     sprintId: '',
@@ -109,6 +111,45 @@ export default function Stories() {
       case 'DONE': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case 'IN_PROGRESS': return <Clock className="w-4 h-4 text-blue-500" />;
       default: return <Circle className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  // Generate next task code
+  const generateNextTaskCode = () => {
+    if (tasks.length === 0) return 'm-01';
+    const numericCodes = tasks
+      .map(task => {
+        const match = task.code?.match(/^m-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter(num => num !== null);
+    if (numericCodes.length === 0) return 'm-01';
+    const maxCode = Math.max(...numericCodes);
+    return `m-${(maxCode + 1).toString().padStart(2, '0')}`;
+  };
+
+  // Handle adding a new task to a story
+  const handleAddTaskToStory = async (storyId) => {
+    const taskTitle = newTaskInputs[storyId]?.trim();
+    if (!taskTitle) return;
+
+    const result = await request('/api/tasks', {
+      method: 'POST',
+      body: {
+        title: taskTitle,
+        code: generateNextTaskCode(),
+        storyId: storyId,
+        status: 'TODO',
+        isStandalone: false
+      },
+      successMessage: 'משימה נוספה בהצלחה'
+    });
+
+    if (result) {
+      // Clear input and refresh tasks
+      setNewTaskInputs(prev => ({ ...prev, [storyId]: '' }));
+      setAddingTaskToStory(null);
+      fetchTasks();
     }
   };
 
@@ -467,24 +508,28 @@ export default function Stories() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
-                    {/* Tasks expand button */}
-                    {getStoryTasks(story.id).length > 0 && (
-                      <button
-                        onClick={() => toggleStoryExpansion(story.id)}
-                        className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors flex items-center gap-1"
-                        title="הצג משימות"
-                      >
-                        <CheckSquare className="w-4 h-4" />
+                    {/* Tasks expand button - always show */}
+                    <button
+                      onClick={() => toggleStoryExpansion(story.id)}
+                      className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                        getStoryTasks(story.id).length > 0
+                          ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                          : 'text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                      }`}
+                      title={getStoryTasks(story.id).length > 0 ? 'הצג/הסתר משימות' : 'הוסף משימות'}
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      {getStoryTasks(story.id).length > 0 && (
                         <span className="text-xs">{getStoryTasks(story.id).length}</span>
-                        {expandedStories[story.id] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
-                    )}
+                      )}
+                      {expandedStories[story.id] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
                   </div>
                 </div>
               </div>
               
               {/* Tasks List - Expandable */}
-              {expandedStories[story.id] && getStoryTasks(story.id).length > 0 && (
+              {expandedStories[story.id] && (
                 <div className="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3">
                   <div className="space-y-2">
                     {getStoryTasks(story.id).map(task => (
@@ -517,6 +562,51 @@ export default function Stories() {
                         </div>
                       </div>
                     ))}
+                    
+                    {/* Add new task input */}
+                    {addingTaskToStory === story.id ? (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                        <Circle className="w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={newTaskInputs[story.id] || ''}
+                          onChange={(e) => setNewTaskInputs(prev => ({ ...prev, [story.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddTaskToStory(story.id);
+                            if (e.key === 'Escape') setAddingTaskToStory(null);
+                          }}
+                          placeholder="הקלד שם משימה..."
+                          className="flex-1 px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-emerald-300 dark:border-emerald-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:text-white"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleAddTaskToStory(story.id)}
+                          disabled={!newTaskInputs[story.id]?.trim()}
+                          className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="הוסף משימה"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setAddingTaskToStory(null)}
+                          className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                          title="ביטול"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setAddingTaskToStory(story.id);
+                          setExpandedStories(prev => ({ ...prev, [story.id]: true }));
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>הוסף משימה</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
