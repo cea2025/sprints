@@ -4,11 +4,13 @@ import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import { Target, Plus, Edit2, Trash2, User } from 'lucide-react';
 
 export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [rocks, setRocks] = useState([]); // כל הסלעים לצורך קישור
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,7 +23,7 @@ export default function Objectives() {
   });
   
   const { loading, request } = useApi();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, basePath } = useOrganization();
 
   // חיפוש בשדות
   const filteredObjectives = useSearch(objectives, ['code', 'name', 'description', 'owner.name'], searchTerm);
@@ -30,6 +32,7 @@ export default function Objectives() {
     if (!currentOrganization) return;
     fetchObjectives();
     fetchTeamMembers();
+    fetchRocks();
   }, [currentOrganization?.id, orphanFilter]);
 
   const fetchObjectives = async () => {
@@ -42,6 +45,42 @@ export default function Objectives() {
   const fetchTeamMembers = async () => {
     const data = await request('/api/team', { showToast: false });
     if (data && Array.isArray(data)) setTeamMembers(data);
+  };
+
+  const fetchRocks = async () => {
+    const data = await request('/api/rocks', { showToast: false });
+    if (data && Array.isArray(data)) setRocks(data);
+  };
+
+  // קישור סלע לפרויקט
+  const handleLinkRock = async (rockId, objectiveId) => {
+    const result = await request(`/api/rocks/${rockId}`, {
+      method: 'PUT',
+      body: { objectiveId },
+      successMessage: 'סלע קושר בהצלחה'
+    });
+    if (result) {
+      fetchObjectives();
+      fetchRocks();
+    }
+  };
+
+  // ניתוק סלע מפרויקט
+  const handleUnlinkRock = async (rockId) => {
+    const result = await request(`/api/rocks/${rockId}`, {
+      method: 'PUT',
+      body: { objectiveId: null },
+      successMessage: 'סלע נותק בהצלחה'
+    });
+    if (result) {
+      fetchObjectives();
+      fetchRocks();
+    }
+  };
+
+  // קבלת סלעים המקושרים לפרויקט מסוים
+  const getRocksForObjective = (objectiveId) => {
+    return rocks.filter(rock => rock.objectiveId === objectiveId);
   };
 
   const handleSubmit = async (e) => {
@@ -296,6 +335,22 @@ export default function Objectives() {
                       </div>
                     )}
                   </div>
+
+                  {/* Linked Rocks Section */}
+                  <LinkedItemsSection
+                    title="סלעים מקושרים"
+                    items={getRocksForObjective(objective.id)}
+                    availableItems={rocks}
+                    parentId={objective.id}
+                    linkField="objectiveId"
+                    onLink={handleLinkRock}
+                    onUnlink={handleUnlinkRock}
+                    basePath={basePath}
+                    itemPath="rocks"
+                    emptyMessage="אין סלעים מקושרים לפרויקט זה"
+                    showCode={true}
+                    showProgress={true}
+                  />
                 </div>
               </div>
             </div>

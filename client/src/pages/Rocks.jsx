@@ -4,6 +4,7 @@ import { useOrganization } from '../context/OrganizationContext';
 import { Battery, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide-react';
 
 const QUARTERS = [
@@ -19,6 +20,7 @@ export default function Rocks() {
   const [rocks, setRocks] = useState([]);
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [stories, setStories] = useState([]); // כל אבני הדרך לצורך קישור
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
@@ -40,7 +42,7 @@ export default function Rocks() {
   });
 
   const { loading, request } = useApi();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, basePath } = useOrganization();
 
   // חיפוש בשדות
   const filteredRocks = useSearch(rocks, ['code', 'name', 'description', 'owner.name', 'objective.name'], searchTerm);
@@ -50,6 +52,7 @@ export default function Rocks() {
     fetchRocks();
     fetchObjectives();
     fetchTeamMembers();
+    fetchStories();
   }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id]);
 
   const fetchRocks = async () => {
@@ -73,6 +76,42 @@ export default function Rocks() {
   const fetchTeamMembers = async () => {
     const data = await request('/api/team', { showToast: false });
     if (data && Array.isArray(data)) setTeamMembers(data);
+  };
+
+  const fetchStories = async () => {
+    const data = await request('/api/stories?limit=200', { showToast: false });
+    if (data && Array.isArray(data)) setStories(data);
+  };
+
+  // קישור אבן דרך לסלע
+  const handleLinkStory = async (storyId, rockId) => {
+    const result = await request(`/api/stories/${storyId}`, {
+      method: 'PUT',
+      body: { rockId },
+      successMessage: 'אבן דרך קושרה בהצלחה'
+    });
+    if (result) {
+      fetchRocks();
+      fetchStories();
+    }
+  };
+
+  // ניתוק אבן דרך מסלע
+  const handleUnlinkStory = async (storyId) => {
+    const result = await request(`/api/stories/${storyId}`, {
+      method: 'PUT',
+      body: { rockId: null },
+      successMessage: 'אבן דרך נותקה בהצלחה'
+    });
+    if (result) {
+      fetchRocks();
+      fetchStories();
+    }
+  };
+
+  // קבלת אבני דרך המקושרות לסלע מסוים
+  const getStoriesForRock = (rockId) => {
+    return stories.filter(story => story.rockId === rockId);
   };
 
   const handleSubmit = async (e) => {
@@ -397,6 +436,22 @@ export default function Rocks() {
                       </span>
                     )}
                   </div>
+
+                  {/* Linked Stories Section */}
+                  <LinkedItemsSection
+                    title="אבני דרך מקושרות"
+                    items={getStoriesForRock(rock.id)}
+                    availableItems={stories}
+                    parentId={rock.id}
+                    linkField="rockId"
+                    onLink={handleLinkStory}
+                    onUnlink={handleUnlinkStory}
+                    basePath={basePath}
+                    itemPath="stories"
+                    emptyMessage="אין אבני דרך מקושרות לסלע זה"
+                    showCode={true}
+                    showProgress={true}
+                  />
                 </div>
               </div>
             </div>
