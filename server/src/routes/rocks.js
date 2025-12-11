@@ -187,6 +187,9 @@ router.get('/:id', async (req, res) => {
       include: {
         owner: { select: { id: true, name: true } },
         objective: { select: { id: true, code: true, name: true } },
+        labels: {
+          select: { label: { select: { id: true, name: true, color: true } } }
+        },
         stories: {
           select: {
             id: true,
@@ -206,10 +209,54 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Rock not found' });
     }
 
-    res.json(rock);
+    res.json({
+      ...rock,
+      labels: (rock.labels || []).map((rl) => rl.label)
+    });
   } catch (error) {
     console.error('Error fetching rock:', error);
     res.status(500).json({ error: 'Failed to fetch rock' });
+  }
+});
+
+/**
+ * @route   POST /api/rocks/:id/labels
+ * @desc    Replace labels set for a rock (all authenticated)
+ */
+router.post('/:id/labels', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const labelIds = Array.isArray(req.body?.labelIds) ? req.body.labelIds : [];
+
+    // Ensure rock is accessible under team scoping
+    const rock = await prisma.rock.findFirst({
+      where: applyTeamReadScope({ id: req.params.id, organizationId }, req),
+      select: { id: true }
+    });
+    if (!rock) return res.status(404).json({ error: 'Rock not found' });
+
+    // Validate labels belong to this org and are active
+    const validLabels = await prisma.label.findMany({
+      where: { organizationId, isActive: true, id: { in: labelIds } },
+      select: { id: true }
+    });
+    const validIds = new Set(validLabels.map((l) => l.id));
+    const finalIds = labelIds.filter((id) => validIds.has(id));
+
+    await prisma.rockLabel.deleteMany({ where: { rockId: rock.id } });
+    if (finalIds.length > 0) {
+      await prisma.rockLabel.createMany({
+        data: finalIds.map((labelId) => ({ rockId: rock.id, labelId })),
+        skipDuplicates: true
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating rock labels:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון תוויות' });
   }
 });
 

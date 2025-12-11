@@ -216,6 +216,9 @@ router.get('/:id', async (req, res) => {
             }
           }
         },
+        labels: {
+          select: { label: { select: { id: true, name: true, color: true } } }
+        },
         owner: {
           select: { id: true, name: true }
         }
@@ -226,10 +229,52 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Story not found' });
     }
 
-    res.json(story);
+    res.json({
+      ...story,
+      labels: (story.labels || []).map((sl) => sl.label)
+    });
   } catch (error) {
     console.error('Error fetching story:', error);
     res.status(500).json({ error: 'Failed to fetch story' });
+  }
+});
+
+/**
+ * @route   POST /api/stories/:id/labels
+ * @desc    Replace labels set for a story (all authenticated)
+ */
+router.post('/:id/labels', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const labelIds = Array.isArray(req.body?.labelIds) ? req.body.labelIds : [];
+
+    const story = await prisma.story.findFirst({
+      where: applyTeamReadScope({ id: req.params.id, organizationId }, req),
+      select: { id: true }
+    });
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+
+    const validLabels = await prisma.label.findMany({
+      where: { organizationId, isActive: true, id: { in: labelIds } },
+      select: { id: true }
+    });
+    const validIds = new Set(validLabels.map((l) => l.id));
+    const finalIds = labelIds.filter((id) => validIds.has(id));
+
+    await prisma.storyLabel.deleteMany({ where: { storyId: story.id } });
+    if (finalIds.length > 0) {
+      await prisma.storyLabel.createMany({
+        data: finalIds.map((labelId) => ({ storyId: story.id, labelId })),
+        skipDuplicates: true
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating story labels:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון תוויות' });
   }
 });
 

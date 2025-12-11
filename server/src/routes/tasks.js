@@ -264,6 +264,9 @@ router.get('/:id', async (req, res) => {
         owner: {
           select: { id: true, name: true }
         },
+        labels: {
+          select: { label: { select: { id: true, name: true, color: true } } }
+        },
         story: {
           select: { 
             id: true, 
@@ -283,10 +286,54 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
 
-    res.json(task);
+    res.json({
+      ...task,
+      labels: (task.labels || []).map((tl) => tl.label)
+    });
   } catch (error) {
     console.error('Error fetching task:', error);
     res.status(500).json({ error: 'שגיאה בטעינת משימה' });
+  }
+});
+
+/**
+ * @route   POST /api/tasks/:id/labels
+ * @desc    Replace labels set for a task (all authenticated)
+ */
+router.post('/:id/labels', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'לא נבחר ארגון' });
+    }
+
+    const labelIds = Array.isArray(req.body?.labelIds) ? req.body.labelIds : [];
+
+    const task = await prisma.task.findFirst({
+      where: applyTeamReadScope({ id: req.params.id, organizationId }, req),
+      select: { id: true }
+    });
+    if (!task) return res.status(404).json({ error: 'משימה לא נמצאה' });
+
+    const validLabels = await prisma.label.findMany({
+      where: { organizationId, isActive: true, id: { in: labelIds } },
+      select: { id: true }
+    });
+    const validIds = new Set(validLabels.map((l) => l.id));
+    const finalIds = labelIds.filter((id) => validIds.has(id));
+
+    await prisma.taskLabel.deleteMany({ where: { taskId: task.id } });
+    if (finalIds.length > 0) {
+      await prisma.taskLabel.createMany({
+        data: finalIds.map((labelId) => ({ taskId: task.id, labelId })),
+        skipDuplicates: true
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating task labels:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון תוויות' });
   }
 });
 
