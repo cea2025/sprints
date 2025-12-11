@@ -8,6 +8,8 @@ import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import DateTooltip from '../components/ui/DateTooltip';
 import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import LabelMultiSelect from '../components/ui/LabelMultiSelect';
+import LabelChips from '../components/ui/LabelChips';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -23,8 +25,12 @@ export default function Rocks() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [stories, setStories] = useState([]); // כל אבני הדרך לצורך קישור
   const [searchTerm, setSearchTerm] = useState('');
+  const [labelFilterIds, setLabelFilterIds] = useState([]);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
     quarter: Math.ceil((new Date().getMonth() + 1) / 3),
@@ -42,7 +48,8 @@ export default function Rocks() {
     progress: 0,
     ownerId: '',
     objectiveId: '',
-    teamId: ''
+    teamId: '',
+    labelIds: []
   });
 
   const { loading, request } = useApi();
@@ -59,10 +66,16 @@ export default function Rocks() {
     fetchTeamMembers();
     fetchStories();
     if (isAdmin) fetchTeams();
-  }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id]);
+    fetchLabels();
+  }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id, sortBy, sortOrder, labelFilterIds.join(',')]);
   const fetchTeams = async () => {
     const data = await request('/api/teams', { showToast: false });
     if (data && Array.isArray(data)) setTeams(data);
+  };
+
+  const fetchLabels = async () => {
+    const data = await request('/api/labels', { showToast: false });
+    if (data && Array.isArray(data)) setLabels(data);
   };
 
   const fetchRocks = async () => {
@@ -72,6 +85,10 @@ export default function Rocks() {
     if (filters.quarter) params.append('quarter', filters.quarter);
     if (filters.objectiveId) params.append('objectiveId', filters.objectiveId);
     if (filters.orphanFilter) params.append('orphanFilter', filters.orphanFilter);
+    if (labelFilterIds.length > 0) params.append('labelIds', labelFilterIds.join(','));
+    params.append('labelMode', 'or');
+    if (sortBy) params.append('sortBy', sortBy);
+    if (sortOrder) params.append('sortOrder', sortOrder);
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
@@ -145,6 +162,15 @@ export default function Rocks() {
     });
 
     if (result) {
+      // Save labels (replace set)
+      const rockId = editingRock?.id || result.id;
+      if (rockId) {
+        await request(`/api/rocks/${rockId}/labels`, {
+          method: 'POST',
+          body: { labelIds: formData.labelIds || [] },
+          showToast: false
+        });
+      }
       setIsModalOpen(false);
       resetForm();
       fetchRocks();
@@ -163,7 +189,8 @@ export default function Rocks() {
       // Handle both flat IDs and nested objects from API
       ownerId: rock.ownerId || rock.owner?.id || '',
       objectiveId: rock.objectiveId || rock.objective?.id || '',
-      teamId: rock.teamId || rock.team?.id || ''
+      teamId: rock.teamId || rock.team?.id || '',
+      labelIds: Array.isArray(rock.labels) ? rock.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
   };
@@ -200,7 +227,9 @@ export default function Rocks() {
       quarter: filters.quarter,
       progress: 0,
       ownerId: '',
-      objectiveId: ''
+      objectiveId: '',
+      teamId: '',
+      labelIds: []
     });
   };
 
@@ -321,6 +350,33 @@ export default function Rocks() {
           <option value="no-stories">🪨 ללא אבני דרך</option>
         </select>
 
+        <div className="min-w-64">
+          <LabelMultiSelect
+            options={labels}
+            value={labelFilterIds}
+            onChange={setLabelFilterIds}
+            placeholder="סינון לפי תוויות"
+          />
+        </div>
+
+        <select
+          value={`${sortBy}:${sortOrder}`}
+          onChange={(e) => {
+            const [sb, so] = e.target.value.split(':');
+            setSortBy(sb);
+            setSortOrder(so);
+          }}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="createdAt:desc">חדש → ישן</option>
+          <option value="createdAt:asc">ישן → חדש</option>
+          <option value="updatedAt:desc">עודכן לאחרונה</option>
+          <option value="name:asc">שם א׳ → ת׳</option>
+          <option value="name:desc">שם ת׳ → א׳</option>
+          <option value="code:asc">קוד א׳ → ת׳</option>
+          <option value="code:desc">קוד ת׳ → א׳</option>
+        </select>
+
         <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">
           {filteredRocks.length} סלעים
         </span>
@@ -390,6 +446,7 @@ export default function Rocks() {
                           {rock.description}
                         </p>
                       )}
+                      <LabelChips labels={rock.labels} />
                     </div>
 
                     {/* Actions */}
@@ -644,6 +701,18 @@ export default function Rocks() {
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תוויות
+                </label>
+                <LabelMultiSelect
+                  options={labels}
+                  value={formData.labelIds}
+                  onChange={(vals) => setFormData({ ...formData, labelIds: vals })}
+                  placeholder="בחר תוויות..."
+                />
+              </div>
 
               {/* Actions */}
               <div className="flex gap-3 pt-4">

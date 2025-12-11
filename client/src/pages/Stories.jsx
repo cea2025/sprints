@@ -8,6 +8,8 @@ import { SearchableSelect } from '../components/ui/SearchableSelect';
 import DateTooltip from '../components/ui/DateTooltip';
 import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import LabelMultiSelect from '../components/ui/LabelMultiSelect';
+import LabelChips from '../components/ui/LabelChips';
 
 export default function Stories() {
   const [stories, setStories] = useState([]);
@@ -15,9 +17,13 @@ export default function Stories() {
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [expandedStories, setExpandedStories] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [labelFilterIds, setLabelFilterIds] = useState([]);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [filters, setFilters] = useState({
     sprintId: '',
     rockId: '',
@@ -46,7 +52,8 @@ export default function Stories() {
     sprintId: '',
     rockId: '',
     ownerId: '',
-    teamId: ''
+    teamId: '',
+    labelIds: []
   });
 
   const { loading, request } = useApi();
@@ -64,10 +71,16 @@ export default function Stories() {
     fetchTeamMembers();
     fetchTasks();
     if (isAdmin) fetchTeams();
-  }, [filters, currentOrganization?.id]);
+    fetchLabels();
+  }, [filters, currentOrganization?.id, sortBy, sortOrder, labelFilterIds.join(',')]);
   const fetchTeams = async () => {
     const data = await request('/api/teams', { showToast: false });
     if (data && Array.isArray(data)) setTeams(data);
+  };
+
+  const fetchLabels = async () => {
+    const data = await request('/api/labels', { showToast: false });
+    if (data && Array.isArray(data)) setLabels(data);
   };
 
   const fetchStories = async () => {
@@ -77,6 +90,10 @@ export default function Stories() {
     if (filters.rockId) params.append('rockId', filters.rockId);
     if (filters.isBlocked) params.append('isBlocked', filters.isBlocked);
     if (filters.orphanFilter) params.append('orphanFilter', filters.orphanFilter);
+    if (labelFilterIds.length > 0) params.append('labelIds', labelFilterIds.join(','));
+    params.append('labelMode', 'or');
+    if (sortBy) params.append('sortBy', sortBy);
+    if (sortOrder) params.append('sortOrder', sortOrder);
     params.append('limit', '30'); // Optimized for performance
     if (params.toString()) url += `?${params.toString()}`;
 
@@ -233,6 +250,14 @@ export default function Stories() {
     });
 
     if (result) {
+      const storyId = editingStory?.id || result.id;
+      if (storyId) {
+        await request(`/api/stories/${storyId}/labels`, {
+          method: 'POST',
+          body: { labelIds: formData.labelIds || [] },
+          showToast: false
+        });
+      }
       setIsModalOpen(false);
       resetForm();
       fetchStories();
@@ -251,7 +276,8 @@ export default function Stories() {
       sprintId: story.sprintId || story.sprint?.id || '',
       rockId: story.rockId || story.rock?.id || '',
       ownerId: story.ownerId || story.owner?.id || '',
-      teamId: story.teamId || story.team?.id || ''
+      teamId: story.teamId || story.team?.id || '',
+      labelIds: Array.isArray(story.labels) ? story.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
   };
@@ -335,7 +361,9 @@ export default function Stories() {
       isBlocked: false,
       sprintId: filters.sprintId || '',
       rockId: filters.rockId || '',
-      ownerId: defaultOwner
+      ownerId: defaultOwner,
+      teamId: '',
+      labelIds: []
     });
   };
 
@@ -437,6 +465,31 @@ export default function Stories() {
           <option value="backlog">⏳ בהמתנה (ללא ספרינט)</option>
         </select>
 
+        <div className="min-w-64">
+          <LabelMultiSelect
+            options={labels}
+            value={labelFilterIds}
+            onChange={setLabelFilterIds}
+            placeholder="סינון לפי תוויות"
+          />
+        </div>
+
+        <select
+          value={`${sortBy}:${sortOrder}`}
+          onChange={(e) => {
+            const [sb, so] = e.target.value.split(':');
+            setSortBy(sb);
+            setSortOrder(so);
+          }}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="createdAt:desc">חדש → ישן</option>
+          <option value="createdAt:asc">ישן → חדש</option>
+          <option value="updatedAt:desc">עודכן לאחרונה</option>
+          <option value="title:asc">כותרת א׳ → ת׳</option>
+          <option value="title:desc">כותרת ת׳ → א׳</option>
+        </select>
+
         <span className="flex items-center text-sm text-gray-500 dark:text-gray-400 mr-auto">
           {filteredStories.length} אבני דרך
         </span>
@@ -504,6 +557,7 @@ export default function Stories() {
                       {story.description}
                     </p>
                   )}
+                  <LabelChips labels={story.labels} />
                   <div className="flex flex-wrap gap-2 text-xs">
                     {story.sprint && (
                       <span className="px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
@@ -766,6 +820,18 @@ export default function Stories() {
                   />
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תוויות
+                </label>
+                <LabelMultiSelect
+                  options={labels}
+                  value={formData.labelIds}
+                  onChange={(vals) => setFormData({ ...formData, labelIds: vals })}
+                  placeholder="בחר תוויות..."
+                />
+              </div>
 
               {/* Progress */}
               <div>

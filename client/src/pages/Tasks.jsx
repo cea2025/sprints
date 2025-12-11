@@ -6,6 +6,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import DateTooltip from '../components/ui/DateTooltip';
 import { usePermissions } from '../hooks/usePermissions';
+import LabelMultiSelect from '../components/ui/LabelMultiSelect';
+import LabelChips from '../components/ui/LabelChips';
 import { 
   CheckSquare, 
   Plus, 
@@ -40,9 +42,13 @@ export default function Tasks() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [stories, setStories] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [labelFilterIds, setLabelFilterIds] = useState([]);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [filters, setFilters] = useState({
     status: '',
     ownerId: '',
@@ -56,7 +62,8 @@ export default function Tasks() {
     ownerId: '',
     priority: 0,
     dueDate: '',
-    teamId: ''
+    teamId: '',
+    labelIds: []
   });
 
   const { loading, request } = useApi();
@@ -72,10 +79,16 @@ export default function Tasks() {
     fetchTeamMembers();
     fetchStories();
     if (isAdmin) fetchTeams();
-  }, [currentOrganization?.id, filters]);
+    fetchLabels();
+  }, [currentOrganization?.id, filters, sortBy, sortOrder, labelFilterIds.join(',')]);
   const fetchTeams = async () => {
     const data = await request('/api/teams', { showToast: false });
     if (data && Array.isArray(data)) setTeams(data);
+  };
+
+  const fetchLabels = async () => {
+    const data = await request('/api/labels', { showToast: false });
+    if (data && Array.isArray(data)) setLabels(data);
   };
 
   const fetchTasks = async () => {
@@ -84,6 +97,10 @@ export default function Tasks() {
     if (filters.status) params.append('status', filters.status);
     if (filters.ownerId) params.append('ownerId', filters.ownerId);
     if (filters.type === 'standalone') params.append('standalone', 'true');
+    if (labelFilterIds.length > 0) params.append('labelIds', labelFilterIds.join(','));
+    params.append('labelMode', 'or');
+    if (sortBy) params.append('sortBy', sortBy);
+    if (sortOrder) params.append('sortOrder', sortOrder);
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url);
@@ -126,6 +143,14 @@ export default function Tasks() {
     });
 
     if (result) {
+      const taskId = editingTask?.id || result.id;
+      if (taskId) {
+        await request(`/api/tasks/${taskId}/labels`, {
+          method: 'POST',
+          body: { labelIds: formData.labelIds || [] },
+          showToast: false
+        });
+      }
       setIsModalOpen(false);
       resetForm();
       fetchTasks();
@@ -161,7 +186,8 @@ export default function Tasks() {
       ownerId: task.ownerId || task.owner?.id || '',
       priority: task.priority || 0,
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
-      teamId: task.teamId || task.team?.id || ''
+      teamId: task.teamId || task.team?.id || '',
+      labelIds: Array.isArray(task.labels) ? task.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
   };
@@ -207,7 +233,9 @@ export default function Tasks() {
       storyId: '',
       ownerId: '',
       priority: 0,
-      dueDate: ''
+      dueDate: '',
+      teamId: '',
+      labelIds: []
     });
   };
 
@@ -302,6 +330,33 @@ export default function Tasks() {
           <option value="standalone">משימות עצמאיות</option>
         </select>
 
+        <div className="min-w-64">
+          <LabelMultiSelect
+            options={labels}
+            value={labelFilterIds}
+            onChange={setLabelFilterIds}
+            placeholder="סינון לפי תוויות"
+          />
+        </div>
+
+        <select
+          value={`${sortBy}:${sortOrder}`}
+          onChange={(e) => {
+            const [sb, so] = e.target.value.split(':');
+            setSortBy(sb);
+            setSortOrder(so);
+          }}
+          className="px-3 py-2 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white text-sm"
+        >
+          <option value="createdAt:desc">חדש → ישן</option>
+          <option value="createdAt:asc">ישן → חדש</option>
+          <option value="updatedAt:desc">עודכן לאחרונה</option>
+          <option value="dueDate:asc">דדליין קרוב → רחוק</option>
+          <option value="dueDate:desc">דדליין רחוק → קרוב</option>
+          <option value="title:asc">כותרת א׳ → ת׳</option>
+          <option value="title:desc">כותרת ת׳ → א׳</option>
+        </select>
+
         <span className="text-sm text-gray-500 dark:text-gray-400">
           {filteredTasks.length} משימות
         </span>
@@ -367,6 +422,7 @@ export default function Tasks() {
                             {task.description}
                           </p>
                         )}
+                        <LabelChips labels={task.labels} />
                       </div>
 
                       {/* Actions */}
@@ -538,6 +594,18 @@ export default function Tasks() {
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  תוויות
+                </label>
+                <LabelMultiSelect
+                  options={labels}
+                  value={formData.labelIds}
+                  onChange={(vals) => setFormData({ ...formData, labelIds: vals })}
+                  placeholder="בחר תוויות..."
+                />
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
