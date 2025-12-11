@@ -80,7 +80,7 @@ export default function Rocks() {
   };
 
   const fetchStories = async () => {
-    const data = await request('/api/stories?limit=200', { showToast: false });
+    const data = await request('/api/stories?limit=50', { showToast: false });
     // Handle both array and paginated response formats
     if (data) {
       if (Array.isArray(data)) {

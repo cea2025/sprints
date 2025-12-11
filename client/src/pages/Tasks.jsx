@@ -87,7 +87,7 @@ export default function Tasks() {
   };
 
   const fetchStories = async () => {
-    const data = await request('/api/stories?limit=200', { showToast: false });
+    const data = await request('/api/stories?limit=50', { showToast: false });
     // Handle both array and paginated response formats
     if (data) {
       if (Array.isArray(data)) {
@@ -124,14 +124,20 @@ export default function Tasks() {
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
+    // Optimistic update - update UI immediately for instant feedback
+    const previousTasks = [...tasks];
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    
+    // Then send request to server
     const result = await request(`/api/tasks/${taskId}/status`, {
       method: 'PATCH',
       body: { status: newStatus },
       showToast: false
     });
 
-    if (result) {
-      setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    // Rollback if failed
+    if (!result) {
+      setTasks(previousTasks);
     }
   };
 

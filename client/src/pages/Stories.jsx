@@ -68,7 +68,7 @@ export default function Stories() {
     if (filters.rockId) params.append('rockId', filters.rockId);
     if (filters.isBlocked) params.append('isBlocked', filters.isBlocked);
     if (filters.orphanFilter) params.append('orphanFilter', filters.orphanFilter);
-    params.append('limit', '200'); // Get more items
+    params.append('limit', '30'); // Optimized for performance
     if (params.toString()) url += `?${params.toString()}`;
 
     const data = await request(url, { showToast: false });
@@ -258,29 +258,39 @@ export default function Stories() {
   };
 
   const handleProgressUpdate = async (storyId, progress) => {
+    // Optimistic update - update UI immediately
+    const previousStories = [...stories];
+    setStories(stories.map(s => 
+      s.id === storyId ? { ...s, progress } : s
+    ));
+    
     const result = await request(`/api/stories/${storyId}/progress`, {
       method: 'PUT',
       body: { progress },
       successMessage: 'התקדמות עודכנה'
     });
 
-    if (result) {
-      setStories(stories.map(s => 
-        s.id === storyId ? { ...s, progress } : s
-      ));
+    // Rollback if failed
+    if (!result) {
+      setStories(previousStories);
     }
   };
 
   const handleBlockToggle = async (story) => {
+    // Optimistic update - update UI immediately
+    const previousStories = [...stories];
+    setStories(stories.map(s => 
+      s.id === story.id ? { ...s, isBlocked: !s.isBlocked } : s
+    ));
+    
     const result = await request(`/api/stories/${story.id}/block`, {
       method: 'PUT',
       successMessage: story.isBlocked ? 'אבן דרך שוחררה' : 'אבן דרך סומנה כחסומה'
     });
 
-    if (result) {
-      setStories(stories.map(s => 
-        s.id === story.id ? { ...s, isBlocked: !s.isBlocked } : s
-      ));
+    // Rollback if failed
+    if (!result) {
+      setStories(previousStories);
     }
   };
 

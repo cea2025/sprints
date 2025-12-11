@@ -169,6 +169,17 @@ function Dashboard() {
 
   const handleTaskStatusToggle = async (taskId, currentStatus) => {
     const newStatus = currentStatus === 'DONE' ? 'TODO' : currentStatus === 'TODO' ? 'IN_PROGRESS' : 'DONE';
+    
+    // Optimistic update - update UI immediately
+    const previousMyTasks = [...myTasks];
+    const previousData = data;
+    
+    setMyTasks(myTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    setData(prev => ({
+      ...prev,
+      allTasks: (prev.allTasks || []).map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+    }));
+    
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/status`, {
         organizationId: currentOrganization.id,
@@ -176,16 +187,16 @@ function Dashboard() {
         body: JSON.stringify({ status: newStatus })
       });
       
-      if (res.ok) {
-        // Update both myTasks and allTasks in data
-        setMyTasks(myTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-        setData(prev => ({
-          ...prev,
-          allTasks: (prev.allTasks || []).map(t => t.id === taskId ? { ...t, status: newStatus } : t)
-        }));
+      // Rollback if failed
+      if (!res.ok) {
+        setMyTasks(previousMyTasks);
+        setData(previousData);
       }
     } catch (err) {
       console.error('Error updating task status:', err);
+      // Rollback on error
+      setMyTasks(previousMyTasks);
+      setData(previousData);
     }
   };
 
