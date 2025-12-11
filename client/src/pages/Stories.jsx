@@ -7,12 +7,14 @@ import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import DateTooltip from '../components/ui/DateTooltip';
 import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function Stories() {
   const [stories, setStories] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [expandedStories, setExpandedStories] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,11 +45,13 @@ export default function Stories() {
     isBlocked: false,
     sprintId: '',
     rockId: '',
-    ownerId: ''
+    ownerId: '',
+    teamId: ''
   });
 
   const { loading, request } = useApi();
   const { currentOrganization } = useOrganization();
+  const { isAdmin } = usePermissions();
 
   // חיפוש בשדות
   const filteredStories = useSearch(stories, ['title', 'description', 'owner.name', 'sprint.name', 'rock.code', 'rock.name'], searchTerm);
@@ -59,7 +63,12 @@ export default function Stories() {
     fetchRocks();
     fetchTeamMembers();
     fetchTasks();
+    if (isAdmin) fetchTeams();
   }, [filters, currentOrganization?.id]);
+  const fetchTeams = async () => {
+    const data = await request('/api/teams', { showToast: false });
+    if (data && Array.isArray(data)) setTeams(data);
+  };
 
   const fetchStories = async () => {
     let url = '/api/stories';
@@ -241,7 +250,8 @@ export default function Stories() {
       // Handle both flat IDs and nested objects from API
       sprintId: story.sprintId || story.sprint?.id || '',
       rockId: story.rockId || story.rock?.id || '',
-      ownerId: story.ownerId || story.owner?.id || ''
+      ownerId: story.ownerId || story.owner?.id || '',
+      teamId: story.teamId || story.team?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -735,6 +745,27 @@ export default function Stories() {
                   allowClear={true}
                 />
               </div>
+
+              {/* Team (MANAGER+) */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    צוות
+                  </label>
+                  <SearchableSelect
+                    options={teams}
+                    value={formData.teamId}
+                    onChange={(value) => setFormData({ ...formData, teamId: value })}
+                    placeholder="ברירת מחדל"
+                    searchPlaceholder="חפש צוות..."
+                    emptyMessage="לא נמצאו צוותים"
+                    getLabel={(team) => team.name}
+                    getValue={(team) => team.id}
+                    getSearchText={(team) => team.name}
+                    allowClear={true}
+                  />
+                </div>
+              )}
 
               {/* Progress */}
               <div>

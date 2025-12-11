@@ -7,6 +7,11 @@
 
 const { hasPermission, isRoleAtLeast, ROLES } = require('../constants/roles');
 
+function getEffectiveRole(req) {
+  // Prefer org-scoped membership role (principal), fallback to legacy user role
+  return req?.principal?.role || req?.user?.role || ROLES.VIEWER;
+}
+
 /**
  * Middleware to require authentication
  */
@@ -41,7 +46,7 @@ function requirePermission(permission) {
       });
     }
 
-    const userRole = req.user.role || ROLES.VIEWER;
+    const userRole = getEffectiveRole(req);
     
     if (!hasPermission(userRole, permission)) {
       return res.status(403).json({ 
@@ -69,7 +74,7 @@ function requireRole(requiredRole) {
       });
     }
 
-    const userRole = req.user.role || ROLES.VIEWER;
+    const userRole = getEffectiveRole(req);
     
     if (!isRoleAtLeast(userRole, requiredRole)) {
       return res.status(403).json({ 
@@ -104,7 +109,7 @@ function requireOwnershipOr(permission, ownerField = 'ownerId') {
       });
     }
 
-    const userRole = req.user.role || ROLES.VIEWER;
+    const userRole = getEffectiveRole(req);
     
     // If user has the permission, allow
     if (hasPermission(userRole, permission)) {
@@ -135,6 +140,14 @@ function requireOwnershipOr(permission, ownerField = 'ownerId') {
  */
 function isOwner(req, resource, ownerField = 'ownerId') {
   if (!req.user || !resource) return false;
+
+  // Prefer membership ownership (new)
+  if (req.principal?.membershipId) {
+    const possibleFields = new Set([ownerField, 'membershipId', 'assigneeMembershipId']);
+    for (const f of possibleFields) {
+      if (resource?.[f] && resource[f] === req.principal.membershipId) return true;
+    }
+  }
   
   // Check if any of user's teamMembers is the owner
   if (req.user.teamMembers && Array.isArray(req.user.teamMembers) && resource[ownerField]) {
@@ -150,6 +163,7 @@ module.exports = {
   requireRole,
   requireAdmin,
   requireOwnershipOr,
-  isOwner
+  isOwner,
+  getEffectiveRole
 };
 

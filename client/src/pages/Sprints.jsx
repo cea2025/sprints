@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
+import { usePermissions } from '../hooks/usePermissions';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -17,6 +18,7 @@ const SPRINT_NUMBERS = [1, 2, 3, 4, 5, 6];
 export default function Sprints() {
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
     quarter: Math.ceil((new Date().getMonth() + 1) / 3)
@@ -30,16 +32,19 @@ export default function Sprints() {
     goal: '',
     startDate: '',
     endDate: '',
-    rockIds: []
+    rockIds: [],
+    teamId: ''
   });
 
   const { loading, request } = useApi();
   const { currentOrganization } = useOrganization();
+  const { isAdmin } = usePermissions();
 
   useEffect(() => {
     if (!currentOrganization) return;
     fetchSprints();
     fetchRocks();
+    if (isAdmin) fetchTeams();
   }, [filters.year, filters.quarter, currentOrganization?.id]);
 
   const fetchSprints = async () => {
@@ -56,6 +61,11 @@ export default function Sprints() {
   const fetchRocks = async () => {
     const data = await request(`/api/rocks?year=${filters.year}&quarter=${filters.quarter}`, { showToast: false });
     if (data && Array.isArray(data)) setRocks(data);
+  };
+
+  const fetchTeams = async () => {
+    const data = await request('/api/teams', { showToast: false });
+    if (data && Array.isArray(data)) setTeams(data);
   };
 
   const handleSubmit = async (e) => {
@@ -86,7 +96,8 @@ export default function Sprints() {
       goal: sprint.goal || '',
       startDate: sprint.startDate?.slice(0, 10) || '',
       endDate: sprint.endDate?.slice(0, 10) || '',
-      rockIds: sprint.rocks?.map(r => r.id) || []
+      rockIds: sprint.rocks?.map(r => r.id) || [],
+      teamId: sprint.teamId || sprint.team?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -117,7 +128,8 @@ export default function Sprints() {
       goal: '',
       startDate: '',
       endDate: '',
-      rockIds: []
+      rockIds: [],
+      teamId: ''
     });
   };
 
@@ -408,6 +420,25 @@ export default function Sprints() {
                   className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white resize-none"
                 />
               </div>
+
+              {/* Team (MANAGER+) */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    צוות
+                  </label>
+                  <select
+                    value={formData.teamId}
+                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ברירת מחדל</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Linked Rocks */}
               {rocks.length > 0 && (

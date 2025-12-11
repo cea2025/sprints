@@ -12,6 +12,7 @@ import {
   ListTodo,
   CheckSquare,
   Users, 
+  Users2,
   LogOut,
   Menu,
   X,
@@ -60,6 +61,7 @@ function Layout() {
     // Admin links - only shown for admins/managers
     ...(isAdmin ? [
       { name: 'ניהול מערכת', href: `${basePath}/admin`, icon: Shield },
+      { name: 'צוותים והרשאות', href: `${basePath}/teams`, icon: Users2 },
       { name: 'לוג ביקורת', href: `${basePath}/audit`, icon: FileText }
     ] : []),
   ];

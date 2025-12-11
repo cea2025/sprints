@@ -7,10 +7,12 @@ import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import DateTooltip from '../components/ui/DateTooltip';
 import { Target, Plus, Edit2, Trash2, User } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [rocks, setRocks] = useState([]); // כל הסלעים לצורך קישור
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
@@ -20,11 +22,13 @@ export default function Objectives() {
     code: '',
     name: '',
     description: '',
-    ownerId: ''
+    ownerId: '',
+    teamId: ''
   });
   
   const { loading, request } = useApi();
   const { currentOrganization, basePath } = useOrganization();
+  const { isAdmin } = usePermissions();
 
   // חיפוש בשדות
   const filteredObjectives = useSearch(objectives, ['code', 'name', 'description', 'owner.name'], searchTerm);
@@ -34,7 +38,12 @@ export default function Objectives() {
     fetchObjectives();
     fetchTeamMembers();
     fetchRocks();
+    if (isAdmin) fetchTeams();
   }, [currentOrganization?.id, orphanFilter]);
+  const fetchTeams = async () => {
+    const data = await request('/api/teams', { showToast: false });
+    if (data && Array.isArray(data)) setTeams(data);
+  };
 
   const fetchObjectives = async () => {
     let url = '/api/objectives';
@@ -113,7 +122,8 @@ export default function Objectives() {
       name: objective.name,
       description: objective.description || '',
       // Handle both flat IDs and nested objects from API
-      ownerId: objective.ownerId || objective.owner?.id || ''
+      ownerId: objective.ownerId || objective.owner?.id || '',
+      teamId: objective.teamId || objective.team?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -429,6 +439,24 @@ export default function Objectives() {
                   ))}
                 </select>
               </div>
+
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    צוות
+                  </label>
+                  <select
+                    value={formData.teamId}
+                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="">ברירת מחדל</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button

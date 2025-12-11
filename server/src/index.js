@@ -15,6 +15,7 @@ const sprintsRoutes = require('./routes/sprints');
 const storiesRoutes = require('./routes/stories');
 const tasksRoutes = require('./routes/tasks');
 const teamRoutes = require('./routes/team');
+const teamsRoutes = require('./routes/teams');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
 const superAdminRoutes = require('./routes/super-admin');
@@ -26,6 +27,7 @@ const auditRoutes = require('./modules/audit/audit.routes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./shared/middleware/error.middleware');
+const { attachPrincipal } = require('./middleware/principal');
 
 // Import passport config
 require('./config/passport');
@@ -92,6 +94,10 @@ app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Attach org-scoped principal + feature flags (RBAC v2 foundation)
+// Safe: does not enforce permissions; only enriches req/principal.
+app.use('/api', attachPrincipal);
+
 // ==================== API ROUTES ====================
 
 // Auth routes
@@ -110,6 +116,7 @@ app.use('/api/sprints', sprintsRoutes);
 app.use('/api/stories', storiesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/teams', teamsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -159,11 +166,15 @@ app.use(errorHandler);
 
 // Import keep-alive utility
 const { startKeepAlive } = require('./utils/keep-alive');
+const { bootstrap } = require('./utils/bootstrap');
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📦 Architecture: Multi-tenant ready`);
+
+  // Bootstrap safe idempotent tasks (feature flags, etc.)
+  bootstrap();
   
   // Start keep-alive pinger to prevent Render free tier from sleeping
   startKeepAlive();

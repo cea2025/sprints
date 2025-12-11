@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
+const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -46,8 +48,10 @@ router.get('/', async (req, res) => {
       orderBy = { createdAt: 'desc' };
     }
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const objectives = await prisma.objective.findMany({
-      where,
+      where: scopedWhere,
       include: {
         owner: true,
         rocks: {
@@ -91,8 +95,13 @@ router.get('/', async (req, res) => {
 // @desc    Get single objective
 router.get('/:id', async (req, res) => {
   try {
-    const objective = await prisma.objective.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const objective = await prisma.objective.findFirst({
+      where,
       include: {
         owner: true,
         rocks: {
@@ -119,8 +128,9 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new objective
 router.post('/', auditMiddleware('Objective'), async (req, res) => {
   try {
-    const { code, name, description, ownerId } = req.body;
+    const { code, name, description, ownerId, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
     const objective = await prisma.objective.create({
       data: {
@@ -128,6 +138,7 @@ router.post('/', auditMiddleware('Objective'), async (req, res) => {
         name,
         description,
         ownerId: ownerId || null,
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id
       },
@@ -150,7 +161,9 @@ router.post('/', auditMiddleware('Objective'), async (req, res) => {
 // @desc    Update an objective
 router.put('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objective'), async (req, res) => {
   try {
-    const { code, name, description, ownerId } = req.body;
+    const { code, name, description, ownerId, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
+    const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
     const objective = await prisma.objective.update({
       where: { id: req.params.id },
@@ -159,6 +172,7 @@ router.put('/:id', captureOldEntity(prisma.objective), auditMiddleware('Objectiv
         name,
         description,
         ownerId: ownerId || null,
+        teamId: teamId !== undefined ? validTeamId : undefined,
         updatedBy: req.user.id
       },
       include: {

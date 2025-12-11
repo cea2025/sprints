@@ -13,6 +13,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { applyTeamReadScope } = require('../shared/teamScope');
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ router.get('/summary', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const [
       objectivesWithoutRocks,
@@ -38,35 +40,35 @@ router.get('/summary', async (req, res) => {
       // פרויקטים ללא סלעים
       prisma.objective.count({
         where: {
-          ...orgFilter,
+          ...scopedOrgFilter,
           rocks: { none: {} }
         }
       }),
       // סלעים ללא פרויקט
       prisma.rock.count({
         where: {
-          ...orgFilter,
+          ...scopedOrgFilter,
           objectiveId: null
         }
       }),
       // סלעים ללא אבני דרך
       prisma.rock.count({
         where: {
-          ...orgFilter,
+          ...scopedOrgFilter,
           stories: { none: {} }
         }
       }),
       // אבני דרך ללא סלע
       prisma.story.count({
         where: {
-          ...orgFilter,
+          ...scopedOrgFilter,
           rockId: null
         }
       }),
       // אבני דרך בהמתנה (ללא ספרינט)
       prisma.story.count({
         where: {
-          ...orgFilter,
+          ...scopedOrgFilter,
           sprintId: null
         }
       })
@@ -94,10 +96,11 @@ router.get('/objectives', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const objectives = await prisma.objective.findMany({
       where: {
-        ...orgFilter,
+        ...scopedOrgFilter,
         rocks: { none: {} }
       },
       include: {
@@ -123,10 +126,11 @@ router.get('/rocks/no-objective', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const rocks = await prisma.rock.findMany({
       where: {
-        ...orgFilter,
+        ...scopedOrgFilter,
         objectiveId: null
       },
       include: {
@@ -155,10 +159,11 @@ router.get('/rocks/no-stories', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const rocks = await prisma.rock.findMany({
       where: {
-        ...orgFilter,
+        ...scopedOrgFilter,
         stories: { none: {} }
       },
       include: {
@@ -187,10 +192,11 @@ router.get('/stories/no-rock', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const stories = await prisma.story.findMany({
       where: {
-        ...orgFilter,
+        ...scopedOrgFilter,
         rockId: null
       },
       include: {
@@ -219,10 +225,11 @@ router.get('/stories/backlog', async (req, res) => {
   try {
     const organizationId = await getOrganizationId(req);
     const orgFilter = organizationId ? { organizationId } : {};
+    const scopedOrgFilter = applyTeamReadScope(orgFilter, req);
 
     const stories = await prisma.story.findMany({
       where: {
-        ...orgFilter,
+        ...scopedOrgFilter,
         sprintId: null
       },
       include: {

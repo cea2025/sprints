@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
+const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -21,8 +23,10 @@ router.get('/', async (req, res) => {
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const sprints = await prisma.sprint.findMany({
-      where,
+      where: scopedWhere,
       include: {
         sprintRocks: {
           include: {
@@ -78,8 +82,13 @@ router.get('/', async (req, res) => {
 // @desc    Get single sprint with all details
 router.get('/:id', async (req, res) => {
   try {
-    const sprint = await prisma.sprint.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const sprint = await prisma.sprint.findFirst({
+      where,
       include: {
         sprintRocks: {
           include: {
@@ -119,8 +128,9 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new sprint with auto-generated name
 router.post('/', auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
     // Auto-generate name: 2026-Q2-S5
     const name = `${year}-Q${quarter}-S${sprintNumber}`;
@@ -146,6 +156,7 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
         goal,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id,
         sprintRocks: {
@@ -177,7 +188,9 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
 // @desc    Update a sprint
 router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
+    const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
     // Auto-generate name if year/quarter/sprintNumber provided
     let name;
@@ -196,6 +209,7 @@ router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), a
         goal,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
+        teamId: teamId !== undefined ? validTeamId : undefined,
         updatedBy: req.user.id
       }
     });

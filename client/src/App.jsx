@@ -14,6 +14,7 @@ import SprintBoard from './pages/SprintBoard';
 import Stories from './pages/Stories';
 import Tasks from './pages/Tasks';
 import Team from './pages/Team';
+import Teams from './pages/Teams';
 import Admin from './pages/Admin';
 import DataManagement from './pages/DataManagement';
 import SelectOrganization from './pages/SelectOrganization';
@@ -416,6 +417,7 @@ function App() {
                   <Route path="stories" element={<Stories />} />
                   <Route path="tasks" element={<Tasks />} />
                   <Route path="team" element={<Team />} />
+                  <Route path="teams" element={<Teams />} />
                   <Route path="admin" element={<Admin />} />
                   <Route path="data" element={<DataManagement />} />
                   <Route path="settings" element={<OrganizationSettings />} />

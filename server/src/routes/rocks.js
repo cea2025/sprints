@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
+const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -59,8 +61,10 @@ router.get('/', async (req, res) => {
       orderBy = [{ year: 'desc' }, { quarter: 'desc' }, { code: 'asc' }];
     }
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const rocks = await prisma.rock.findMany({
-      where,
+      where: scopedWhere,
       select: {
         id: true,
         code: true,
@@ -73,6 +77,8 @@ router.get('/', async (req, res) => {
         carriedFromQuarter: true,
         createdAt: true,
         updatedAt: true,
+        teamId: true,
+        team: { select: { id: true, name: true } },
         owner: {
           select: { id: true, name: true }
         },
@@ -145,12 +151,16 @@ router.get('/simple', async (req, res) => {
     if (year) where.year = parseInt(year);
     if (quarter) where.quarter = parseInt(quarter);
 
+    const scopedWhere = applyTeamReadScope(where, req);
+
     const rocks = await prisma.rock.findMany({
-      where,
+      where: scopedWhere,
       select: {
         id: true,
         code: true,
-        name: true
+        name: true,
+        teamId: true,
+        team: { select: { id: true, name: true } }
       },
       orderBy: { code: 'asc' },
       take: 200
@@ -167,8 +177,13 @@ router.get('/simple', async (req, res) => {
 // @desc    Get single rock
 router.get('/:id', async (req, res) => {
   try {
-    const rock = await prisma.rock.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const rock = await prisma.rock.findFirst({
+      where,
       include: {
         owner: { select: { id: true, name: true } },
         objective: { select: { id: true, code: true, name: true } },
@@ -202,8 +217,9 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new rock
 router.post('/', auditMiddleware('Rock'), async (req, res) => {
   try {
-    const { code, name, description, year, quarter, progress, ownerId, objectiveId } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
     const rock = await prisma.rock.create({
       data: {
@@ -215,6 +231,7 @@ router.post('/', auditMiddleware('Rock'), async (req, res) => {
         progress: progress ? parseInt(progress) : 0,
         ownerId: ownerId || null,
         objectiveId: objectiveId || null,
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id
       },
@@ -244,7 +261,9 @@ router.post('/', auditMiddleware('Rock'), async (req, res) => {
 // @desc    Update a rock
 router.put('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async (req, res) => {
   try {
-    const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
+    const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
     const rock = await prisma.rock.update({
       where: { id: req.params.id },
@@ -257,6 +276,7 @@ router.put('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async
         progress: progress !== undefined ? parseInt(progress) : undefined,
         ownerId: ownerId || null,
         objectiveId: objectiveId || null,
+        teamId: teamId !== undefined ? validTeamId : undefined,
         isCarriedOver: isCarriedOver !== undefined ? isCarriedOver : undefined,
         carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null,
         updatedBy: req.user.id

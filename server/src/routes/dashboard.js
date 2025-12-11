@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
+const { applyTeamReadScope } = require('../shared/teamScope');
 
 const router = express.Router();
 
@@ -135,12 +136,14 @@ router.get('/', async (req, res) => {
     }
 
     // Get current quarter rocks with progress
+    const rocksWhere = applyTeamReadScope({
+      ...orgFilter,
+      year: currentYear,
+      quarter: currentQuarter
+    }, req);
+
     const rocks = await prisma.rock.findMany({
-      where: {
-        ...orgFilter,
-        year: currentYear,
-        quarter: currentQuarter
-      },
+      where: rocksWhere,
       include: {
         owner: true,
         objective: true,
@@ -180,8 +183,10 @@ router.get('/', async (req, res) => {
     });
 
     // Get objectives
+    const objectivesWhere = applyTeamReadScope(orgFilter, req);
+
     const objectives = await prisma.objective.findMany({
-      where: orgFilter,
+      where: objectivesWhere,
       include: {
         owner: true,
         rocks: {
@@ -215,15 +220,15 @@ router.get('/', async (req, res) => {
 
     // Get overall stats
     const totalRocks = await prisma.rock.count({
-      where: { ...orgFilter, year: currentYear, quarter: currentQuarter }
+      where: applyTeamReadScope({ ...orgFilter, year: currentYear, quarter: currentQuarter }, req)
     });
     
     const completedRocks = await prisma.rock.count({
-      where: { ...orgFilter, year: currentYear, quarter: currentQuarter, progress: 100 }
+      where: applyTeamReadScope({ ...orgFilter, year: currentYear, quarter: currentQuarter, progress: 100 }, req)
     });
 
-    const totalStories = await prisma.story.count({ where: orgFilter });
-    const totalObjectives = await prisma.objective.count({ where: orgFilter });
+    const totalStories = await prisma.story.count({ where: applyTeamReadScope(orgFilter, req) });
+    const totalObjectives = await prisma.objective.count({ where: applyTeamReadScope(orgFilter, req) });
     const activeTeamMembers = await prisma.teamMember.count({
       where: { ...orgFilter, isActive: true }
     });
@@ -258,13 +263,15 @@ router.get('/', async (req, res) => {
       }
       
       // Get rocks owned by user (query BOTH legacy ownerId AND new membershipId)
+      const userRocksWhere = applyTeamReadScope({
+        ...orgFilter,
+        year: currentYear,
+        quarter: currentQuarter,
+        OR: ownerConditions
+      }, req);
+
       const userRocksData = await prisma.rock.findMany({
-        where: {
-          ...orgFilter,
-          year: currentYear,
-          quarter: currentQuarter,
-          OR: ownerConditions
-        },
+        where: userRocksWhere,
         include: {
           owner: true,
           objective: true,
@@ -305,12 +312,14 @@ router.get('/', async (req, res) => {
       // Get milestones (stories) owned by user (all, not just current sprint)
       // Query by BOTH ownerId (legacy TeamMember) AND membershipId (new Membership)
       console.log('🔍 [dashboard] Fetching userMilestones for userId:', userId, 'teamMemberId:', teamMemberId);
+      const userStoriesWhere = applyTeamReadScope({
+        ...orgFilter,
+        OR: ownerConditions,
+        progress: { lt: 100 } // Show incomplete milestones
+      }, req);
+
       const userStoriesData = await prisma.story.findMany({
-        where: {
-          ...orgFilter,
-          OR: ownerConditions,
-          progress: { lt: 100 } // Show incomplete milestones
-        },
+        where: userStoriesWhere,
         include: {
           rock: {
             select: { id: true, code: true, name: true }
@@ -341,11 +350,13 @@ router.get('/', async (req, res) => {
 
     // Get ALL milestones for "all" view (sorted by progress - incomplete first)
     console.log('🔍 [dashboard] Fetching allMilestones with orgFilter:', JSON.stringify(orgFilter));
+    const allMilestonesWhere = applyTeamReadScope({
+      ...orgFilter
+      // Removed progress filter - show ALL milestones
+    }, req);
+
     const allMilestonesData = await prisma.story.findMany({
-      where: {
-        ...orgFilter
-        // Removed progress filter - show ALL milestones
-      },
+      where: allMilestonesWhere,
       include: {
         rock: {
           select: { id: true, code: true, name: true }
@@ -377,11 +388,13 @@ router.get('/', async (req, res) => {
 
     // Get ALL tasks for "all" view (not cancelled)
     console.log('🔍 [dashboard] Fetching allTasks with orgFilter:', orgFilter);
+    const allTasksWhere = applyTeamReadScope({
+      ...orgFilter,
+      status: { not: 'CANCELLED' }
+    }, req);
+
     const allTasksData = await prisma.task.findMany({
-      where: {
-        ...orgFilter,
-        status: { not: 'CANCELLED' }
-      },
+      where: allTasksWhere,
       include: {
         owner: true,
         story: {
