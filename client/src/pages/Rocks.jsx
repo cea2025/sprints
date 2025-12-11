@@ -80,7 +80,14 @@ export default function Rocks() {
 
   const fetchStories = async () => {
     const data = await request('/api/stories?limit=200', { showToast: false });
-    if (data && Array.isArray(data)) setStories(data);
+    // Handle both array and paginated response formats
+    if (data) {
+      if (Array.isArray(data)) {
+        setStories(data);
+      } else if (data.data && Array.isArray(data.data)) {
+        setStories(data.data);
+      }
+    }
   };
 
   // קישור אבן דרך לסלע
@@ -111,7 +118,8 @@ export default function Rocks() {
 
   // קבלת אבני דרך המקושרות לסלע מסוים
   const getStoriesForRock = (rockId) => {
-    return stories.filter(story => story.rockId === rockId);
+    // Use rock.id since the API returns rock object, not rockId
+    return stories.filter(story => story.rock?.id === rockId);
   };
 
   const handleSubmit = async (e) => {
