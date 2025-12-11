@@ -238,9 +238,10 @@ export default function Stories() {
       description: story.description || '',
       progress: story.progress || 0,
       isBlocked: story.isBlocked || false,
-      sprintId: story.sprintId,
-      rockId: story.rockId || '',
-      ownerId: story.ownerId
+      // Handle both flat IDs and nested objects from API
+      sprintId: story.sprintId || story.sprint?.id || '',
+      rockId: story.rockId || story.rock?.id || '',
+      ownerId: story.ownerId || story.owner?.id || ''
     });
     setIsModalOpen(true);
   };

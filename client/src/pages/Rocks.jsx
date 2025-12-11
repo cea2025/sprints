@@ -151,8 +151,9 @@ export default function Rocks() {
       year: rock.year,
       quarter: rock.quarter,
       progress: rock.progress || 0,
-      ownerId: rock.ownerId || '',
-      objectiveId: rock.objectiveId || ''
+      // Handle both flat IDs and nested objects from API
+      ownerId: rock.ownerId || rock.owner?.id || '',
+      objectiveId: rock.objectiveId || rock.objective?.id || ''
     });
     setIsModalOpen(true);
   };

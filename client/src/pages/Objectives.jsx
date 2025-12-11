@@ -111,7 +111,8 @@ export default function Objectives() {
       code: objective.code,
       name: objective.name,
       description: objective.description || '',
-      ownerId: objective.ownerId || ''
+      // Handle both flat IDs and nested objects from API
+      ownerId: objective.ownerId || objective.owner?.id || ''
     });
     setIsModalOpen(true);
   };

@@ -141,8 +141,9 @@ export default function Tasks() {
       code: task.code || '',
       title: task.title,
       description: task.description || '',
-      storyId: task.storyId || '',
-      ownerId: task.ownerId,
+      // Handle both flat IDs and nested objects from API
+      storyId: task.storyId || task.story?.id || '',
+      ownerId: task.ownerId || task.owner?.id || '',
       priority: task.priority || 0,
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
     });
