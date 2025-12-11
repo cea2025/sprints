@@ -81,7 +81,8 @@ export default function Objectives() {
 
   // קבלת סלעים המקושרים לפרויקט מסוים
   const getRocksForObjective = (objectiveId) => {
-    return rocks.filter(rock => rock.objectiveId === objectiveId);
+    // Use objective.id since the API returns nested object, not objectiveId
+    return rocks.filter(rock => rock.objectiveId === objectiveId || rock.objective?.id === objectiveId);
   };
 
   const handleSubmit = async (e) => {
