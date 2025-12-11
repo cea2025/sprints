@@ -190,8 +190,13 @@ router.get('/simple', async (req, res) => {
 // @desc    Get single story
 router.get('/:id', async (req, res) => {
   try {
-    const story = await prisma.story.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const story = await prisma.story.findFirst({
+      where,
       include: {
         sprint: {
           select: { id: true, name: true }

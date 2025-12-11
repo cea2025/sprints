@@ -9,12 +9,14 @@ const { isEnabled } = require('../services/featureFlags');
  * - ADMIN / MANAGER (and Super Admin) can see everything.
  * - MEMBER / VIEWER are scoped to:
  *    - teamId in principal.teamIds
- *    - and optionally teamId = null (legacy / org-wide items)
  *
- * This is intentionally conservative to avoid breaking existing data while we migrate.
+ * NOTE: With team scoping enabled, `teamId = null` is treated as org-wide/legacy and is
+ * visible only to MANAGER+ (per product requirement).
  */
 function applyTeamReadScope(where, req, options = {}) {
-  const { allowNullTeam = true } = options;
+  // options kept for future flexibility; current policy is strict:
+  // non-managers NEVER see teamId = null when scoping is enabled.
+  const { allowNullTeam = false } = options;
 
   const principal = req?.principal;
   if (!principal) return where;
@@ -29,7 +31,7 @@ function applyTeamReadScope(where, req, options = {}) {
     ? (allowNullTeam
       ? { OR: [{ teamId: { in: teamIds } }, { teamId: null }] }
       : { teamId: { in: teamIds } })
-    : (allowNullTeam ? { teamId: null } : { teamId: { in: [] } });
+    : { teamId: { in: [] } };
 
   // Merge safely using AND
   if (!where || Object.keys(where).length === 0) return scopeFilter;

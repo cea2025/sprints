@@ -94,8 +94,13 @@ router.get('/', async (req, res) => {
 // @desc    Get single objective
 router.get('/:id', async (req, res) => {
   try {
-    const objective = await prisma.objective.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const objective = await prisma.objective.findFirst({
+      where,
       include: {
         owner: true,
         rocks: {

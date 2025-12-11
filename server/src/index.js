@@ -166,11 +166,15 @@ app.use(errorHandler);
 
 // Import keep-alive utility
 const { startKeepAlive } = require('./utils/keep-alive');
+const { bootstrap } = require('./utils/bootstrap');
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📦 Architecture: Multi-tenant ready`);
+
+  // Bootstrap safe idempotent tasks (feature flags, etc.)
+  bootstrap();
   
   // Start keep-alive pinger to prevent Render free tier from sleeping
   startKeepAlive();

@@ -81,8 +81,13 @@ router.get('/', async (req, res) => {
 // @desc    Get single sprint with all details
 router.get('/:id', async (req, res) => {
   try {
-    const sprint = await prisma.sprint.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const sprint = await prisma.sprint.findFirst({
+      where,
       include: {
         sprintRocks: {
           include: {

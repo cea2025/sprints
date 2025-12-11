@@ -244,11 +244,13 @@ router.get('/:id', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
+    const where = applyTeamReadScope(
+      { id: req.params.id, organizationId },
+      req
+    );
+
     const task = await prisma.task.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId
-      },
+      where,
       include: {
         owner: {
           select: { id: true, name: true }

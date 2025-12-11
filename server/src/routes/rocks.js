@@ -172,8 +172,13 @@ router.get('/simple', async (req, res) => {
 // @desc    Get single rock
 router.get('/:id', async (req, res) => {
   try {
-    const rock = await prisma.rock.findUnique({
-      where: { id: req.params.id },
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
+
+    const rock = await prisma.rock.findFirst({
+      where,
       include: {
         owner: { select: { id: true, name: true } },
         objective: { select: { id: true, code: true, name: true } },
