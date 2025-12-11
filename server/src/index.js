@@ -15,6 +15,7 @@ const sprintsRoutes = require('./routes/sprints');
 const storiesRoutes = require('./routes/stories');
 const tasksRoutes = require('./routes/tasks');
 const teamRoutes = require('./routes/team');
+const teamsRoutes = require('./routes/teams');
 const dashboardRoutes = require('./routes/dashboard');
 const adminRoutes = require('./routes/admin');
 const superAdminRoutes = require('./routes/super-admin');
@@ -115,6 +116,7 @@ app.use('/api/sprints', sprintsRoutes);
 app.use('/api/stories', storiesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/teams', teamsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 
