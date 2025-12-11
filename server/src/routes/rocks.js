@@ -16,7 +16,7 @@ router.use(isAuthenticated);
 // @query   sortBy (createdAt|updatedAt|code), sortOrder (asc|desc), dateFrom, dateTo
 router.get('/', async (req, res) => {
   try {
-    const { year, quarter, objectiveId, orphanFilter, search, page = 1, limit = 50, sortBy, sortOrder, dateFrom, dateTo } = req.query;
+    const { year, quarter, objectiveId, orphanFilter, search, page = 1, limit = 50, sortBy, sortOrder, dateFrom, dateTo, labelIds, labelMode } = req.query;
     const organizationId = await getOrganizationId(req);
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -49,6 +49,22 @@ router.get('/', async (req, res) => {
       ];
     }
 
+    // Label filtering
+    const parsedLabelIds = typeof labelIds === 'string' && labelIds.trim()
+      ? labelIds.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const mode = (labelMode || 'or').toLowerCase();
+    if (parsedLabelIds.length > 0) {
+      if (mode === 'and') {
+        where.AND = where.AND || [];
+        for (const id of parsedLabelIds) {
+          where.AND.push({ labels: { some: { labelId: id } } });
+        }
+      } else {
+        where.labels = { some: { labelId: { in: parsedLabelIds } } };
+      }
+    }
+
     // Build orderBy based on sortBy parameter
     let orderBy;
     const order = sortOrder === 'asc' ? 'asc' : 'desc';
@@ -56,6 +72,10 @@ router.get('/', async (req, res) => {
       orderBy = [{ createdAt: order }];
     } else if (sortBy === 'updatedAt') {
       orderBy = [{ updatedAt: order }];
+    } else if (sortBy === 'name') {
+      orderBy = [{ name: order }];
+    } else if (sortBy === 'code') {
+      orderBy = [{ code: order }];
     } else {
       // Default: year desc, quarter desc, code asc
       orderBy = [{ year: 'desc' }, { quarter: 'desc' }, { code: 'asc' }];
@@ -84,6 +104,9 @@ router.get('/', async (req, res) => {
         },
         objective: {
           select: { id: true, code: true, name: true }
+        },
+        labels: {
+          select: { label: { select: { id: true, name: true, color: true } } }
         },
         _count: {
           select: { stories: true }
@@ -124,6 +147,7 @@ router.get('/', async (req, res) => {
         updatedAt: rock.updatedAt,
         owner: rock.owner,
         objective: rock.objective,
+        labels: (rock.labels || []).map((rl) => rl.label),
         calculatedProgress,
         effectiveProgress: rock.progress > 0 ? rock.progress : calculatedProgress,
         totalStories: rock._count.stories,

@@ -28,7 +28,9 @@ router.get('/', async (req, res) => {
       sortBy,
       sortOrder,
       dateFrom,
-      dateTo
+      dateTo,
+      labelIds,
+      labelMode
     } = req.query;
     
     const organizationId = await getOrganizationId(req);
@@ -82,6 +84,22 @@ router.get('/', async (req, res) => {
       ];
     }
 
+    // Label filtering
+    const parsedLabelIds = typeof labelIds === 'string' && labelIds.trim()
+      ? labelIds.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const mode = (labelMode || 'or').toLowerCase();
+    if (parsedLabelIds.length > 0) {
+      if (mode === 'and') {
+        where.AND = where.AND || [];
+        for (const id of parsedLabelIds) {
+          where.AND.push({ labels: { some: { labelId: id } } });
+        }
+      } else {
+        where.labels = { some: { labelId: { in: parsedLabelIds } } };
+      }
+    }
+
     const scopedWhere = applyTeamReadScope(where, req);
 
     // Get total count for pagination
@@ -113,6 +131,7 @@ router.get('/', async (req, res) => {
         updatedAt: true,
         teamId: true,
         team: { select: { id: true, name: true } },
+        labels: { select: { label: { select: { id: true, name: true, color: true } } } },
         sprint: {
           select: {
             id: true,
@@ -146,7 +165,7 @@ router.get('/', async (req, res) => {
     });
 
     res.json({
-      data: stories,
+      data: stories.map((s) => ({ ...s, labels: (s.labels || []).map((sl) => sl.label) })),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

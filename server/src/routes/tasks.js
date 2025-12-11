@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { status, ownerId, storyId, standalone, sortBy, sortOrder, dateFrom, dateTo } = req.query;
+    const { status, ownerId, storyId, standalone, sortBy, sortOrder, dateFrom, dateTo, labelIds, labelMode } = req.query;
 
     const where = { organizationId };
 
@@ -69,6 +69,22 @@ router.get('/', async (req, res) => {
       if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
     }
 
+    // Label filtering
+    const parsedLabelIds = typeof labelIds === 'string' && labelIds.trim()
+      ? labelIds.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const mode = (labelMode || 'or').toLowerCase();
+    if (parsedLabelIds.length > 0) {
+      if (mode === 'and') {
+        where.AND = where.AND || [];
+        for (const id of parsedLabelIds) {
+          where.AND.push({ labels: { some: { labelId: id } } });
+        }
+      } else {
+        where.labels = { some: { labelId: { in: parsedLabelIds } } };
+      }
+    }
+
     // Build orderBy based on sortBy parameter
     let orderBy;
     const order = sortOrder === 'asc' ? 'asc' : 'desc';
@@ -78,6 +94,8 @@ router.get('/', async (req, res) => {
       orderBy = [{ updatedAt: order }];
     } else if (sortBy === 'dueDate') {
       orderBy = [{ dueDate: order }, { createdAt: 'desc' }];
+    } else if (sortBy === 'title') {
+      orderBy = [{ title: order }];
     } else {
       // Default: grouped by story, then sortOrder, then newest
       orderBy = [{ storyId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }];
@@ -93,6 +111,9 @@ router.get('/', async (req, res) => {
         },
         team: {
           select: { id: true, name: true }
+        },
+        labels: {
+          select: { label: { select: { id: true, name: true, color: true } } }
         },
         story: {
           select: { 
@@ -110,7 +131,7 @@ router.get('/', async (req, res) => {
       orderBy
     });
 
-    res.json(tasks);
+    res.json(tasks.map((t) => ({ ...t, labels: (t.labels || []).map((tl) => tl.label) })));
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'שגיאה בטעינת משימות' });
