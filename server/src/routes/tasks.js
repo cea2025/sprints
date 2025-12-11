@@ -129,39 +129,38 @@ router.get('/my', async (req, res) => {
     }
 
     // Get user's membership (NEW) or teamMember (legacy)
-    let membership = await prisma.membership.findFirst({
+    const membership = await prisma.membership.findFirst({
       where: {
         userId: req.user.id,
         organizationId
       }
     });
     
-    // Fallback to legacy TeamMember if no Membership found
-    let teamMember = null;
-    if (!membership) {
-      teamMember = await prisma.teamMember.findFirst({
-        where: {
-          userId: req.user.id,
-          organizationId
-        }
-      });
-    }
+    // Also look up legacy TeamMember (needed for old ownerId-based tasks)
+    const teamMember = await prisma.teamMember.findFirst({
+      where: {
+        userId: req.user.id,
+        organizationId
+      }
+    });
 
-    const memberId = membership?.id || teamMember?.id;
-    console.log('🔍 [tasks/my] userId:', req.user.id, 'orgId:', organizationId, 'membership:', membership?.id, 'teamMember:', teamMember?.id);
+    const membershipId = membership?.id || null;
+    const teamMemberId = teamMember?.id || null;
+    console.log('🔍 [tasks/my] userId:', req.user.id, 'orgId:', organizationId, 'membership:', membershipId, 'teamMember:', teamMemberId);
 
-    if (!memberId) {
+    if (!membershipId && !teamMemberId) {
       console.log('⚠️ [tasks/my] No membership or teamMember found for user');
       return res.json([]);
     }
 
-    // Query by BOTH ownerId (legacy) AND membershipId (new)
+    // Query by BOTH ownerId (legacy TeamMember) AND membershipId (new Membership)
+    const ors = [];
+    if (teamMemberId) ors.push({ ownerId: teamMemberId });
+    if (membershipId) ors.push({ membershipId: membershipId });
+
     const baseWhere = {
       organizationId,
-      OR: [
-        { ownerId: memberId },
-        { membershipId: memberId }
-      ],
+      OR: ors,
       status: { not: 'CANCELLED' }
     };
     const scopedWhere = applyTeamReadScope(baseWhere, req);
@@ -193,7 +192,7 @@ router.get('/my', async (req, res) => {
       ]
     });
 
-    console.log('✅ [tasks/my] Found', tasks.length, 'tasks for member:', memberId);
+    console.log('✅ [tasks/my] Found', tasks.length, 'tasks for membership/teamMember:', { membershipId, teamMemberId });
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching my tasks:', error);
