@@ -226,6 +226,7 @@ model Objective {
   
   @@unique([organizationId, code])
   @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@index([ownerId])
   @@index([membershipId])
 }
@@ -281,6 +282,7 @@ model Rock {
   
   @@unique([organizationId, code])
   @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@index([organizationId, year, quarter])
   @@index([objectiveId])
   @@index([ownerId])
@@ -386,6 +388,7 @@ model Story {
   deletedBy   String?
   
   @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@index([sprintId])
   @@index([rockId])
   @@index([ownerId])
@@ -441,6 +444,7 @@ model Task {
 
   // אינדקסים לביצועים
   @@index([organizationId])
+  @@index([organizationId, createdAt])
   @@index([ownerId])
   @@index([membershipId])
   @@index([storyId])

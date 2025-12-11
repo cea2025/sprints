@@ -5,6 +5,7 @@ import { Battery, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import LinkedItemsSection from '../components/ui/LinkedItemsSection';
+import DateTooltip from '../components/ui/DateTooltip';
 import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide-react';
 
 const QUARTERS = [
@@ -367,9 +368,11 @@ export default function Rocks() {
                             <span>↪</span> גלש מ-Q{rock.carriedFromQuarter}
                           </span>
                         )}
-                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                          {rock.name}
-                        </h3>
+                        <DateTooltip createdAt={rock.createdAt} updatedAt={rock.updatedAt}>
+                          <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                            {rock.name}
+                          </h3>
+                        </DateTooltip>
                       </div>
                       {rock.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">

@@ -11,9 +11,10 @@ router.use(isAuthenticated);
 
 // @route   GET /api/rocks
 // @desc    Get all rocks with progress (optimized with search)
+// @query   sortBy (createdAt|updatedAt|code), sortOrder (asc|desc), dateFrom, dateTo
 router.get('/', async (req, res) => {
   try {
-    const { year, quarter, objectiveId, orphanFilter, search, page = 1, limit = 50 } = req.query;
+    const { year, quarter, objectiveId, orphanFilter, search, page = 1, limit = 50, sortBy, sortOrder, dateFrom, dateTo } = req.query;
     const organizationId = await getOrganizationId(req);
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -30,6 +31,13 @@ router.get('/', async (req, res) => {
       where.stories = { none: {} };
     }
     
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+    
     // Server-side search
     if (search && search.length >= 2) {
       where.OR = [
@@ -37,6 +45,18 @@ router.get('/', async (req, res) => {
         { code: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } }
       ];
+    }
+
+    // Build orderBy based on sortBy parameter
+    let orderBy;
+    const order = sortOrder === 'asc' ? 'asc' : 'desc';
+    if (sortBy === 'createdAt') {
+      orderBy = [{ createdAt: order }];
+    } else if (sortBy === 'updatedAt') {
+      orderBy = [{ updatedAt: order }];
+    } else {
+      // Default: year desc, quarter desc, code asc
+      orderBy = [{ year: 'desc' }, { quarter: 'desc' }, { code: 'asc' }];
     }
 
     const rocks = await prisma.rock.findMany({
@@ -51,6 +71,8 @@ router.get('/', async (req, res) => {
         progress: true,
         isCarriedOver: true,
         carriedFromQuarter: true,
+        createdAt: true,
+        updatedAt: true,
         owner: {
           select: { id: true, name: true }
         },
@@ -67,11 +89,7 @@ router.get('/', async (req, res) => {
           }
         }
       },
-      orderBy: [
-        { year: 'desc' },
-        { quarter: 'desc' },
-        { code: 'asc' }
-      ],
+      orderBy,
       skip,
       take: parseInt(limit)
     });
@@ -96,6 +114,8 @@ router.get('/', async (req, res) => {
         progress: rock.progress,
         isCarriedOver: rock.isCarriedOver,
         carriedFromQuarter: rock.carriedFromQuarter,
+        createdAt: rock.createdAt,
+        updatedAt: rock.updatedAt,
         owner: rock.owner,
         objective: rock.objective,
         calculatedProgress,

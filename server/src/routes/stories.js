@@ -11,6 +11,7 @@ router.use(isAuthenticated);
 
 // @route   GET /api/stories
 // @desc    Get all stories with search, filter and pagination
+// @query   sortBy (createdAt|updatedAt|title), sortOrder (asc|desc), dateFrom, dateTo
 router.get('/', async (req, res) => {
   try {
     const { 
@@ -21,7 +22,11 @@ router.get('/', async (req, res) => {
       orphanFilter, // 'no-rock', 'backlog', 'no-sprint'
       search,
       page = 1,
-      limit = 50
+      limit = 50,
+      sortBy,
+      sortOrder,
+      dateFrom,
+      dateTo
     } = req.query;
     
     const organizationId = await getOrganizationId(req);
@@ -41,6 +46,13 @@ router.get('/', async (req, res) => {
       where.sprintId = null;
     }
     
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+    
     // Server-side search
     if (search && search.length >= 2) {
       where.OR = [
@@ -52,6 +64,20 @@ router.get('/', async (req, res) => {
     // Get total count for pagination
     const total = await prisma.story.count({ where });
 
+    // Build orderBy based on sortBy parameter
+    let orderBy;
+    const order = sortOrder === 'asc' ? 'asc' : 'desc';
+    if (sortBy === 'createdAt') {
+      orderBy = { createdAt: order };
+    } else if (sortBy === 'updatedAt') {
+      orderBy = { updatedAt: order };
+    } else if (sortBy === 'title') {
+      orderBy = { title: order };
+    } else {
+      // Default: newest first
+      orderBy = { createdAt: 'desc' };
+    }
+
     const stories = await prisma.story.findMany({
       where,
       select: {
@@ -61,6 +87,7 @@ router.get('/', async (req, res) => {
         progress: true,
         isBlocked: true,
         createdAt: true,
+        updatedAt: true,
         sprint: {
           select: {
             id: true,
@@ -88,7 +115,7 @@ router.get('/', async (req, res) => {
           }
         }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip,
       take: parseInt(limit)
     });

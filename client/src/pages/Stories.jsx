@@ -5,6 +5,7 @@ import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import DateTooltip from '../components/ui/DateTooltip';
 import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Stories() {
@@ -462,13 +463,15 @@ export default function Stories() {
                 {/* Title & Description */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <h3 className={`font-medium ${
-                      story.isBlocked 
-                        ? 'text-red-800 dark:text-red-300' 
-                        : 'text-gray-900 dark:text-white'
-                    }`}>
-                      {story.title}
-                    </h3>
+                    <DateTooltip createdAt={story.createdAt} updatedAt={story.updatedAt}>
+                      <h3 className={`font-medium ${
+                        story.isBlocked 
+                          ? 'text-red-800 dark:text-red-300' 
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
+                        {story.title}
+                      </h3>
+                    </DateTooltip>
                     {story.isBlocked && (
                       <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium rounded-full flex items-center gap-1">
                         <span>🚫</span> חסום

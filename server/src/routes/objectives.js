@@ -11,9 +11,10 @@ router.use(isAuthenticated);
 
 // @route   GET /api/objectives
 // @desc    Get all objectives with rocks and progress
+// @query   sortBy (createdAt|updatedAt|code), sortOrder (asc|desc), dateFrom, dateTo
 router.get('/', async (req, res) => {
   try {
-    const { orphanFilter } = req.query;
+    const { orphanFilter, sortBy, sortOrder, dateFrom, dateTo } = req.query;
     const organizationId = await getOrganizationId(req);
     
     const where = {};
@@ -22,6 +23,27 @@ router.get('/', async (req, res) => {
     // Orphan filter: objectives without rocks
     if (orphanFilter === 'no-rocks') {
       where.rocks = { none: {} };
+    }
+    
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+
+    // Build orderBy based on sortBy parameter
+    let orderBy;
+    const order = sortOrder === 'asc' ? 'asc' : 'desc';
+    if (sortBy === 'createdAt') {
+      orderBy = { createdAt: order };
+    } else if (sortBy === 'updatedAt') {
+      orderBy = { updatedAt: order };
+    } else if (sortBy === 'code') {
+      orderBy = { code: order };
+    } else {
+      // Default: newest first
+      orderBy = { createdAt: 'desc' };
     }
 
     const objectives = await prisma.objective.findMany({
@@ -35,7 +57,7 @@ router.get('/', async (req, res) => {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy
     });
 
     // Calculate progress for each objective
@@ -50,6 +72,8 @@ router.get('/', async (req, res) => {
       
       return {
         ...obj,
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
         rocksCount: rocksArray.length,
         progress: totalProgress
       };

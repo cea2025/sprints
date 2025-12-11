@@ -17,7 +17,7 @@ router.use(isAuthenticated);
 /**
  * @route   GET /api/tasks
  * @desc    Get all tasks for organization (with filters)
- * @query   status, ownerId, storyId, standalone (true = tasks without story)
+ * @query   status, ownerId, storyId, standalone, sortBy (createdAt|updatedAt|dueDate), sortOrder (asc|desc), dateFrom, dateTo
  */
 router.get('/', async (req, res) => {
   try {
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { status, ownerId, storyId, standalone } = req.query;
+    const { status, ownerId, storyId, standalone, sortBy, sortOrder, dateFrom, dateTo } = req.query;
 
     const where = { organizationId };
 
@@ -44,6 +44,27 @@ router.get('/', async (req, res) => {
 
     if (standalone === 'true') {
       where.storyId = null;
+    }
+    
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+
+    // Build orderBy based on sortBy parameter
+    let orderBy;
+    const order = sortOrder === 'asc' ? 'asc' : 'desc';
+    if (sortBy === 'createdAt') {
+      orderBy = [{ createdAt: order }];
+    } else if (sortBy === 'updatedAt') {
+      orderBy = [{ updatedAt: order }];
+    } else if (sortBy === 'dueDate') {
+      orderBy = [{ dueDate: order }, { createdAt: 'desc' }];
+    } else {
+      // Default: grouped by story, then sortOrder, then newest
+      orderBy = [{ storyId: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }];
     }
 
     const tasks = await prisma.task.findMany({
@@ -65,11 +86,7 @@ router.get('/', async (req, res) => {
           select: { id: true, name: true }
         }
       },
-      orderBy: [
-        { storyId: 'asc' },
-        { sortOrder: 'asc' },
-        { createdAt: 'desc' }
-      ]
+      orderBy
     });
 
     res.json(tasks);

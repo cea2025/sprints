@@ -4,6 +4,7 @@ import { useOrganization } from '../context/OrganizationContext';
 import { useAuth } from '../context/AuthContext';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import DateTooltip from '../components/ui/DateTooltip';
 import { 
   CheckSquare, 
   Plus, 
@@ -337,11 +338,13 @@ export default function Tasks() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
-                        <h3 className={`font-medium text-gray-900 dark:text-white ${
-                          task.status === 'DONE' ? 'line-through' : ''
-                        }`}>
-                          {task.title}
-                        </h3>
+                        <DateTooltip createdAt={task.createdAt} updatedAt={task.updatedAt}>
+                          <h3 className={`font-medium text-gray-900 dark:text-white ${
+                            task.status === 'DONE' ? 'line-through' : ''
+                          }`}>
+                            {task.title}
+                          </h3>
+                        </DateTooltip>
                         {task.description && (
                           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
                             {task.description}

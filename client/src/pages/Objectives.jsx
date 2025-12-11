@@ -5,6 +5,7 @@ import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import LinkedItemsSection from '../components/ui/LinkedItemsSection';
+import DateTooltip from '../components/ui/DateTooltip';
 import { Target, Plus, Edit2, Trash2, User } from 'lucide-react';
 
 export default function Objectives() {
@@ -287,9 +288,11 @@ export default function Objectives() {
                         <span className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-lg">
                           {objective.code}
                         </span>
-                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                          {objective.name}
-                        </h3>
+                        <DateTooltip createdAt={objective.createdAt} updatedAt={objective.updatedAt}>
+                          <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                            {objective.name}
+                          </h3>
+                        </DateTooltip>
                       </div>
                       {objective.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
