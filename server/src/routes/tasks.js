@@ -35,7 +35,21 @@ router.get('/', async (req, res) => {
     }
 
     if (ownerId) {
-      where.ownerId = ownerId;
+      // ownerId might be membershipId or teamMemberId - check both
+      // First try to find corresponding teamMember if ownerId is a membershipId
+      const membership = await prisma.membership.findUnique({
+        where: { id: ownerId }
+      });
+      if (membership) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: { userId: membership.userId, organizationId }
+        });
+        where.OR = [{ membershipId: ownerId }];
+        if (teamMember) where.OR.push({ ownerId: teamMember.id });
+      } else {
+        // Might be a teamMemberId directly
+        where.OR = [{ ownerId }, { membershipId: ownerId }];
+      }
     }
 
     if (storyId) {

@@ -36,7 +36,26 @@ router.get('/', async (req, res) => {
     if (organizationId) where.organizationId = organizationId;
     if (sprintId) where.sprintId = sprintId;
     if (rockId) where.rockId = rockId;
-    if (ownerId) where.ownerId = ownerId;
+    
+    // Handle owner filter - ownerId might be membershipId or teamMemberId
+    if (ownerId) {
+      const membership = await prisma.membership.findUnique({
+        where: { id: ownerId }
+      });
+      if (membership) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: { userId: membership.userId, organizationId }
+        });
+        const ownerConditions = [{ membershipId: ownerId }];
+        if (teamMember) ownerConditions.push({ ownerId: teamMember.id });
+        where.AND = where.AND || [];
+        where.AND.push({ OR: ownerConditions });
+      } else {
+        where.AND = where.AND || [];
+        where.AND.push({ OR: [{ ownerId }, { membershipId: ownerId }] });
+      }
+    }
+    
     if (isBlocked !== undefined) where.isBlocked = isBlocked === 'true';
     
     // Orphan filters

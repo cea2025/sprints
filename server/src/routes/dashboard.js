@@ -233,16 +233,37 @@ router.get('/', async (req, res) => {
     let userMilestones = [];
     
     if (userId) {
+      // The userId from frontend is a membershipId. We need to also find the matching
+      // teamMember for the same user to query legacy ownerId fields.
+      let teamMemberId = null;
+      const membership = await prisma.membership.findUnique({
+        where: { id: userId }
+      });
+      if (membership) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: {
+            userId: membership.userId,
+            organizationId: organizationId
+          }
+        });
+        teamMemberId = teamMember?.id;
+      }
+      
+      console.log('🔍 [dashboard] userId (membershipId):', userId, 'teamMemberId:', teamMemberId);
+      
+      // Build OR conditions for owner lookup
+      const ownerConditions = [{ membershipId: userId }];
+      if (teamMemberId) {
+        ownerConditions.push({ ownerId: teamMemberId });
+      }
+      
       // Get rocks owned by user (query BOTH legacy ownerId AND new membershipId)
       const userRocksData = await prisma.rock.findMany({
         where: {
           ...orgFilter,
           year: currentYear,
           quarter: currentQuarter,
-          OR: [
-            { ownerId: userId },      // Legacy: TeamMember
-            { membershipId: userId }  // New: Membership
-          ]
+          OR: ownerConditions
         },
         include: {
           owner: true,
@@ -283,14 +304,11 @@ router.get('/', async (req, res) => {
 
       // Get milestones (stories) owned by user (all, not just current sprint)
       // Query by BOTH ownerId (legacy TeamMember) AND membershipId (new Membership)
-      console.log('🔍 [dashboard] Fetching userMilestones for userId:', userId, 'orgFilter:', orgFilter);
+      console.log('🔍 [dashboard] Fetching userMilestones for userId:', userId, 'teamMemberId:', teamMemberId);
       const userStoriesData = await prisma.story.findMany({
         where: {
           ...orgFilter,
-          OR: [
-            { ownerId: userId },      // Legacy: TeamMember
-            { membershipId: userId }  // New: Membership
-          ],
+          OR: ownerConditions,
           progress: { lt: 100 } // Show incomplete milestones
         },
         include: {
