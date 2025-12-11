@@ -4,6 +4,7 @@ const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -232,8 +233,18 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new story
 router.post('/', auditMiddleware('Story'), async (req, res) => {
   try {
-    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    // Default team: if story is linked to a rock, inherit its teamId; else use provided or principal default.
+    let inheritedTeamId = null;
+    if (rockId) {
+      const rock = await prisma.rock.findFirst({
+        where: { id: rockId, organizationId },
+        select: { teamId: true }
+      });
+      inheritedTeamId = rock?.teamId || null;
+    }
+    const validTeamId = inheritedTeamId || (await validateTeamId(organizationId, teamId)) || getDefaultTeamIdFromPrincipal(req);
 
     // sprintId is now optional - stories without sprint go to "backlog" (אבני דרך בהמתנה)
 
@@ -247,6 +258,7 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
         sprintId: sprintId || null,  // Optional - null = backlog
         rockId: rockId || null,
         ownerId: ownerId || null,
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id
       },
@@ -288,11 +300,27 @@ router.post('/', auditMiddleware('Story'), async (req, res) => {
 // @desc    Update a story
 router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), async (req, res) => {
   try {
-    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId } = req.body;
+    const { code, title, description, progress, isBlocked, sprintId, rockId, ownerId, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
 
     // sprintId can be null (moves to backlog) or a valid ID
     // Empty string means "unset" -> null (backlog)
     const newSprintId = sprintId === '' ? null : (sprintId !== undefined ? sprintId : undefined);
+    const newRockId = rockId === '' ? null : (rockId !== undefined ? rockId : undefined);
+
+    // Team handling:
+    // - If explicit teamId provided, validate and set
+    // - Else if rockId changes and target rock has a teamId, inherit it
+    let nextTeamId = undefined;
+    if (teamId !== undefined) {
+      nextTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
+    } else if (newRockId !== undefined && newRockId) {
+      const rock = await prisma.rock.findFirst({
+        where: { id: newRockId, organizationId },
+        select: { teamId: true }
+      });
+      if (rock?.teamId) nextTeamId = rock.teamId;
+    }
 
     const story = await prisma.story.update({
       where: { id: req.params.id },
@@ -303,8 +331,9 @@ router.put('/:id', captureOldEntity(prisma.story), auditMiddleware('Story'), asy
         progress: progress !== undefined ? Math.min(100, Math.max(0, parseInt(progress) || 0)) : undefined,
         isBlocked: isBlocked !== undefined ? isBlocked : undefined,
         sprintId: newSprintId,
-        rockId: rockId === '' ? null : (rockId !== undefined ? rockId : undefined),
+        rockId: newRockId,
         ownerId: ownerId === '' ? null : (ownerId !== undefined ? ownerId : undefined),
+        teamId: nextTeamId,
         updatedBy: req.user.id
       },
       select: {

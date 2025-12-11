@@ -9,6 +9,7 @@ const prisma = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 // All routes require authentication
 router.use(isAuthenticated);
@@ -294,7 +295,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { code, title, description, storyId, ownerId, priority, dueDate } = req.body;
+    const { code, title, description, storyId, ownerId, priority, dueDate, teamId } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'כותרת המשימה היא שדה חובה' });
@@ -303,6 +304,19 @@ router.post('/', async (req, res) => {
     if (!ownerId) {
       return res.status(400).json({ error: 'יש לבחור אחראי למשימה' });
     }
+
+    // Determine teamId:
+    // - If task is linked to a story, inherit its teamId
+    // - Else use provided teamId or principal default
+    let inheritedTeamId = null;
+    if (storyId) {
+      const story = await prisma.story.findFirst({
+        where: { id: storyId, organizationId },
+        select: { teamId: true }
+      });
+      inheritedTeamId = story?.teamId || null;
+    }
+    const validTeamId = inheritedTeamId || (await validateTeamId(organizationId, teamId)) || getDefaultTeamIdFromPrincipal(req);
 
     // Get creator's teamMemberId
     const creator = await prisma.teamMember.findFirst({
@@ -331,6 +345,7 @@ router.post('/', async (req, res) => {
         storyId: storyId || null,
         ownerId,
         createdById: creator?.id || null,
+        teamId: validTeamId || null,
         organizationId,
         priority: priority || 0,
         dueDate: dueDate ? new Date(dueDate) : null,
@@ -369,7 +384,7 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { code, title, description, storyId, ownerId, priority, dueDate, status } = req.body;
+    const { code, title, description, storyId, ownerId, priority, dueDate, status, teamId } = req.body;
 
     // Check task exists and belongs to organization
     const existingTask = await prisma.task.findFirst({
@@ -392,6 +407,17 @@ router.put('/:id', async (req, res) => {
     if (ownerId !== undefined) updateData.ownerId = ownerId;
     if (priority !== undefined) updateData.priority = priority;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    if (teamId !== undefined) {
+      const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
+      updateData.teamId = validTeamId;
+    } else if (storyId !== undefined && storyId) {
+      // If moving to a story, inherit that story's team unless explicitly overridden
+      const story = await prisma.story.findFirst({
+        where: { id: storyId, organizationId },
+        select: { teamId: true }
+      });
+      if (story?.teamId) updateData.teamId = story.teamId;
+    }
     if (status !== undefined) {
       updateData.status = status;
       // Set completedAt when marking as DONE

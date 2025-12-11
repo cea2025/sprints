@@ -65,6 +65,35 @@ router.get('/me', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/teams/memberships
+ * @desc    List memberships in the organization (for team assignment UI)
+ * @access  MANAGER+
+ */
+router.get('/memberships', requireRole('MANAGER'), async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const memberships = await prisma.membership.findMany({
+      where: { organizationId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true
+      },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }]
+    });
+
+    res.json(memberships);
+  } catch (error) {
+    console.error('Error fetching memberships:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת משתמשים' });
+  }
+});
+
+/**
  * @route   POST /api/teams
  * @desc    Create a team
  * @access  MANAGER+

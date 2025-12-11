@@ -4,6 +4,7 @@ const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -212,8 +213,9 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new rock
 router.post('/', auditMiddleware('Rock'), async (req, res) => {
   try {
-    const { code, name, description, year, quarter, progress, ownerId, objectiveId } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
     const rock = await prisma.rock.create({
       data: {
@@ -225,6 +227,7 @@ router.post('/', auditMiddleware('Rock'), async (req, res) => {
         progress: progress ? parseInt(progress) : 0,
         ownerId: ownerId || null,
         objectiveId: objectiveId || null,
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id
       },
@@ -254,7 +257,9 @@ router.post('/', auditMiddleware('Rock'), async (req, res) => {
 // @desc    Update a rock
 router.put('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async (req, res) => {
   try {
-    const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter } = req.body;
+    const { code, name, description, year, quarter, progress, ownerId, objectiveId, isCarriedOver, carriedFromQuarter, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
+    const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
     const rock = await prisma.rock.update({
       where: { id: req.params.id },
@@ -267,6 +272,7 @@ router.put('/:id', captureOldEntity(prisma.rock), auditMiddleware('Rock'), async
         progress: progress !== undefined ? parseInt(progress) : undefined,
         ownerId: ownerId || null,
         objectiveId: objectiveId || null,
+        teamId: teamId !== undefined ? validTeamId : undefined,
         isCarriedOver: isCarriedOver !== undefined ? isCarriedOver : undefined,
         carriedFromQuarter: carriedFromQuarter ? parseInt(carriedFromQuarter) : null,
         updatedBy: req.user.id

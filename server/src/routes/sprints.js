@@ -4,6 +4,7 @@ const { isAuthenticated } = require('../middleware/auth');
 const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 const { applyTeamReadScope } = require('../shared/teamScope');
+const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
 
 const router = express.Router();
 
@@ -127,8 +128,9 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new sprint with auto-generated name
 router.post('/', auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
     // Auto-generate name: 2026-Q2-S5
     const name = `${year}-Q${quarter}-S${sprintNumber}`;
@@ -154,6 +156,7 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
         goal,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
+        teamId: validTeamId || null,
         organizationId,
         createdBy: req.user.id,
         sprintRocks: {
@@ -185,7 +188,9 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
 // @desc    Update a sprint
 router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds } = req.body;
+    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
+    const organizationId = await getOrganizationId(req);
+    const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
     // Auto-generate name if year/quarter/sprintNumber provided
     let name;
@@ -204,6 +209,7 @@ router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), a
         goal,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
+        teamId: teamId !== undefined ? validTeamId : undefined,
         updatedBy: req.user.id
       }
     });
