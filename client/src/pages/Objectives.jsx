@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
+import { useEntityModalQuery } from '../hooks/useEntityModalQuery';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
@@ -13,7 +15,6 @@ import ResizableTextarea from '../components/ui/ResizableTextarea';
 export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [teams, setTeams] = useState([]);
   const [rocks, setRocks] = useState([]); // כל הסלעים לצורך קישור
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState(null);
@@ -23,13 +24,25 @@ export default function Objectives() {
     code: '',
     name: '',
     description: '',
-    ownerId: '',
-    teamId: ''
+    ownerId: ''
   });
   
   const { loading, request } = useApi();
-  const { currentOrganization, basePath } = useOrganization();
+  const { currentOrganization } = useOrganization();
+  const { slug } = useParams();
+  const basePath = slug ? `/${slug}` : '';
   const { isAdmin } = usePermissions();
+
+  // Nested: create Rock under Objective
+  const [isChildRockModalOpen, setIsChildRockModalOpen] = useState(false);
+  const [childRockForm, setChildRockForm] = useState({
+    code: '',
+    name: '',
+    description: '',
+    year: new Date().getFullYear(),
+    quarter: Math.ceil((new Date().getMonth() + 1) / 3),
+    ownerId: ''
+  });
 
   // חיפוש בשדות
   const filteredObjectives = useSearch(objectives, ['code', 'name', 'description', 'owner.name'], searchTerm);
@@ -39,12 +52,7 @@ export default function Objectives() {
     fetchObjectives();
     fetchTeamMembers();
     fetchRocks();
-    if (isAdmin) fetchTeams();
   }, [currentOrganization?.id, orphanFilter]);
-  const fetchTeams = async () => {
-    const data = await request('/api/teams', { showToast: false });
-    if (data && Array.isArray(data)) setTeams(data);
-  };
 
   const fetchObjectives = async () => {
     let url = '/api/objectives';
@@ -110,9 +118,17 @@ export default function Objectives() {
     });
 
     if (result) {
-      setIsModalOpen(false);
-      resetForm();
+      // Flow A: if created, stay open and switch to edit mode so user can add children.
+      if (!editingObjective) {
+        setEditingObjective(result);
+        // If opened via ?new=1, replace URL with ?edit=<id> so refresh doesn't reopen create.
+        replaceWithEdit(result.id);
+      } else {
+        // keep editing objective reference up to date
+        setEditingObjective(prev => prev?.id === result.id ? { ...prev, ...result } : prev);
+      }
       fetchObjectives();
+      fetchRocks();
     }
   };
 
@@ -123,8 +139,7 @@ export default function Objectives() {
       name: objective.name,
       description: objective.description || '',
       // Handle both flat IDs and nested objects from API
-      ownerId: objective.ownerId || objective.owner?.id || '',
-      teamId: objective.teamId || objective.team?.id || ''
+      ownerId: objective.ownerId || objective.owner?.id || ''
     });
     setIsModalOpen(true);
   };
@@ -151,6 +166,29 @@ export default function Objectives() {
       ownerId: ''
     });
   };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  // Deep-link modal open: /objectives?new=1 OR /objectives?edit=<id>
+  const { closeAndClear, replaceWithEdit } = useEntityModalQuery({
+    isReady: !!currentOrganization?.id,
+    onNew: () => {
+      openNewModal();
+    },
+    onEdit: async (id) => {
+      const existing = objectives.find(o => o.id === id);
+      if (existing) {
+        handleEdit(existing);
+        return;
+      }
+      const fetched = await request(`/api/objectives/${id}`, { showToast: false });
+      if (fetched) handleEdit(fetched);
+    },
+    onClose: closeModal,
+  });
 
   // Generate next available code (p-01, p-02, p-03...)
   const generateNextCode = () => {
@@ -179,6 +217,52 @@ export default function Objectives() {
       code: generateNextCode()
     }));
     setIsModalOpen(true);
+  };
+
+  const generateNextRockCode = () => {
+    if (!rocks || rocks.length === 0) return 's-01';
+    const numericCodes = rocks
+      .map((r) => {
+        const match = r.code?.match(/^s-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter((n) => n !== null);
+    if (numericCodes.length === 0) return 's-01';
+    const maxCode = Math.max(...numericCodes);
+    return `s-${(maxCode + 1).toString().padStart(2, '0')}`;
+  };
+
+  const openChildRockModal = () => {
+    if (!editingObjective?.id) return;
+    setChildRockForm({
+      code: generateNextRockCode(),
+      name: '',
+      description: '',
+      year: new Date().getFullYear(),
+      quarter: Math.ceil((new Date().getMonth() + 1) / 3),
+      ownerId: ''
+    });
+    setIsChildRockModalOpen(true);
+  };
+
+  const handleChildRockSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingObjective?.id) return;
+
+    const result = await request('/api/rocks', {
+      method: 'POST',
+      body: {
+        ...childRockForm,
+        objectiveId: editingObjective.id
+      },
+      successMessage: 'סלע נוצר וקושר בהצלחה'
+    });
+
+    if (result) {
+      setIsChildRockModalOpen(false);
+      fetchRocks();
+      fetchObjectives();
+    }
   };
 
   if (loading && objectives.length === 0) {
@@ -442,28 +526,10 @@ export default function Objectives() {
                 </select>
               </div>
 
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    צוות
-                  </label>
-                  <select
-                    value={formData.teamId}
-                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ברירת מחדל</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  onClick={closeAndClear}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול
@@ -474,6 +540,150 @@ export default function Objectives() {
                   className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50"
                 >
                   {loading ? 'שומר...' : (editingObjective ? 'עדכן' : 'צור')}
+                </button>
+              </div>
+
+              {/* Children section (Flow A): always show, disabled until saved */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    סלעים תחת הפרויקט
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!editingObjective}
+                    onClick={() => editingObjective && openChildRockModal()}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      editingObjective
+                        ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    + צור סלע
+                  </button>
+                </div>
+
+                {!editingObjective && (
+                  <div className="mb-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+                    כדי ליצור/לשייך סלעים, צריך קודם לשמור את הפרויקט.
+                  </div>
+                )}
+
+                {editingObjective && (
+                  <LinkedItemsSection
+                    title="סלעים מקושרים"
+                    items={getRocksForObjective(editingObjective.id)}
+                    availableItems={rocks}
+                    parentId={editingObjective.id}
+                    linkField="objectiveId"
+                    onLink={handleLinkRock}
+                    onUnlink={handleUnlinkRock}
+                    basePath={basePath}
+                    itemPath="rocks"
+                    getItemLink={(rock) => `${basePath}/rocks?edit=${rock.id}`}
+                    emptyMessage="אין סלעים מקושרים לפרויקט זה"
+                    showCode={true}
+                    showProgress={true}
+                  />
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Child Rock Modal */}
+      {isChildRockModalOpen && editingObjective && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+              סלע חדש לפרויקט {editingObjective.code}
+            </h3>
+            <form onSubmit={handleChildRockSubmit} className="space-y-4">
+              <div className="flex gap-3">
+                <div className="w-24">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    קוד <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={childRockForm.code}
+                    onChange={(e) => setChildRockForm({ ...childRockForm, code: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    שם <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={childRockForm.name}
+                    onChange={(e) => setChildRockForm({ ...childRockForm, name: e.target.value })}
+                    placeholder="שם הסלע"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">תיאור</label>
+                <ResizableTextarea
+                  value={childRockForm.description}
+                  onChange={(e) => setChildRockForm({ ...childRockForm, description: e.target.value })}
+                  placeholder="תיאור הסלע..."
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    שנה <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={childRockForm.year}
+                    onChange={(e) => setChildRockForm({ ...childRockForm, year: parseInt(e.target.value, 10) || new Date().getFullYear() })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    רבעון <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={childRockForm.quarter}
+                    onChange={(e) => setChildRockForm({ ...childRockForm, quarter: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    {[1, 2, 3, 4].map((q) => (
+                      <option key={q} value={q}>Q{q}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChildRockModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'יוצר...' : 'צור סלע'}
                 </button>
               </div>
             </form>

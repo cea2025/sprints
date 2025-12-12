@@ -139,6 +139,62 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/tasks/simple
+ * @desc    Get minimal tasks list for dropdowns/linking (big-data friendly)
+ * @query   search, limit (default 20), standalone=true|false, storyId (optional)
+ */
+router.get('/simple', async (req, res) => {
+  try {
+    const organizationId = await getOrganizationId(req);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'לא נבחר ארגון' });
+    }
+
+    const { search = '', limit = 20, standalone, storyId } = req.query;
+
+    const where = { organizationId };
+    if (standalone === 'true') where.storyId = null;
+    if (storyId) where.storyId = storyId;
+
+    if (search && String(search).trim().length >= 2) {
+      const q = String(search).trim();
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { code: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } }
+      ];
+    }
+
+    const scopedWhere = applyTeamReadScope(where, req);
+    const take = Math.min(200, Math.max(1, parseInt(limit, 10) || 20));
+
+    const tasks = await prisma.task.findMany({
+      where: scopedWhere,
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        storyId: true,
+        story: {
+          select: {
+            id: true,
+            title: true,
+            rock: { select: { id: true, code: true, name: true } }
+          }
+        }
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+      take
+    });
+
+    res.json(tasks);
+  } catch (error) {
+    console.error('Error fetching simple tasks:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת משימות' });
+  }
+});
+
+/**
  * @route   GET /api/tasks/my
  * @desc    Get current user's tasks
  */

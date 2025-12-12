@@ -9,6 +9,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import LabelMultiSelect from '../components/ui/LabelMultiSelect';
 import LabelChips from '../components/ui/LabelChips';
 import ResizableTextarea from '../components/ui/ResizableTextarea';
+import AsyncSearchableSelect from '../components/ui/AsyncSearchableSelect';
+import { useEntityModalQuery } from '../hooks/useEntityModalQuery';
 import { 
   CheckSquare, 
   Plus, 
@@ -42,7 +44,6 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [stories, setStories] = useState([]);
-  const [teams, setTeams] = useState([]);
   const [labels, setLabels] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -63,7 +64,6 @@ export default function Tasks() {
     ownerId: '',
     priority: 0,
     dueDate: '',
-    teamId: '',
     labelIds: []
   });
 
@@ -79,13 +79,8 @@ export default function Tasks() {
     fetchTasks();
     fetchTeamMembers();
     fetchStories();
-    if (isAdmin) fetchTeams();
     fetchLabels();
   }, [currentOrganization?.id, filters, sortBy, sortOrder, labelFilterIds.join(',')]);
-  const fetchTeams = async () => {
-    const data = await request('/api/teams', { showToast: false });
-    if (data && Array.isArray(data)) setTeams(data);
-  };
 
   const fetchLabels = async () => {
     const data = await request('/api/labels', { showToast: false });
@@ -152,8 +147,7 @@ export default function Tasks() {
           showToast: false
         });
       }
-      setIsModalOpen(false);
-      resetForm();
+      closeAndClear();
       fetchTasks();
     }
   };
@@ -187,7 +181,6 @@ export default function Tasks() {
       ownerId: task.ownerId || task.owner?.id || '',
       priority: task.priority || 0,
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
-      teamId: task.teamId || task.team?.id || '',
       labelIds: Array.isArray(task.labels) ? task.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
@@ -235,7 +228,6 @@ export default function Tasks() {
       ownerId: '',
       priority: 0,
       dueDate: '',
-      teamId: '',
       labelIds: []
     });
   };
@@ -252,6 +244,40 @@ export default function Tasks() {
     }));
     setIsModalOpen(true);
   };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  // Deep-link modal open: /tasks?new=1&prefillStoryId=... OR /tasks?edit=<id>
+  const { closeAndClear } = useEntityModalQuery({
+    isReady: !!currentOrganization?.id,
+    getPrefillFromQuery: (params) => ({
+      storyId: params.get('prefillStoryId') || '',
+    }),
+    onNew: (prefill) => {
+      resetForm();
+      const currentTeamMember = teamMembers.find(tm => tm.userId === user?.id);
+      setFormData(prev => ({
+        ...prev,
+        code: generateNextCode(),
+        ownerId: currentTeamMember?.id || '',
+        storyId: prefill?.storyId || '',
+      }));
+      setIsModalOpen(true);
+    },
+    onEdit: async (id) => {
+      const existing = tasks.find(t => t.id === id);
+      if (existing) {
+        handleEdit(existing);
+        return;
+      }
+      const fetched = await request(`/api/tasks/${id}`, { showToast: false });
+      if (fetched) handleEdit(fetched);
+    },
+    onClose: closeModal,
+  });
 
   // Group tasks by status for display
   const tasksByStatus = {
@@ -565,37 +591,34 @@ export default function Tasks() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   קשורה לאבן דרך
                 </label>
-                <select
+                <AsyncSearchableSelect
                   value={formData.storyId}
-                  onChange={e => setFormData({ ...formData, storyId: e.target.value })}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">משימה עצמאית</option>
-                  {stories.map(story => (
-                    <option key={story.id} value={story.id}>
-                      {story.title} {story.rock ? `(${story.rock.code})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({ ...formData, storyId: value })}
+                  placeholder="משימה עצמאית"
+                  searchPlaceholder="חפש אבן דרך לפי שם/קוד/סלע..."
+                  emptyMessage="לא נמצאו אבני דרך"
+                  allowClear={true}
+                  getLabel={(story) => `${story.title}${story.rock?.code ? ` (${story.rock.code})` : ''}`}
+                  getValue={(story) => story.id}
+                  getSearchText={(story) =>
+                    `${story.title} ${story.code || ''} ${story.rock?.code || ''} ${story.rock?.name || ''}`
+                  }
+                  loadOptions={async (term) => {
+                    const params = new URLSearchParams();
+                    if (term && term.trim()) params.append('search', term.trim());
+                    params.append('limit', '20');
+                    const data = await request(`/api/stories?${params.toString()}`, { showToast: false });
+                    if (Array.isArray(data)) return data;
+                    if (data?.data && Array.isArray(data.data)) return data.data;
+                    return [];
+                  }}
+                  loadById={async (id) => {
+                    const data = await request(`/api/stories/${id}`, { showToast: false });
+                    return data || null;
+                  }}
+                  minSearchLength={0}
+                />
               </div>
-
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    צוות
-                  </label>
-                  <select
-                    value={formData.teamId}
-                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ברירת מחדל</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -641,7 +664,7 @@ export default function Tasks() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  onClick={closeAndClear}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול

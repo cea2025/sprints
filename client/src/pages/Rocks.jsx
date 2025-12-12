@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
 import { Battery, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { useEntityModalQuery } from '../hooks/useEntityModalQuery';
 import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import DateTooltip from '../components/ui/DateTooltip';
 import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide-react';
@@ -25,7 +28,6 @@ export default function Rocks() {
   const [rocks, setRocks] = useState([]);
   const [objectives, setObjectives] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [teams, setTeams] = useState([]);
   const [labels, setLabels] = useState([]);
   const [stories, setStories] = useState([]); // כל אבני הדרך לצורך קישור
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,13 +51,25 @@ export default function Rocks() {
     progress: 0,
     ownerId: '',
     objectiveId: '',
-    teamId: '',
     labelIds: []
   });
 
   const { loading, request } = useApi();
-  const { currentOrganization, basePath } = useOrganization();
+  const { currentOrganization } = useOrganization();
+  const { slug } = useParams();
+  const basePath = slug ? `/${slug}` : '';
   const { isAdmin } = usePermissions();
+
+  // Nested: create Story under Rock
+  const [sprints, setSprints] = useState([]);
+  const [isChildStoryModalOpen, setIsChildStoryModalOpen] = useState(false);
+  const [childStoryForm, setChildStoryForm] = useState({
+    code: '',
+    title: '',
+    description: '',
+    sprintId: '',
+    ownerId: ''
+  });
 
   // חיפוש בשדות
   const filteredRocks = useSearch(rocks, ['code', 'name', 'description', 'owner.name', 'objective.name'], searchTerm);
@@ -66,13 +80,9 @@ export default function Rocks() {
     fetchObjectives();
     fetchTeamMembers();
     fetchStories();
-    if (isAdmin) fetchTeams();
+    fetchSprints();
     fetchLabels();
   }, [filters.year, filters.quarter, filters.objectiveId, currentOrganization?.id, sortBy, sortOrder, labelFilterIds.join(',')]);
-  const fetchTeams = async () => {
-    const data = await request('/api/teams', { showToast: false });
-    if (data && Array.isArray(data)) setTeams(data);
-  };
 
   const fetchLabels = async () => {
     const data = await request('/api/labels', { showToast: false });
@@ -116,6 +126,11 @@ export default function Rocks() {
         setStories(data.data);
       }
     }
+  };
+
+  const fetchSprints = async () => {
+    const data = await request('/api/sprints', { showToast: false });
+    if (data && Array.isArray(data)) setSprints(data);
   };
 
   // קישור אבן דרך לסלע
@@ -172,9 +187,15 @@ export default function Rocks() {
           showToast: false
         });
       }
-      setIsModalOpen(false);
-      resetForm();
+      // Flow A: if created, stay open and switch to edit mode so user can add children.
+      if (!editingRock) {
+        setEditingRock(result);
+        replaceWithEdit(result.id);
+      } else {
+        setEditingRock(prev => prev?.id === result.id ? { ...prev, ...result } : prev);
+      }
       fetchRocks();
+      fetchStories();
     }
   };
 
@@ -190,7 +211,6 @@ export default function Rocks() {
       // Handle both flat IDs and nested objects from API
       ownerId: rock.ownerId || rock.owner?.id || '',
       objectiveId: rock.objectiveId || rock.objective?.id || '',
-      teamId: rock.teamId || rock.team?.id || '',
       labelIds: Array.isArray(rock.labels) ? rock.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
@@ -229,7 +249,6 @@ export default function Rocks() {
       progress: 0,
       ownerId: '',
       objectiveId: '',
-      teamId: '',
       labelIds: []
     });
   };
@@ -262,6 +281,90 @@ export default function Rocks() {
     }));
     setIsModalOpen(true);
   };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const generateNextStoryCode = () => {
+    if (!stories || stories.length === 0) return 'ed-01';
+    const numericCodes = stories
+      .map((s) => {
+        const match = s.code?.match(/^ed-(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter((n) => n !== null);
+    if (numericCodes.length === 0) return 'ed-01';
+    const maxCode = Math.max(...numericCodes);
+    return `ed-${(maxCode + 1).toString().padStart(2, '0')}`;
+  };
+
+  const openChildStoryModal = () => {
+    if (!editingRock?.id) return;
+    setChildStoryForm({
+      code: generateNextStoryCode(),
+      title: '',
+      description: '',
+      sprintId: '',
+      ownerId: ''
+    });
+    setIsChildStoryModalOpen(true);
+  };
+
+  const handleChildStorySubmit = async (e) => {
+    e.preventDefault();
+    if (!editingRock?.id) return;
+    if (!childStoryForm.title.trim()) return;
+
+    const result = await request('/api/stories', {
+      method: 'POST',
+      body: {
+        code: childStoryForm.code || null,
+        title: childStoryForm.title,
+        description: childStoryForm.description || '',
+        sprintId: childStoryForm.sprintId || null,
+        rockId: editingRock.id,
+        ownerId: childStoryForm.ownerId || null,
+        progress: 0,
+        isBlocked: false
+      },
+      successMessage: 'אבן דרך נוצרה וקושרה בהצלחה'
+    });
+
+    if (result) {
+      setIsChildStoryModalOpen(false);
+      fetchStories();
+      fetchRocks();
+    }
+  };
+
+  // Deep-link modal open: /rocks?new=1&prefillObjectiveId=... OR /rocks?edit=<id>
+  const { closeAndClear, replaceWithEdit } = useEntityModalQuery({
+    isReady: !!currentOrganization?.id,
+    getPrefillFromQuery: (params) => ({
+      objectiveId: params.get('prefillObjectiveId') || '',
+    }),
+    onNew: (prefill) => {
+      resetForm();
+      setFormData(prev => ({
+        ...prev,
+        code: generateNextCode(),
+        objectiveId: prefill?.objectiveId || prev.objectiveId || '',
+      }));
+      setIsModalOpen(true);
+    },
+    onEdit: async (id) => {
+      const existing = rocks.find(r => r.id === id);
+      if (existing) {
+        handleEdit(existing);
+        return;
+      }
+      const fetched = await request(`/api/rocks/${id}`, { showToast: false });
+      if (fetched) handleEdit(fetched);
+    },
+    onClose: closeModal,
+  });
 
   if (loading && rocks.length === 0) {
     return (
@@ -673,36 +776,19 @@ export default function Rocks() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   פרויקט
                 </label>
-                <select
+                <SearchableSelect
+                  options={objectives}
                   value={formData.objectiveId}
-                  onChange={e => setFormData({...formData, objectiveId: e.target.value})}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">ללא</option>
-                  {objectives.map(obj => (
-                    <option key={obj.id} value={obj.id}>{obj.code} - {obj.name}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({ ...formData, objectiveId: value })}
+                  placeholder="ללא"
+                  searchPlaceholder="חפש פרויקט לפי קוד או שם..."
+                  emptyMessage="לא נמצאו פרויקטים"
+                  getLabel={(obj) => `${obj.code} - ${obj.name}`}
+                  getValue={(obj) => obj.id}
+                  getSearchText={(obj) => `${obj.code} ${obj.name}`}
+                  allowClear={true}
+                />
               </div>
-
-              {/* Team (MANAGER+) */}
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    צוות
-                  </label>
-                  <select
-                    value={formData.teamId}
-                    onChange={e => setFormData({ ...formData, teamId: e.target.value })}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">ברירת מחדל</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -720,7 +806,7 @@ export default function Rocks() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  onClick={closeAndClear}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול
@@ -731,6 +817,150 @@ export default function Rocks() {
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {loading ? 'שומר...' : (editingRock ? 'עדכן' : 'צור')}
+                </button>
+              </div>
+
+              {/* Children section (Flow A): always show, disabled until saved */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    אבני דרך תחת הסלע
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!editingRock}
+                    onClick={() => editingRock && openChildStoryModal()}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      editingRock
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    + צור אבן דרך
+                  </button>
+                </div>
+
+                {!editingRock && (
+                  <div className="mb-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+                    כדי ליצור/לשייך אבני דרך, צריך קודם לשמור את הסלע.
+                  </div>
+                )}
+
+                {editingRock && (
+                  <LinkedItemsSection
+                    title="אבני דרך מקושרות"
+                    items={getStoriesForRock(editingRock.id)}
+                    availableItems={stories}
+                    parentId={editingRock.id}
+                    linkField="rockId"
+                    onLink={handleLinkStory}
+                    onUnlink={handleUnlinkStory}
+                    basePath={basePath}
+                    itemPath="stories"
+                    getItemLink={(story) => `${basePath}/stories?edit=${story.id}`}
+                    emptyMessage="אין אבני דרך מקושרות לסלע זה"
+                    showCode={true}
+                    showProgress={true}
+                  />
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Child Story Modal */}
+      {isChildStoryModalOpen && editingRock && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+              אבן דרך חדשה לסלע {editingRock.code}
+            </h3>
+            <form onSubmit={handleChildStorySubmit} className="space-y-4">
+              <div className="flex gap-3">
+                <div className="w-24">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">קוד</label>
+                  <input
+                    type="text"
+                    value={childStoryForm.code}
+                    onChange={(e) => setChildStoryForm({ ...childStoryForm, code: e.target.value })}
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    כותרת <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={childStoryForm.title}
+                    onChange={(e) => setChildStoryForm({ ...childStoryForm, title: e.target.value })}
+                    placeholder="שם אבן הדרך"
+                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">תיאור</label>
+                <ResizableTextarea
+                  value={childStoryForm.description}
+                  onChange={(e) => setChildStoryForm({ ...childStoryForm, description: e.target.value })}
+                  placeholder="תיאור אבן הדרך..."
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ספרינט (אופציונלי)</label>
+                <SearchableSelect
+                  options={sprints}
+                  value={childStoryForm.sprintId}
+                  onChange={(value) => setChildStoryForm({ ...childStoryForm, sprintId: value })}
+                  placeholder="ללא (Backlog)"
+                  searchPlaceholder="חפש ספרינט..."
+                  emptyMessage="לא נמצאו ספרינטים"
+                  getLabel={(s) => s.name}
+                  getValue={(s) => s.id}
+                  getSearchText={(s) => s.name}
+                  allowClear={true}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">אחראי (אופציונלי)</label>
+                <SearchableSelect
+                  options={teamMembers}
+                  value={childStoryForm.ownerId}
+                  onChange={(value) => setChildStoryForm({ ...childStoryForm, ownerId: value })}
+                  placeholder="ללא"
+                  searchPlaceholder="חפש איש צוות..."
+                  emptyMessage="לא נמצאו אנשי צוות"
+                  getLabel={(m) => m.name}
+                  getValue={(m) => m.id}
+                  getSearchText={(m) => `${m.name} ${m.role || ''}`}
+                  allowClear={true}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChildStoryModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'יוצר...' : 'צור אבן דרך'}
                 </button>
               </div>
             </form>

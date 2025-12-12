@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { 
   Mountain, 
   Zap, 
@@ -16,7 +16,8 @@ import {
   Building2,
   Settings,
   CheckSquare,
-  Circle
+  Circle,
+  Edit2
 } from 'lucide-react';
 import { SkeletonStatCards, SkeletonRockCard } from '../components/ui/Skeleton';
 import { Battery, BatteryCompact } from '../components/ui/Battery';
@@ -36,6 +37,7 @@ function Dashboard() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { slug } = useParams();
+  const location = useLocation();
   
   // Ref to prevent duplicate fetches
   const fetchingRef = useRef(false);
@@ -43,6 +45,7 @@ function Dashboard() {
   
   // Base path for links
   const basePath = slug ? `/${slug}` : '';
+  const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
   
   // Memoize membership ID to prevent unnecessary re-renders
   const membershipId = useMemo(() => {
@@ -321,6 +324,13 @@ function Dashboard() {
                       {milestone.title}
                     </h3>
                     {milestone.isBlocked && <span className="text-red-500 text-xs">🚫</span>}
+                    <Link
+                      to={`${basePath}/stories?edit=${milestone.id}&returnTo=${returnTo}`}
+                      className="p-1.5 text-gray-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                      title="עריכה"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Link>
                   </div>
                   {viewMode === 'all' && milestone.owner && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">👤 {milestone.owner.name}</p>
@@ -398,6 +408,14 @@ function Dashboard() {
                       {task.priority === 2 ? 'דחוף' : 'גבוה'}
                     </span>
                   )}
+
+                  <Link
+                    to={`${basePath}/tasks?edit=${task.id}&returnTo=${returnTo}`}
+                    className="p-1.5 text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                    title="עריכה"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Link>
                 </div>
               ))}
               

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
 import { Battery, BatteryCompact, ProgressInput } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { SearchFilter, useSearch } from '../components/ui/SearchFilter';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { useEntityModalQuery } from '../hooks/useEntityModalQuery';
 import DateTooltip from '../components/ui/DateTooltip';
-import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import AsyncSearchableSelect from '../components/ui/AsyncSearchableSelect';
+import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import LabelMultiSelect from '../components/ui/LabelMultiSelect';
 import LabelChips from '../components/ui/LabelChips';
@@ -17,9 +20,11 @@ export default function Stories() {
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [teams, setTeams] = useState([]);
   const [labels, setLabels] = useState([]);
-  const [tasks, setTasks] = useState([]);
+  // Big-data friendly: tasks are loaded per-story (lazy) instead of fetching all tasks at once
+  const [tasksByStoryId, setTasksByStoryId] = useState({});
+  const [tasksLoadingByStoryId, setTasksLoadingByStoryId] = useState({});
+  const [linkTaskId, setLinkTaskId] = useState('');
   const [expandedStories, setExpandedStories] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [labelFilterIds, setLabelFilterIds] = useState([]);
@@ -53,13 +58,14 @@ export default function Stories() {
     sprintId: '',
     rockId: '',
     ownerId: '',
-    teamId: '',
     labelIds: []
   });
 
   const { loading, request } = useApi();
   const { currentOrganization } = useOrganization();
   const { isAdmin } = usePermissions();
+  const { slug } = useParams();
+  const basePath = slug ? `/${slug}` : '';
 
   // חיפוש בשדות
   const filteredStories = useSearch(stories, ['title', 'description', 'owner.name', 'sprint.name', 'rock.code', 'rock.name'], searchTerm);
@@ -70,14 +76,8 @@ export default function Stories() {
     fetchSprints();
     fetchRocks();
     fetchTeamMembers();
-    fetchTasks();
-    if (isAdmin) fetchTeams();
     fetchLabels();
   }, [filters, currentOrganization?.id, sortBy, sortOrder, labelFilterIds.join(',')]);
-  const fetchTeams = async () => {
-    const data = await request('/api/teams', { showToast: false });
-    if (data && Array.isArray(data)) setTeams(data);
-  };
 
   const fetchLabels = async () => {
     const data = await request('/api/labels', { showToast: false });
@@ -124,22 +124,34 @@ export default function Stories() {
     if (data && Array.isArray(data)) setTeamMembers(data);
   };
 
-  const fetchTasks = async () => {
-    const data = await request('/api/tasks', { showToast: false });
-    if (data && Array.isArray(data)) setTasks(data);
+  const fetchStoryTasks = async (storyId) => {
+    if (!storyId) return [];
+    setTasksLoadingByStoryId(prev => ({ ...prev, [storyId]: true }));
+    const data = await request(`/api/tasks/story/${storyId}`, { showToast: false });
+    const arr = Array.isArray(data) ? data : [];
+    setTasksByStoryId(prev => ({ ...prev, [storyId]: arr }));
+    setTasksLoadingByStoryId(prev => ({ ...prev, [storyId]: false }));
+    return arr;
+  };
+
+  const ensureStoryTasksLoaded = async (storyId) => {
+    if (!storyId) return;
+    if (Array.isArray(tasksByStoryId[storyId])) return;
+    await fetchStoryTasks(storyId);
   };
 
   // Get tasks for a specific story
   const getStoryTasks = (storyId) => {
-    return tasks.filter(task => task.storyId === storyId);
+    return Array.isArray(tasksByStoryId[storyId]) ? tasksByStoryId[storyId] : [];
   };
 
   // Toggle story expansion
   const toggleStoryExpansion = (storyId) => {
-    setExpandedStories(prev => ({
-      ...prev,
-      [storyId]: !prev[storyId]
-    }));
+    setExpandedStories(prev => {
+      const next = !prev[storyId];
+      if (next) ensureStoryTasksLoaded(storyId);
+      return { ...prev, [storyId]: next };
+    });
   };
 
   // Task status icon
@@ -153,10 +165,12 @@ export default function Stories() {
 
   // Generate next task code
   const generateNextTaskCode = () => {
-    if (tasks.length === 0) return 'm-01';
-    const numericCodes = tasks
-      .map(task => {
-        const match = task.code?.match(/^m-(\d+)$/);
+    // Best-effort: scan loaded tasks (may be partial). Works fine; code uniqueness enforced server-side.
+    const allLoaded = Object.values(tasksByStoryId).flatMap(v => (Array.isArray(v) ? v : []));
+    if (allLoaded.length === 0) return 'm-01';
+    const numericCodes = allLoaded
+      .map(t => {
+        const match = t.code?.match(/^m-(\d+)$/);
         return match ? parseInt(match[1], 10) : null;
       })
       .filter(num => num !== null);
@@ -209,7 +223,7 @@ export default function Stories() {
     if (result) {
       setIsTaskModalOpen(false);
       setTaskForStory(null);
-      fetchTasks();
+      if (taskForStory) await fetchStoryTasks(taskForStory);
       // Make sure the story is expanded to show the new task
       setExpandedStories(prev => ({ ...prev, [taskForStory]: true }));
     }
@@ -228,8 +242,13 @@ export default function Stories() {
     });
 
     if (result) {
-      // Update local tasks state
-      setTasks(tasks.map(t => t.id === task.id ? { ...t, status: nextStatus } : t));
+      // Update local story tasks map (if loaded)
+      if (task.storyId && Array.isArray(tasksByStoryId[task.storyId])) {
+        setTasksByStoryId(prev => ({
+          ...prev,
+          [task.storyId]: prev[task.storyId].map(t => t.id === task.id ? { ...t, status: nextStatus } : t)
+        }));
+      }
     }
   };
 
@@ -259,10 +278,71 @@ export default function Stories() {
           showToast: false
         });
       }
-      setIsModalOpen(false);
-      resetForm();
+      // Flow A: if created, stay open and switch to edit mode so user can add tasks.
+      if (!editingStory) {
+        setEditingStory(result);
+        replaceWithEdit(result.id);
+      } else {
+        setEditingStory(prev => prev?.id === result.id ? { ...prev, ...result } : prev);
+      }
       fetchStories();
+      fetchTasks();
     }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  // Deep-link modal open: /stories?new=1 OR /stories?edit=<id>
+  const { closeAndClear, replaceWithEdit } = useEntityModalQuery({
+    isReady: !!currentOrganization?.id,
+    onNew: () => {
+      openNewModal();
+    },
+    onEdit: async (id) => {
+      const existing = stories.find(s => s.id === id);
+      if (existing) {
+        handleEdit(existing);
+        return;
+      }
+      const fetched = await request(`/api/stories/${id}`, { showToast: false });
+      if (fetched) handleEdit(fetched);
+    },
+    onClose: closeModal,
+  });
+
+  // Link/unlink existing tasks to a story (milestone)
+  const handleLinkTask = async (taskId, storyId) => {
+    // Use minimal data from /api/tasks/simple when available; fallback to loaded maps
+    const loadedTask = Object.values(tasksByStoryId).flatMap(v => (Array.isArray(v) ? v : [])).find(t => t.id === taskId);
+    const previousStoryId = loadedTask?.storyId || null;
+
+    if (previousStoryId && previousStoryId !== storyId) {
+      const ok = confirm('המשימה כבר משויכת לאבן דרך אחרת. להעביר אותה לאבן הדרך הזו?');
+      if (!ok) return;
+    }
+    const result = await request(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      body: { storyId },
+      successMessage: 'משימה שויכה בהצלחה'
+    });
+    if (result) {
+      await fetchStoryTasks(storyId);
+      if (previousStoryId && previousStoryId !== storyId && Array.isArray(tasksByStoryId[previousStoryId])) {
+        await fetchStoryTasks(previousStoryId);
+      }
+    }
+  };
+
+  const handleUnlinkTask = async (taskId) => {
+    const result = await request(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      body: { storyId: null },
+      successMessage: 'משימה נותקה בהצלחה'
+    });
+    if (result && editingStory?.id) await fetchStoryTasks(editingStory.id);
   };
 
   const handleEdit = (story) => {
@@ -277,10 +357,11 @@ export default function Stories() {
       sprintId: story.sprintId || story.sprint?.id || '',
       rockId: story.rockId || story.rock?.id || '',
       ownerId: story.ownerId || story.owner?.id || '',
-      teamId: story.teamId || story.team?.id || '',
       labelIds: Array.isArray(story.labels) ? story.labels.map(l => l.id) : []
     });
     setIsModalOpen(true);
+    // Ensure tasks are loaded for the edited story, so the "tasks under story" section is accurate.
+    ensureStoryTasksLoaded(story.id);
   };
 
   const handleDelete = async (id) => {
@@ -363,7 +444,6 @@ export default function Stories() {
       sprintId: filters.sprintId || '',
       rockId: filters.rockId || '',
       ownerId: defaultOwner,
-      teamId: '',
       labelIds: []
     });
   };
@@ -645,6 +725,12 @@ export default function Stories() {
               {expandedStories[story.id] && (
                 <div className="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3">
                   <div className="space-y-2">
+                    {tasksLoadingByStoryId[story.id] && (
+                      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>טוען משימות...</span>
+                      </div>
+                    )}
                     {getStoryTasks(story.id).map(task => (
                       <div
                         key={task.id}
@@ -802,27 +888,6 @@ export default function Stories() {
                 />
               </div>
 
-              {/* Team (MANAGER+) */}
-              {isAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    צוות
-                  </label>
-                  <SearchableSelect
-                    options={teams}
-                    value={formData.teamId}
-                    onChange={(value) => setFormData({ ...formData, teamId: value })}
-                    placeholder="ברירת מחדל"
-                    searchPlaceholder="חפש צוות..."
-                    emptyMessage="לא נמצאו צוותים"
-                    getLabel={(team) => team.name}
-                    getValue={(team) => team.id}
-                    getSearchText={(team) => team.name}
-                    allowClear={true}
-                  />
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תוויות
@@ -869,7 +934,7 @@ export default function Stories() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  onClick={closeAndClear}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול
@@ -881,6 +946,119 @@ export default function Stories() {
                 >
                   {loading ? 'שומר...' : (editingStory ? 'עדכן' : 'צור')}
                 </button>
+              </div>
+
+              {/* Children section (Flow A): always show, disabled until saved */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    משימות תחת אבן הדרך
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!editingStory}
+                    onClick={() => editingStory && openTaskModal(editingStory.id)}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      editingStory
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    + צור משימה
+                  </button>
+                </div>
+
+                {!editingStory && (
+                  <div className="mb-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+                    כדי ליצור/לשייך משימות, צריך קודם לשמור את אבן הדרך.
+                  </div>
+                )}
+
+                {/* Link existing task (big-data friendly) */}
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    שייך משימה קיימת (חיפוש)
+                  </label>
+                  <AsyncSearchableSelect
+                    value={linkTaskId}
+                    onChange={async (value) => {
+                      setLinkTaskId(value);
+                      if (value && editingStory) {
+                        await handleLinkTask(value, editingStory.id);
+                        setLinkTaskId('');
+                      }
+                    }}
+                    placeholder={editingStory ? 'בחר משימה עצמאית לשיוך' : 'שמור אבן דרך כדי לשייך משימות'}
+                    searchPlaceholder="חפש משימה לפי קוד/כותרת..."
+                    emptyMessage="לא נמצאו משימות"
+                    allowClear={true}
+                    disabled={!editingStory}
+                    getLabel={(t) => `${t.code ? `${t.code} - ` : ''}${t.title}`}
+                    getValue={(t) => t.id}
+                    getSearchText={(t) => `${t.code || ''} ${t.title || ''}`}
+                    loadOptions={async (term) => {
+                      const params = new URLSearchParams();
+                      if (term && term.trim()) params.append('search', term.trim());
+                      params.append('standalone', 'true');
+                      params.append('limit', '20');
+                      const data = await request(`/api/tasks/simple?${params.toString()}`, { showToast: false });
+                      return Array.isArray(data) ? data : [];
+                    }}
+                    loadById={async (id) => {
+                      const data = await request(`/api/tasks/${id}`, { showToast: false });
+                      return data || null;
+                    }}
+                    minSearchLength={0}
+                  />
+                </div>
+
+                {/* Linked tasks list */}
+                {editingStory && (
+                  <div className="space-y-1">
+                    {tasksLoadingByStoryId[editingStory.id] && (
+                      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>טוען משימות...</span>
+                      </div>
+                    )}
+                    {getStoryTasks(editingStory.id).length === 0 && !tasksLoadingByStoryId[editingStory.id] ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 italic py-2">
+                        אין משימות מקושרות לאבן דרך זו
+                      </p>
+                    ) : (
+                      getStoryTasks(editingStory.id).map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group"
+                        >
+                          <Link
+                            to={`${basePath}/tasks?edit=${task.id}&returnTo=${encodeURIComponent(`${basePath}/stories?edit=${editingStory.id}`)}`}
+                            className="flex items-center gap-2 flex-1 min-w-0"
+                          >
+                            {task.code && (
+                              <span className="text-xs font-mono bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
+                                {task.code}
+                              </span>
+                            )}
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                              {task.title}
+                            </span>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleUnlinkTask(task.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="נתק"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </form>
           </div>

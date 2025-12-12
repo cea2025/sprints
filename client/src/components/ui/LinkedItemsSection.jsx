@@ -32,6 +32,7 @@ export default function LinkedItemsSection({
   onUnlink,
   basePath = '',
   itemPath = '',
+  getItemLink,
   emptyMessage = 'אין פריטים מקושרים',
   showCode = true,
   showProgress = false,
@@ -74,6 +75,10 @@ export default function LinkedItemsSection({
 
   const getItemName = (item) => item.name || item.title || 'ללא שם';
   const getItemCode = (item) => item.code || '';
+  const getTo = (item) => {
+    if (typeof getItemLink === 'function') return getItemLink(item);
+    return `${basePath}/${itemPath}`;
+  };
 
   return (
     <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -172,7 +177,7 @@ export default function LinkedItemsSection({
                          rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group"
               >
                 <Link
-                  to={`${basePath}/${itemPath}`}
+                  to={getTo(item)}
                   className="flex items-center gap-2 flex-1 min-w-0"
                 >
                   {showCode && item.code && (
