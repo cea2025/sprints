@@ -508,7 +508,9 @@ function Dashboard() {
               </div>
               {currentSprint?.startDate && currentSprint?.endDate && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {formatDateIL(currentSprint.startDate)} - {formatDateIL(currentSprint.endDate)}
+                  <span dir="ltr">
+                    {formatDateIL(currentSprint.startDate)} - {formatDateIL(currentSprint.endDate)}
+                  </span>
                 </p>
               )}
               {currentSprint?.goal && (

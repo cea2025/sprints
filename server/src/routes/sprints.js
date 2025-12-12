@@ -116,6 +116,12 @@ router.get('/:id', async (req, res) => {
     const tasksCursor = req.query.tasksCursor ? String(req.query.tasksCursor) : null;
     const tasksLimit = Math.min(200, Math.max(0, parseInt(tasksLimitRaw, 10) || 30));
 
+    const linkedTasksLimitRaw = req.query.linkedTasksLimit;
+    const linkedTasksCursor = req.query.linkedTasksCursor ? String(req.query.linkedTasksCursor) : null;
+    const linkedTasksLimit = linkedTasksLimitRaw !== undefined
+      ? Math.min(200, Math.max(0, parseInt(linkedTasksLimitRaw, 10) || 30))
+      : null;
+
     const storiesLimitRaw = req.query.storiesLimit;
     const storiesCursor = req.query.storiesCursor ? String(req.query.storiesCursor) : null;
     const storiesLimit = storiesLimitRaw !== undefined
@@ -190,6 +196,39 @@ router.get('/:id', async (req, res) => {
         ? standaloneTasks[standaloneTasks.length - 1].id
         : null;
 
+    // Tasks linked to stories that belong to this sprint (big-data friendly, paginated)
+    const linkedTasks = linkedTasksLimit !== null
+      ? await prisma.task.findMany({
+          where: applyTeamReadScope(
+            {
+              organizationId,
+              storyId: { not: null },
+              story: { sprintId: sprint.id }
+            },
+            req
+          ),
+          include: {
+            owner: { select: { id: true, name: true } },
+            membership: { select: { id: true, name: true } },
+            team: { select: { id: true, name: true } },
+            story: { select: { id: true, title: true } }
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: linkedTasksLimit,
+          ...(linkedTasksCursor
+            ? {
+                cursor: { id: linkedTasksCursor },
+                skip: 1
+              }
+            : {})
+        })
+      : [];
+
+    const linkedTasksNextCursor =
+      linkedTasksLimit !== null && linkedTasksLimit > 0 && linkedTasks.length === linkedTasksLimit
+        ? linkedTasks[linkedTasks.length - 1].id
+        : null;
+
     const storiesNextCursor =
       storiesLimit !== null && storiesLimit > 0 && sprint.stories.length === storiesLimit
         ? sprint.stories[sprint.stories.length - 1].id
@@ -198,6 +237,8 @@ router.get('/:id', async (req, res) => {
     res.json({
       ...sprint,
       rocks: sprint.sprintRocks.map(sr => sr.rock),
+      linkedTasks,
+      linkedTasksNextCursor,
       standaloneTasks,
       standaloneTasksNextCursor,
       storiesNextCursor

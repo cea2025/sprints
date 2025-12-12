@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
-import { Battery } from '../components/ui/Battery';
+import { Battery, BatteryCompact } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import ResizableTextarea from '../components/ui/ResizableTextarea';
@@ -48,6 +49,9 @@ export default function Sprints() {
   const [sprints, setSprints] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [openSectionsBySprint, setOpenSectionsBySprint] = useState({}); // sprintId -> { rocks, stories, tasks }
+  const [detailsBySprintId, setDetailsBySprintId] = useState({}); // sprintId -> sprint detail payload
+  const [loadingDetailsBySprintId, setLoadingDetailsBySprintId] = useState({}); // sprintId -> boolean
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
     quarter: Math.ceil((new Date().getMonth() + 1) / 3)
@@ -66,6 +70,10 @@ export default function Sprints() {
   const { loading, request } = useApi();
   const { currentOrganization } = useOrganization();
   const { isAdmin } = usePermissions();
+  const { slug } = useParams();
+  const location = useLocation();
+  const basePath = slug ? `/${slug}` : '';
+  const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
 
   useEffect(() => {
     if (!currentOrganization) return;
@@ -93,6 +101,101 @@ export default function Sprints() {
   const fetchTeams = async () => {
     const data = await request('/api/teams', { showToast: false });
     if (data && Array.isArray(data)) setTeams(data);
+  };
+
+  const ensureSprintDetails = async (sprintId) => {
+    if (!sprintId) return null;
+    if (detailsBySprintId[sprintId]) return detailsBySprintId[sprintId];
+    if (loadingDetailsBySprintId[sprintId]) return null;
+
+    setLoadingDetailsBySprintId(prev => ({ ...prev, [sprintId]: true }));
+    try {
+      const data = await request(
+        `/api/sprints/${sprintId}?storiesLimit=20&linkedTasksLimit=20&tasksLimit=20`,
+        { showToast: false }
+      );
+      if (data) {
+        setDetailsBySprintId(prev => ({ ...prev, [sprintId]: data }));
+        return data;
+      }
+      return null;
+    } finally {
+      setLoadingDetailsBySprintId(prev => ({ ...prev, [sprintId]: false }));
+    }
+  };
+
+  const toggleSection = async (sprintId, sectionKey) => {
+    if (!sprintId) return;
+    const isOpening = !(openSectionsBySprint[sprintId]?.[sectionKey]);
+
+    setOpenSectionsBySprint(prev => ({
+      ...prev,
+      [sprintId]: {
+        rocks: false,
+        stories: false,
+        tasks: false,
+        ...(prev[sprintId] || {}),
+        [sectionKey]: isOpening
+      }
+    }));
+
+    if (isOpening) {
+      await ensureSprintDetails(sprintId);
+    }
+  };
+
+  const loadMoreStories = async (sprintId) => {
+    const current = detailsBySprintId[sprintId];
+    if (!current?.storiesNextCursor) return;
+    const data = await request(
+      `/api/sprints/${sprintId}?storiesLimit=20&storiesCursor=${encodeURIComponent(current.storiesNextCursor)}&linkedTasksLimit=0&tasksLimit=0`,
+      { showToast: false }
+    );
+    if (!data) return;
+    setDetailsBySprintId(prev => ({
+      ...prev,
+      [sprintId]: {
+        ...current,
+        stories: [...(current.stories || []), ...(data.stories || [])],
+        storiesNextCursor: data.storiesNextCursor ?? null
+      }
+    }));
+  };
+
+  const loadMoreLinkedTasks = async (sprintId) => {
+    const current = detailsBySprintId[sprintId];
+    if (!current?.linkedTasksNextCursor) return;
+    const data = await request(
+      `/api/sprints/${sprintId}?storiesLimit=0&linkedTasksLimit=20&linkedTasksCursor=${encodeURIComponent(current.linkedTasksNextCursor)}&tasksLimit=0`,
+      { showToast: false }
+    );
+    if (!data) return;
+    setDetailsBySprintId(prev => ({
+      ...prev,
+      [sprintId]: {
+        ...current,
+        linkedTasks: [...(current.linkedTasks || []), ...(data.linkedTasks || [])],
+        linkedTasksNextCursor: data.linkedTasksNextCursor ?? null
+      }
+    }));
+  };
+
+  const loadMoreStandaloneTasks = async (sprintId) => {
+    const current = detailsBySprintId[sprintId];
+    if (!current?.standaloneTasksNextCursor) return;
+    const data = await request(
+      `/api/sprints/${sprintId}?storiesLimit=0&linkedTasksLimit=0&tasksLimit=20&tasksCursor=${encodeURIComponent(current.standaloneTasksNextCursor)}`,
+      { showToast: false }
+    );
+    if (!data) return;
+    setDetailsBySprintId(prev => ({
+      ...prev,
+      [sprintId]: {
+        ...current,
+        standaloneTasks: [...(current.standaloneTasks || []), ...(data.standaloneTasks || [])],
+        standaloneTasksNextCursor: data.standaloneTasksNextCursor ?? null
+      }
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -252,17 +355,21 @@ export default function Sprints() {
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <Link
-                    to={sprint.id}
-                    className="text-lg font-semibold text-gray-900 dark:text-white hover:underline"
-                  >
-                    {sprint.name}
-                  </Link>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{sprint.name}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
+                    <span dir="ltr">
+                      {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
+                    </span>
                   </p>
                 </div>
                 <div className="flex gap-1">
+                  <Link
+                    to={`${basePath}/stories?new=1&prefillSprintId=${sprint.id}&returnTo=${returnTo}`}
+                    className="p-1.5 text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                    title="אבן דרך חדשה בספרינט"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Link>
                   <button
                     onClick={() => handleEdit(sprint)}
                     className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
@@ -329,31 +436,240 @@ export default function Sprints() {
                 );
               })()}
 
-              {/* Rocks */}
-              {sprint.rocks && Array.isArray(sprint.rocks) && sprint.rocks.length > 0 && (
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">סלעים מקושרים:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {sprint.rocks.map(rock => (
-                      <span
-                        key={rock.id}
-                        className="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg"
-                      >
-                        {rock.code}
-                      </span>
-                    ))}
+              {/* Collapsible sections (default closed) */}
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                {/* Rocks */}
+                <button
+                  type="button"
+                  onClick={() => toggleSection(sprint.id, 'rocks')}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {openSectionsBySprint[sprint.id]?.rocks ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    <span>סלעים</span>
                   </div>
-                </div>
-              )}
-
-              {/* Stories Stats */}
-              {sprint.blockedStories > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <span className="text-xs text-red-600 dark:text-red-400">
-                    ⚠ {sprint.blockedStories} אבני דרך חסומות
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    ({Array.isArray(sprint.rocks) ? sprint.rocks.length : 0})
                   </span>
-                </div>
-              )}
+                </button>
+
+                {openSectionsBySprint[sprint.id]?.rocks && (
+                  <div className="px-3 pb-2">
+                    {(Array.isArray(sprint.rocks) ? sprint.rocks : []).length === 0 ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(Array.isArray(sprint.rocks) ? sprint.rocks : []).map((r) => (
+                          <div key={r.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                                  {r.code}
+                                </span>
+                                <span className="text-sm text-gray-900 dark:text-white truncate">{r.name}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <BatteryCompact progress={r.progress || 0} />
+                              <Link
+                                to={`${basePath}/rocks?edit=${r.id}&returnTo=${returnTo}`}
+                                className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                                title="עריכת סלע"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Stories */}
+                <button
+                  type="button"
+                  onClick={() => toggleSection(sprint.id, 'stories')}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {openSectionsBySprint[sprint.id]?.stories ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    <span>אבני דרך</span>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">({sprint.totalStories || 0})</span>
+                </button>
+
+                {openSectionsBySprint[sprint.id]?.stories && (
+                  <div className="px-3 pb-2">
+                    {loadingDetailsBySprintId[sprint.id] && !detailsBySprintId[sprint.id] ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">טוען…</div>
+                    ) : ((detailsBySprintId[sprint.id]?.stories || []).length === 0) ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">אין אבני דרך בספרינט.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(detailsBySprintId[sprint.id]?.stories || []).map((st) => (
+                          <div key={st.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-900 dark:text-white truncate">{st.title}</span>
+                                {st.isBlocked && (
+                                  <span className="text-xs px-2 py-0.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                                    חסום
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-2">
+                                <Battery progress={st.progress || 0} size="xs" />
+                              </div>
+                            </div>
+                            <Link
+                              to={`${basePath}/stories?edit=${st.id}&returnTo=${returnTo}`}
+                              className="p-1.5 text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                              title="עריכת אבן דרך"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </Link>
+                          </div>
+                        ))}
+
+                        {detailsBySprintId[sprint.id]?.storiesNextCursor && (
+                          <button
+                            type="button"
+                            onClick={() => loadMoreStories(sprint.id)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                          >
+                            טען עוד אבני דרך
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tasks */}
+                <button
+                  type="button"
+                  onClick={() => toggleSection(sprint.id, 'tasks')}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {openSectionsBySprint[sprint.id]?.tasks ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    <span>משימות</span>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {detailsBySprintId[sprint.id]
+                      ? `(${(detailsBySprintId[sprint.id]?.linkedTasks || []).length + (detailsBySprintId[sprint.id]?.standaloneTasks || []).length})`
+                      : '(—)'}
+                  </span>
+                </button>
+
+                {openSectionsBySprint[sprint.id]?.tasks && (
+                  <div className="px-3 pb-2 space-y-3">
+                    {loadingDetailsBySprintId[sprint.id] && !detailsBySprintId[sprint.id] ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">טוען…</div>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">משימות באבני דרך</div>
+                          {(detailsBySprintId[sprint.id]?.linkedTasks || []).length === 0 ? (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות שמקושרות לאבני דרך בספרינט.</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {(detailsBySprintId[sprint.id]?.linkedTasks || []).map((t) => (
+                                <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      {t.code && (
+                                        <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                                          {t.code}
+                                        </span>
+                                      )}
+                                      <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                                      {t.story?.title && (
+                                        <span className="text-xs px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 truncate max-w-[10rem]">
+                                          📋 {t.story.title}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">סטטוס: {t.status}</div>
+                                  </div>
+                                  <Link
+                                    to={`${basePath}/tasks?edit=${t.id}&returnTo=${returnTo}`}
+                                    className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                                    title="עריכת משימה"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </Link>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {detailsBySprintId[sprint.id]?.linkedTasksNextCursor && (
+                            <button
+                              type="button"
+                              onClick={() => loadMoreLinkedTasks(sprint.id)}
+                              className="mt-3 w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                            >
+                              טען עוד משימות (אבני דרך)
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">משימות עצמאיות בספרינט</div>
+                          {(detailsBySprintId[sprint.id]?.standaloneTasks || []).length === 0 ? (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות עצמאיות שמקושרות לספרינט.</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {(detailsBySprintId[sprint.id]?.standaloneTasks || []).map((t) => (
+                                <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      {t.code && (
+                                        <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                                          {t.code}
+                                        </span>
+                                      )}
+                                      <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">סטטוס: {t.status}</div>
+                                  </div>
+                                  <Link
+                                    to={`${basePath}/tasks?edit=${t.id}&returnTo=${returnTo}`}
+                                    className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                                    title="עריכת משימה"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </Link>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {detailsBySprintId[sprint.id]?.standaloneTasksNextCursor && (
+                            <button
+                              type="button"
+                              onClick={() => loadMoreStandaloneTasks(sprint.id)}
+                              className="mt-3 w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                            >
+                              טען עוד משימות
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

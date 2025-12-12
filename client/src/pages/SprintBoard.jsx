@@ -41,6 +41,7 @@ function SprintBoard() {
   const [loading, setLoading] = useState(true);
   const [loadingMoreStories, setLoadingMoreStories] = useState(false);
   const [loadingMoreTasks, setLoadingMoreTasks] = useState(false);
+  const [loadingMoreLinkedTasks, setLoadingMoreLinkedTasks] = useState(false);
 
   const [sprint, setSprint] = useState(null);
   const [sectionsOpen, setSectionsOpen] = useState({
@@ -63,6 +64,8 @@ function SprintBoard() {
     const params = new URLSearchParams();
     if (opts.storiesLimit !== undefined) params.set('storiesLimit', String(opts.storiesLimit));
     if (opts.storiesCursor) params.set('storiesCursor', String(opts.storiesCursor));
+    if (opts.linkedTasksLimit !== undefined) params.set('linkedTasksLimit', String(opts.linkedTasksLimit));
+    if (opts.linkedTasksCursor) params.set('linkedTasksCursor', String(opts.linkedTasksCursor));
     if (opts.tasksLimit !== undefined) params.set('tasksLimit', String(opts.tasksLimit));
     if (opts.tasksCursor) params.set('tasksCursor', String(opts.tasksCursor));
 
@@ -75,7 +78,7 @@ function SprintBoard() {
   useEffect(() => {
     if (!currentOrganization?.id) return;
     setLoading(true);
-    fetchSprint({ storiesLimit: 20, tasksLimit: 20 })
+    fetchSprint({ storiesLimit: 20, linkedTasksLimit: 20, tasksLimit: 20 })
       .then((data) => setSprint(data))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +108,7 @@ function SprintBoard() {
     if (!sprint?.standaloneTasksNextCursor) return;
     setLoadingMoreTasks(true);
     try {
-      const data = await fetchSprint({ storiesLimit: 0, tasksLimit: 20, tasksCursor: sprint.standaloneTasksNextCursor });
+      const data = await fetchSprint({ storiesLimit: 0, linkedTasksLimit: 0, tasksLimit: 20, tasksCursor: sprint.standaloneTasksNextCursor });
       if (!data) return;
       setSprint((prev) => ({
         ...prev,
@@ -114,6 +117,27 @@ function SprintBoard() {
       }));
     } finally {
       setLoadingMoreTasks(false);
+    }
+  };
+
+  const loadMoreLinkedTasks = async () => {
+    if (!sprint?.linkedTasksNextCursor) return;
+    setLoadingMoreLinkedTasks(true);
+    try {
+      const data = await fetchSprint({
+        storiesLimit: 0,
+        linkedTasksLimit: 20,
+        linkedTasksCursor: sprint.linkedTasksNextCursor,
+        tasksLimit: 0
+      });
+      if (!data) return;
+      setSprint((prev) => ({
+        ...prev,
+        linkedTasks: [...(prev?.linkedTasks || []), ...(data.linkedTasks || [])],
+        linkedTasksNextCursor: data.linkedTasksNextCursor ?? null
+      }));
+    } finally {
+      setLoadingMoreLinkedTasks(false);
     }
   };
 
@@ -166,6 +190,7 @@ function SprintBoard() {
 
   const rocks = Array.isArray(sprint.rocks) ? sprint.rocks : [];
   const stories = Array.isArray(sprint.stories) ? sprint.stories : [];
+  const linkedTasks = Array.isArray(sprint.linkedTasks) ? sprint.linkedTasks : [];
   const standaloneTasks = Array.isArray(sprint.standaloneTasks) ? sprint.standaloneTasks : [];
 
   return (
@@ -191,7 +216,9 @@ function SprintBoard() {
               </Link>
             </div>
             <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
+              <span dir="ltr">
+                {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
+              </span>
             </div>
             {sprint.goal && (
               <p className="text-gray-600 dark:text-gray-300 mt-2 bg-gray-50 dark:bg-gray-800/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -213,7 +240,7 @@ function SprintBoard() {
         <button
             onClick={() => {
               setLoading(true);
-              fetchSprint({ storiesLimit: 20, tasksLimit: 20 })
+              fetchSprint({ storiesLimit: 20, linkedTasksLimit: 20, tasksLimit: 20 })
                 .then((data) => setSprint(data))
                 .finally(() => setLoading(false));
             }}
@@ -425,42 +452,97 @@ function SprintBoard() {
         >
           <div className="flex items-center gap-2">
             {sectionsOpen.tasks ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-            <span className="font-semibold text-gray-900 dark:text-white">משימות עצמאיות בספרינט</span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">({standaloneTasks.length})</span>
+            <span className="font-semibold text-gray-900 dark:text-white">משימות בספרינט</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">({linkedTasks.length + standaloneTasks.length})</span>
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
         </button>
 
         {sectionsOpen.tasks && (
           <div className="px-5 pb-5 space-y-3">
-            {standaloneTasks.length === 0 ? (
-              <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות עצמאיות שמקושרות לספרינט.</div>
-            ) : (
-              standaloneTasks.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {t.code && (
-                        <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                          {t.code}
-            </span>
-          )}
-                      <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+            {/* Tasks linked to stories */}
+            <div className="pt-1">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">משימות באבני דרך</div>
+              {linkedTasks.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות שמקושרות לאבני דרך בספרינט.</div>
+              ) : (
+                <div className="space-y-2">
+                  {linkedTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {t.code && (
+                            <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                              {t.code}
+                            </span>
+                          )}
+                          <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                          {t.story?.title && (
+                            <span className="text-xs px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 truncate max-w-[10rem]">
+                              📋 {t.story.title}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          סטטוס: {t.status}
+                        </div>
+                      </div>
+                      <Link
+                        to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                        className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                        title="עריכת משימה"
+                      >
+                        <Pencil size={16} />
+                      </Link>
                     </div>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      סטטוס: {t.status}
-                    </div>
-        </div>
-                  <Link
-                    to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
-                    className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                    title="עריכת משימה"
-                  >
-                    <Pencil size={16} />
-                  </Link>
+                  ))}
+                </div>
+              )}
+
+              {sprint.linkedTasksNextCursor && (
+                <button
+                  onClick={loadMoreLinkedTasks}
+                  disabled={loadingMoreLinkedTasks}
+                  className="mt-3 w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                >
+                  {loadingMoreLinkedTasks ? 'טוען…' : 'טען עוד משימות (אבני דרך)'}
+                </button>
+              )}
             </div>
-              ))
-            )}
+
+            {/* Standalone tasks */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">משימות עצמאיות בספרינט</div>
+              {standaloneTasks.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות עצמאיות שמקושרות לספרינט.</div>
+              ) : (
+                <div className="space-y-2">
+                  {standaloneTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {t.code && (
+                            <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                              {t.code}
+                            </span>
+                          )}
+                          <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          סטטוס: {t.status}
+                        </div>
+                      </div>
+                      <Link
+                        to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                        className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                        title="עריכת משימה"
+                      >
+                        <Pencil size={16} />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
 
             {sprint.standaloneTasksNextCursor && (
               <button
@@ -471,6 +553,7 @@ function SprintBoard() {
                 {loadingMoreTasks ? 'טוען…' : 'טען עוד משימות'}
               </button>
             )}
+            </div>
           </div>
         )}
       </div>
