@@ -32,11 +32,6 @@ export function useApi() {
       // PRIORITY: explicit > context > localStorage
       const orgId = organizationId || currentOrgId || localStorage.getItem('currentOrgId');
       
-      console.log(`🔍 [useApi] ${method} ${url}`, { 
-        orgId, 
-        source: organizationId ? 'explicit' : currentOrgId ? 'context' : 'localStorage'
-      });
-      
       const fetchOptions = {
         method,
         credentials: 'include',

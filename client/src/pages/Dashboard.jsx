@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { 
   Mountain, 
@@ -37,30 +37,34 @@ function Dashboard() {
   const { user } = useAuth();
   const { slug } = useParams();
   
+  // Ref to prevent duplicate fetches
+  const fetchingRef = useRef(false);
+  const lastFetchKey = useRef('');
+  
   // Base path for links
   const basePath = slug ? `/${slug}` : '';
   
-  // Get membership for current organization (NEW - uses memberships)
-  const currentMembership = user?.memberships?.find(m => m.organizationId === currentOrganization?.id);
-  // For backwards compatibility, also check teamMembers
-  const legacyTeamMember = user?.teamMembers?.find(tm => tm.organizationId === currentOrganization?.id);
-  
-  // Use membership ID, fall back to teamMember ID for legacy support
-  const membershipId = currentMembership?.id || legacyTeamMember?.id;
-  
-  // Debug logging
-  console.log('🔍 [Dashboard] user.memberships:', user?.memberships);
-  console.log('🔍 [Dashboard] currentOrganization:', currentOrganization?.id);
-  console.log('🔍 [Dashboard] currentMembership:', currentMembership);
-  console.log('🔍 [Dashboard] membershipId:', membershipId);
+  // Memoize membership ID to prevent unnecessary re-renders
+  const membershipId = useMemo(() => {
+    if (!user || !currentOrganization?.id) return null;
+    // Get membership for current organization (NEW - uses memberships)
+    const currentMembership = user.memberships?.find(m => m.organizationId === currentOrganization.id);
+    // For backwards compatibility, also check teamMembers
+    const legacyTeamMember = user.teamMembers?.find(tm => tm.organizationId === currentOrganization.id);
+    return currentMembership?.id || legacyTeamMember?.id || null;
+  }, [user?.memberships, user?.teamMembers, currentOrganization?.id]);
 
   useEffect(() => {
     // Wait for organization to be set before fetching
     if (!currentOrganization?.id) return;
     
-    console.log('📊 [Dashboard] Fetching data for org:', currentOrganization.name, currentOrganization.id);
-    console.log('📊 [Dashboard] With membershipId:', membershipId);
+    // Create a unique key for this fetch to prevent duplicates
+    const fetchKey = `${currentOrganization.id}-${viewMode}-${membershipId}`;
+    if (fetchKey === lastFetchKey.current && !loading) return;
+    if (fetchingRef.current) return;
     
+    fetchingRef.current = true;
+    lastFetchKey.current = fetchKey;
     setLoading(true);
     
     // Build query params - always send userId to get user milestones for side panel
@@ -73,22 +77,15 @@ function Dashboard() {
     const queryString = params.toString() ? `?${params.toString()}` : '';
     
     // Fetch dashboard data, orphans summary, sprints and user tasks in parallel
-    // Dashboard API now returns allMilestones and allTasks for "all" mode
     Promise.all([
       apiFetch(`/api/dashboard${queryString}`, { organizationId: currentOrganization.id }),
       apiFetch('/api/orphans/summary', { organizationId: currentOrganization.id }),
       apiFetch('/api/sprints', { organizationId: currentOrganization.id }),
-      apiFetch('/api/tasks/my', { organizationId: currentOrganization.id })  // Always fetch user's tasks for "user" mode
+      apiFetch('/api/tasks/my', { organizationId: currentOrganization.id })
     ])
       .then(async ([dashRes, orphansRes, sprintsRes, tasksRes]) => {
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
         const dashData = await dashRes.json();
-        console.log('📊 [Dashboard] API returned:', {
-          userMilestones: dashData.userMilestones?.length || 0,
-          allMilestones: dashData.allMilestones?.length || 0,
-          allTasks: dashData.allTasks?.length || 0,
-          userRocks: dashData.userRocks?.length || 0
-        });
         setData(dashData);
         
         if (orphansRes.ok) {
@@ -103,12 +100,14 @@ function Dashboard() {
         
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
-          console.log('📊 [Dashboard] User tasks:', tasksData?.length || 0);
           setMyTasks(Array.isArray(tasksData) ? tasksData : []);
         }
       })
       .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        fetchingRef.current = false;
+      });
   }, [currentOrganization?.id, viewMode, membershipId]);
 
   if (loading) {

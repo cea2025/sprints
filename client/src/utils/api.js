@@ -18,12 +18,6 @@ export async function apiFetch(url, options = {}) {
   // PRIORITY: Use explicit organizationId > localStorage
   const organizationId = options.organizationId || getOrganizationIdFromStorage();
   
-  // DEBUG: Log what's being sent
-  console.log(`🔍 [API] ${options.method || 'GET'} ${url}`, {
-    organizationId,
-    source: options.organizationId ? 'EXPLICIT' : 'localStorage'
-  });
-  
   // Remove organizationId from options to not include it in body
   const { organizationId: _, ...fetchOptions } = options;
   

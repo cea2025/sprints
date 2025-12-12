@@ -83,23 +83,26 @@ export const OrganizationProvider = ({ children }) => {
   };
 
   const selectOrganization = useCallback((org) => {
-    console.log('🔄 [ORG] Selecting organization:', org?.name, org?.id);
-    setCurrentOrganization(org);
-    if (org) {
-      localStorage.setItem('currentOrgId', org.id);
-      localStorage.setItem('currentOrgSlug', org.slug);
-      console.log('💾 [ORG] Saved to localStorage:', { id: org.id, slug: org.slug });
-      // Also update server session
-      fetch('/api/organizations/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ organizationId: org.id })
-      }).catch(console.error);
-    } else {
-      localStorage.removeItem('currentOrgId');
-      localStorage.removeItem('currentOrgSlug');
-    }
+    setCurrentOrganization(prevOrg => {
+      // Skip if same organization
+      if (prevOrg?.id === org?.id) return prevOrg;
+      
+      if (org) {
+        localStorage.setItem('currentOrgId', org.id);
+        localStorage.setItem('currentOrgSlug', org.slug);
+        // Also update server session
+        fetch('/api/organizations/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ organizationId: org.id })
+        }).catch(console.error);
+      } else {
+        localStorage.removeItem('currentOrgId');
+        localStorage.removeItem('currentOrgSlug');
+      }
+      return org;
+    });
   }, []);
 
   // Set organization by slug (for URL-based routing)
