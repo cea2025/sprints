@@ -8,6 +8,7 @@ import DateTooltip from '../components/ui/DateTooltip';
 import { usePermissions } from '../hooks/usePermissions';
 import LabelMultiSelect from '../components/ui/LabelMultiSelect';
 import LabelChips from '../components/ui/LabelChips';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 import { 
   CheckSquare, 
   Plus, 
@@ -533,12 +534,13 @@ export default function Tasks() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   placeholder="פרטים נוספים..."
-                  rows={2}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-emerald-500"
                 />
               </div>
 

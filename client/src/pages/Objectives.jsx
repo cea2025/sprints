@@ -8,6 +8,7 @@ import LinkedItemsSection from '../components/ui/LinkedItemsSection';
 import DateTooltip from '../components/ui/DateTooltip';
 import { Target, Plus, Edit2, Trash2, User } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 
 export default function Objectives() {
   const [objectives, setObjectives] = useState([]);
@@ -415,12 +416,13 @@ export default function Objectives() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   placeholder="תיאור הפרויקט..."
-                  rows={3}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={3}
+                  maxRows={10}
+                  className="focus:ring-purple-500"
                 />
               </div>
 

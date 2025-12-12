@@ -10,6 +10,7 @@ import { ListTodo, Plus, Edit2, Trash2, CheckSquare, Circle, CheckCircle2, Clock
 import { usePermissions } from '../hooks/usePermissions';
 import LabelMultiSelect from '../components/ui/LabelMultiSelect';
 import LabelChips from '../components/ui/LabelChips';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 
 export default function Stories() {
   const [stories, setStories] = useState([]);
@@ -734,12 +735,13 @@ export default function Stories() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   placeholder="תיאור אבן הדרך..."
-                  rows={2}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-orange-500"
                 />
               </div>
 
@@ -934,12 +936,13 @@ export default function Stories() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={taskFormData.description}
                   onChange={e => setTaskFormData({...taskFormData, description: e.target.value})}
                   placeholder="פרטים נוספים על המשימה..."
-                  rows={2}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-emerald-500"
                 />
               </div>
 

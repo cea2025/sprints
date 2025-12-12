@@ -4,6 +4,7 @@ import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -412,12 +413,13 @@ export default function Sprints() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   מטרת הספרינט
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={formData.goal}
                   onChange={e => setFormData({...formData, goal: e.target.value})}
                   placeholder="מה אנחנו רוצים להשיג בספרינט הזה?"
-                  rows={2}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={2}
+                  maxRows={6}
+                  className="focus:ring-green-500"
                 />
               </div>
 

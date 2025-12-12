@@ -10,6 +10,7 @@ import { Mountain, Plus, Edit2, Trash2, User, Target, ChevronLeft } from 'lucide
 import { usePermissions } from '../hooks/usePermissions';
 import LabelMultiSelect from '../components/ui/LabelMultiSelect';
 import LabelChips from '../components/ui/LabelChips';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -594,12 +595,13 @@ export default function Rocks() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   תיאור
                 </label>
-                <textarea
+                <ResizableTextarea
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   placeholder="תיאור הסלע..."
-                  rows={2}
-                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
+                  minRows={2}
+                  maxRows={8}
+                  className="focus:ring-blue-500"
                 />
               </div>
 

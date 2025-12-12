@@ -3,6 +3,7 @@ import { Users, Plus, Trash2, Edit2, UserPlus, X } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { usePermissions } from '../hooks/usePermissions';
 import SearchableSelect from '../components/ui/SearchableSelect';
+import ResizableTextarea from '../components/ui/ResizableTextarea';
 
 export default function Teams() {
   const { request } = useApi();
@@ -304,11 +305,12 @@ export default function Teams() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">תיאור</label>
-                <textarea
+                <ResizableTextarea
                   value={teamForm.description}
                   onChange={(e) => setTeamForm((p) => ({ ...p, description: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
-                  rows={3}
+                  placeholder="תיאור הצוות..."
+                  minRows={3}
+                  maxRows={6}
                 />
               </div>
 
