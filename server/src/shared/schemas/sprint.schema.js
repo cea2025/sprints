@@ -8,11 +8,14 @@ const { year, quarter } = require('./common.schema');
 
 // Create Sprint schema
 const createSprintSchema = z.object({
-  name: z.string().min(1, 'שם הוא שדה חובה').max(50).optional(), // Auto-generated if not provided
+  name: z.string().min(1, 'שם הוא שדה חובה').max(50).optional(), // Auto-generated if not provided (sp-XX)
   goal: z.string().max(500).optional().nullable(),
-  year: year,
-  quarter: quarter,
-  sprintNumber: z.coerce.number().int().min(1).max(10),
+  // Backward compatibility (legacy fields). Server computes these from startDate and existing data.
+  year: year.optional(),
+  quarter: quarter.optional(),
+  sprintNumber: z.coerce.number().int().min(1).max(10).optional(),
+  teamId: z.string().optional().nullable(),
+  rockIds: z.array(z.string()).optional(),
   startDate: z.string().transform(val => new Date(val)),
   endDate: z.string().transform(val => new Date(val))
 }).refine(data => data.endDate > data.startDate, {
@@ -24,6 +27,8 @@ const createSprintSchema = z.object({
 const updateSprintSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   goal: z.string().max(500).optional().nullable(),
+  teamId: z.string().optional().nullable(),
+  rockIds: z.array(z.string()).optional(),
   year: year.optional(),
   quarter: quarter.optional(),
   sprintNumber: z.coerce.number().int().min(1).max(10).optional(),

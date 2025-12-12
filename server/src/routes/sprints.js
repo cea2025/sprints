@@ -5,8 +5,39 @@ const { getOrganizationId } = require('../middleware/organization');
 const { auditMiddleware, captureOldEntity } = require('../modules/audit/audit.middleware');
 const { applyTeamReadScope } = require('../shared/teamScope');
 const { validateTeamId, getDefaultTeamIdFromPrincipal } = require('../shared/teamValidation');
+const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 
 const router = express.Router();
+
+function getQuarterFromDate(date) {
+  return Math.ceil((date.getMonth() + 1) / 3);
+}
+
+function parseSpNumber(name) {
+  if (typeof name !== 'string') return null;
+  if (!name.startsWith('sp-')) return null;
+  const n = parseInt(name.slice(3), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function isValidSpCode(name) {
+  return typeof name === 'string' && /^sp-\d+$/i.test(name.trim());
+}
+
+async function getNextSprintCode(tx, organizationId) {
+  const rows = await tx.sprint.findMany({
+    where: { organizationId, name: { startsWith: 'sp-' } },
+    select: { name: true }
+  });
+
+  let max = 0;
+  for (const row of rows) {
+    const n = parseSpNumber(row.name);
+    if (n && n > max) max = n;
+  }
+  const next = max + 1;
+  return `sp-${String(next).padStart(2, '0')}`;
+}
 
 // Apply authentication to all routes
 router.use(isAuthenticated);
@@ -45,11 +76,7 @@ router.get('/', async (req, res) => {
           }
         }
       },
-      orderBy: [
-        { year: 'desc' },
-        { quarter: 'desc' },
-        { sprintNumber: 'desc' }
-      ]
+      orderBy: [{ startDate: 'desc' }, { name: 'desc' }]
     });
 
     // Add progress calculations
@@ -85,6 +112,16 @@ router.get('/:id', async (req, res) => {
     const organizationId = await getOrganizationId(req);
     if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
 
+    const tasksLimitRaw = req.query.tasksLimit;
+    const tasksCursor = req.query.tasksCursor ? String(req.query.tasksCursor) : null;
+    const tasksLimit = Math.min(200, Math.max(0, parseInt(tasksLimitRaw, 10) || 30));
+
+    const storiesLimitRaw = req.query.storiesLimit;
+    const storiesCursor = req.query.storiesCursor ? String(req.query.storiesCursor) : null;
+    const storiesLimit = storiesLimitRaw !== undefined
+      ? Math.min(200, Math.max(0, parseInt(storiesLimitRaw, 10) || 30))
+      : null;
+
     const where = applyTeamReadScope({ id: req.params.id, organizationId }, req);
 
     const sprint = await prisma.sprint.findFirst({
@@ -105,7 +142,18 @@ router.get('/:id', async (req, res) => {
             owner: true,
             rock: true
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          ...(storiesLimit !== null
+            ? {
+                take: storiesLimit,
+                ...(storiesCursor
+                  ? {
+                      cursor: { id: storiesCursor },
+                      skip: 1
+                    }
+                  : {})
+              }
+            : {})
         }
       }
     });
@@ -114,9 +162,45 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Sprint not found' });
     }
 
+    // Standalone tasks that belong directly to the sprint (not via story)
+    const tasksWhere = applyTeamReadScope(
+      { organizationId, sprintId: sprint.id, storyId: null },
+      req
+    );
+
+    const standaloneTasks = await prisma.task.findMany({
+      where: tasksWhere,
+      include: {
+        owner: { select: { id: true, name: true } },
+        membership: { select: { id: true, name: true } },
+        team: { select: { id: true, name: true } }
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: tasksLimit,
+      ...(tasksCursor
+        ? {
+            cursor: { id: tasksCursor },
+            skip: 1
+          }
+        : {})
+    });
+
+    const standaloneTasksNextCursor =
+      tasksLimit > 0 && standaloneTasks.length === tasksLimit
+        ? standaloneTasks[standaloneTasks.length - 1].id
+        : null;
+
+    const storiesNextCursor =
+      storiesLimit !== null && storiesLimit > 0 && sprint.stories.length === storiesLimit
+        ? sprint.stories[sprint.stories.length - 1].id
+        : null;
+
     res.json({
       ...sprint,
-      rocks: sprint.sprintRocks.map(sr => sr.rock)
+      rocks: sprint.sprintRocks.map(sr => sr.rock),
+      standaloneTasks,
+      standaloneTasksNextCursor,
+      storiesNextCursor
     });
   } catch (error) {
     console.error('Error fetching sprint:', error);
@@ -125,53 +209,74 @@ router.get('/:id', async (req, res) => {
 });
 
 // @route   POST /api/sprints
-// @desc    Create a new sprint with auto-generated name
+// @desc    Create a new sprint (auto-code sp-XX unless name provided)
 router.post('/', auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const { name: requestedName, goal, startDate, endDate, rockIds, teamId } = req.body;
     const validTeamId = await validateTeamId(organizationId, teamId) || getDefaultTeamIdFromPrincipal(req);
 
-    // Auto-generate name: 2026-Q2-S5
-    const name = `${year}-Q${quarter}-S${sprintNumber}`;
-
-    // Check if name already exists in this organization
-    const existing = await prisma.sprint.findFirst({
-      where: { 
-        name,
-        organizationId 
-      }
-    });
-
-    if (existing) {
-      return res.status(400).json({ error: `ספרינט ${name} כבר קיים` });
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (!(start instanceof Date) || Number.isNaN(start.getTime())) {
+      return res.status(400).json({ error: 'תאריך התחלה לא תקין' });
+    }
+    if (!(end instanceof Date) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'תאריך סיום לא תקין' });
+    }
+    if (end <= start) {
+      return res.status(400).json({ error: 'תאריך סיום חייב להיות אחרי תאריך התחלה' });
     }
 
-    const sprint = await prisma.sprint.create({
-      data: {
-        name,
-        year: parseInt(year),
-        quarter: parseInt(quarter),
-        sprintNumber: parseInt(sprintNumber),
-        goal,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        teamId: validTeamId || null,
-        organizationId,
-        createdBy: req.user.id,
-        sprintRocks: {
-          create: (rockIds || []).map(rockId => ({
-            rockId
-          }))
-        }
-      },
-      include: {
-        sprintRocks: {
-          include: {
-            rock: true
+    const trimmedRequestedName = requestedName?.trim();
+    if (trimmedRequestedName && !isValidSpCode(trimmedRequestedName)) {
+      return res.status(400).json({ error: 'שם ספרינט לא תקין (פורמט: sp-01)' });
+    }
+
+    const sprint = await prisma.$transaction(async (tx) => {
+      let name = trimmedRequestedName;
+
+      if (name) {
+        const exists = await tx.sprint.findFirst({ where: { organizationId, name }, select: { id: true } });
+        if (exists) throw new ConflictError(`ספרינט ${name} כבר קיים`);
+      } else {
+        name = await getNextSprintCode(tx, organizationId);
+      }
+
+      const year = start.getFullYear();
+      const quarter = getQuarterFromDate(start);
+
+      const lastInQuarter = await tx.sprint.findFirst({
+        where: { organizationId, year, quarter },
+        select: { sprintNumber: true },
+        orderBy: { sprintNumber: 'desc' }
+      });
+      const sprintNumber = (lastInQuarter?.sprintNumber || 0) + 1;
+
+      return tx.sprint.create({
+        data: {
+          name,
+          year,
+          quarter,
+          sprintNumber,
+          goal,
+          startDate: start,
+          endDate: end,
+          teamId: validTeamId || null,
+          organizationId,
+          createdBy: req.user.id,
+          sprintRocks: {
+            create: (rockIds || []).map((rockId) => ({ rockId }))
+          }
+        },
+        include: {
+          sprintRocks: {
+            include: { rock: true }
           }
         }
-      }
+      });
     });
 
     res.status(201).json({
@@ -180,6 +285,7 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating sprint:', error);
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     res.status(500).json({ error: 'Failed to create sprint: ' + error.message });
   }
 });
@@ -188,30 +294,59 @@ router.post('/', auditMiddleware('Sprint'), async (req, res) => {
 // @desc    Update a sprint
 router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), async (req, res) => {
   try {
-    const { year, quarter, sprintNumber, goal, startDate, endDate, rockIds, teamId } = req.body;
     const organizationId = await getOrganizationId(req);
+    if (!organizationId) return res.status(403).json({ error: 'לא נבחר ארגון' });
+
+    const { name: requestedName, goal, startDate, endDate, rockIds, teamId } = req.body;
     const validTeamId = teamId === '' ? null : (await validateTeamId(organizationId, teamId) || null);
 
-    // Auto-generate name if year/quarter/sprintNumber provided
-    let name;
-    if (year && quarter && sprintNumber) {
-      name = `${year}-Q${quarter}-S${sprintNumber}`;
-    }
+    const sprint = await prisma.$transaction(async (tx) => {
+      const existingSprint = await tx.sprint.findFirst({
+        where: applyTeamReadScope({ id: req.params.id, organizationId }, req),
+        select: { id: true, startDate: true }
+      });
+      if (!existingSprint) throw new NotFoundError('Sprint not found');
 
-    // Update sprint
-    const sprint = await prisma.sprint.update({
-      where: { id: req.params.id },
-      data: {
-        name: name || undefined,
-        year: year ? parseInt(year) : undefined,
-        quarter: quarter ? parseInt(quarter) : undefined,
-        sprintNumber: sprintNumber ? parseInt(sprintNumber) : undefined,
-        goal,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        teamId: teamId !== undefined ? validTeamId : undefined,
-        updatedBy: req.user.id
+      let name = requestedName?.trim();
+      if (name !== undefined) {
+        if (!name) throw new BadRequestError('שם הוא שדה חובה');
+        if (!isValidSpCode(name)) throw new BadRequestError('שם ספרינט לא תקין (פורמט: sp-01)');
+        const exists = await tx.sprint.findFirst({
+          where: { organizationId, name, NOT: { id: req.params.id } },
+          select: { id: true }
+        });
+        if (exists) throw new ConflictError(`ספרינט ${name} כבר קיים`);
       }
+
+      let start = undefined;
+      let end = undefined;
+      if (startDate !== undefined) {
+        start = new Date(startDate);
+        if (Number.isNaN(start.getTime())) throw new BadRequestError('תאריך התחלה לא תקין');
+      }
+      if (endDate !== undefined) {
+        end = new Date(endDate);
+        if (Number.isNaN(end.getTime())) throw new BadRequestError('תאריך סיום לא תקין');
+      }
+      if (start && end && end <= start) {
+        throw new BadRequestError('תאריך סיום חייב להיות אחרי תאריך התחלה');
+      }
+
+      const effectiveStart = start || existingSprint.startDate;
+
+      return tx.sprint.update({
+        where: { id: req.params.id },
+        data: {
+          name: name !== undefined ? name : undefined,
+          goal,
+          startDate: start,
+          endDate: end,
+          year: startDate !== undefined ? effectiveStart.getFullYear() : undefined,
+          quarter: startDate !== undefined ? getQuarterFromDate(effectiveStart) : undefined,
+          teamId: teamId !== undefined ? validTeamId : undefined,
+          updatedBy: req.user.id
+        }
+      });
     });
 
     // Update rock associations if provided
@@ -250,6 +385,7 @@ router.put('/:id', captureOldEntity(prisma.sprint), auditMiddleware('Sprint'), a
     });
   } catch (error) {
     console.error('Error updating sprint:', error);
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     res.status(500).json({ error: 'Failed to update sprint' });
   }
 });

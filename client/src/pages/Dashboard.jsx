@@ -25,6 +25,34 @@ import { useOrganization } from '../context/OrganizationContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
+function formatDateIL(dateStr) {
+  try {
+    return new Date(dateStr).toLocaleDateString('he-IL');
+  } catch {
+    return '';
+  }
+}
+
+function getSprintTimeMeta(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const now = new Date();
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return { percent: 0, daysRemaining: null, state: 'invalid' };
+  }
+
+  const totalMs = end.getTime() - start.getTime();
+  const elapsedMs = Math.min(totalMs, Math.max(0, now.getTime() - start.getTime()));
+  const percent = Math.round((elapsedMs / totalMs) * 100);
+
+  const msRemaining = end.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+
+  const state = now < start ? 'upcoming' : now > end ? 'ended' : 'active';
+  return { percent, daysRemaining, state };
+}
+
 function Dashboard() {
   const [data, setData] = useState(null);
   const [orphans, setOrphans] = useState(null);
@@ -441,7 +469,7 @@ function Dashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {currentSprint?.name || 'אין ספרינט נוכחי'}
+                  {currentSprint?.name ? `(${currentSprint.name})` : 'אין ספרינט נוכחי'}
                 </h2>
                 <div className="relative">
                   <button
@@ -478,6 +506,11 @@ function Dashboard() {
                   )}
                 </div>
               </div>
+              {currentSprint?.startDate && currentSprint?.endDate && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {formatDateIL(currentSprint.startDate)} - {formatDateIL(currentSprint.endDate)}
+                </p>
+              )}
               {currentSprint?.goal && (
                 <p className="text-gray-500 dark:text-gray-400 mt-1">{currentSprint.goal}</p>
               )}
@@ -491,6 +524,32 @@ function Dashboard() {
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           </Link>
         </div>
+
+        {/* Sprint Time */}
+        {currentSprint?.startDate && currentSprint?.endDate && (() => {
+          const meta = getSprintTimeMeta(currentSprint.startDate, currentSprint.endDate);
+          if (meta.state === 'invalid') return null;
+          return (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">זמן</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {meta.state === 'upcoming'
+                    ? 'עוד לא התחיל'
+                    : meta.state === 'ended'
+                      ? 'הסתיים'
+                      : `${meta.percent}% עבר • נשארו ${meta.daysRemaining} ימים`}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div
+                  className="h-2 bg-gradient-to-r from-green-600 to-emerald-600"
+                  style={{ width: `${meta.percent}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Sprint Stats */}
         {currentSprint?.stats && (

@@ -26,6 +26,17 @@ enum TaskStatus {
   CANCELLED // בוטל
 }
 
+// ==================== SESSION (connect-pg-simple) ====================
+// Prisma must be aware of this table to avoid dropping it on db push/migrations.
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+  @@map("session")
+}
+
 // ==================== ORGANIZATION (Multi-tenant) ====================
 
 model Organization {
@@ -354,7 +365,11 @@ model Rock {
 
 model Sprint {
   id   String  @id @default(uuid())
-  name String // Auto: "2026-Q2-S5" - unique per organization
+  // Display code (new format): "sp-01" / "sp-02" ...
+  // Editable (like other entities), but auto-generated on create.
+  name String
+  // Legacy long name for migration/backward compatibility (optional)
+  legacyName String?
   goal String?
 
   // מזהי ספרינט
@@ -373,6 +388,7 @@ model Sprint {
   // Relations
   sprintRocks SprintRock[]
   stories     Story[]
+  tasks       Task[]
 
   // Team scope (nullable = org-wide / legacy behavior)
   teamId String?
@@ -489,6 +505,10 @@ model Task {
   storyId String?
   story   Story?  @relation(fields: [storyId], references: [id], onDelete: SetNull)
 
+  // קשר לספרינט (למשימות עצמאיות בלבד; אם storyId לא null אז sprintId חייב להיות null)
+  sprintId String?
+  sprint   Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+
   // אחראי על המשימה (LEGACY - TeamMember)
   ownerId String?
   owner   TeamMember? @relation("TaskOwner", fields: [ownerId], references: [id])
@@ -526,11 +546,13 @@ model Task {
   @@index([ownerId])
   @@index([membershipId])
   @@index([storyId])
+  @@index([sprintId])
   @@index([status])
   @@index([dueDate])
   @@index([organizationId, ownerId, status]) // שאילתה נפוצה: "המשימות שלי"
   @@index([organizationId, membershipId, status]) // NEW: query by membership
   @@index([organizationId, teamId])
+  @@index([organizationId, sprintId])
 }
 
 // ==================== LABELS (NEW) ====================

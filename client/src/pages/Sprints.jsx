@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useOrganization } from '../context/OrganizationContext';
 import { Battery } from '../components/ui/Battery';
@@ -14,7 +15,34 @@ const QUARTERS = [
 ];
 
 const YEARS = [2024, 2025, 2026, 2027];
-const SPRINT_NUMBERS = [1, 2, 3, 4, 5, 6];
+
+function formatDateIL(dateStr) {
+  try {
+    return new Date(dateStr).toLocaleDateString('he-IL');
+  } catch {
+    return '';
+  }
+}
+
+function getSprintTimeMeta(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const now = new Date();
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return { percent: 0, daysRemaining: null, state: 'invalid' };
+  }
+
+  const totalMs = end.getTime() - start.getTime();
+  const elapsedMs = Math.min(totalMs, Math.max(0, now.getTime() - start.getTime()));
+  const percent = Math.round((elapsedMs / totalMs) * 100);
+
+  const msRemaining = end.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+
+  const state = now < start ? 'upcoming' : now > end ? 'ended' : 'active';
+  return { percent, daysRemaining, state };
+}
 
 export default function Sprints() {
   const [sprints, setSprints] = useState([]);
@@ -27,9 +55,7 @@ export default function Sprints() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSprint, setEditingSprint] = useState(null);
   const [formData, setFormData] = useState({
-    year: new Date().getFullYear(),
-    quarter: Math.ceil((new Date().getMonth() + 1) / 3),
-    sprintNumber: 1,
+    name: '',
     goal: '',
     startDate: '',
     endDate: '',
@@ -91,9 +117,7 @@ export default function Sprints() {
   const handleEdit = (sprint) => {
     setEditingSprint(sprint);
     setFormData({
-      year: sprint.year,
-      quarter: sprint.quarter,
-      sprintNumber: sprint.sprintNumber,
+      name: sprint.name || '',
       goal: sprint.goal || '',
       startDate: sprint.startDate?.slice(0, 10) || '',
       endDate: sprint.endDate?.slice(0, 10) || '',
@@ -116,16 +140,8 @@ export default function Sprints() {
 
   const resetForm = () => {
     setEditingSprint(null);
-    // Find next available sprint number
-    const existingNumbers = sprints
-      .filter(s => s.year === filters.year && s.quarter === filters.quarter)
-      .map(s => s.sprintNumber);
-    const nextNumber = SPRINT_NUMBERS.find(n => !existingNumbers.includes(n)) || 1;
-
     setFormData({
-      year: filters.year,
-      quarter: filters.quarter,
-      sprintNumber: nextNumber,
+      name: '',
       goal: '',
       startDate: '',
       endDate: '',
@@ -147,9 +163,6 @@ export default function Sprints() {
         : [...prev.rockIds, rockId]
     }));
   };
-
-  // Generate sprint name preview
-  const sprintNamePreview = `${formData.year}-Q${formData.quarter}-S${formData.sprintNumber}`;
 
   if (loading && sprints.length === 0) {
     return (
@@ -239,11 +252,14 @@ export default function Sprints() {
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <Link
+                    to={sprint.id}
+                    className="text-lg font-semibold text-gray-900 dark:text-white hover:underline"
+                  >
                     {sprint.name}
-                  </h3>
+                  </Link>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(sprint.startDate).toLocaleDateString('he-IL')} - {new Date(sprint.endDate).toLocaleDateString('he-IL')}
+                    {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -284,6 +300,35 @@ export default function Sprints() {
                 <Battery progress={sprint.progress || 0} size="md" showLabel={true} />
               </div>
 
+              {/* Time */}
+              {sprint.startDate && sprint.endDate && (() => {
+                const meta = getSprintTimeMeta(sprint.startDate, sprint.endDate);
+                if (meta.state === 'invalid') return null;
+                return (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">זמן</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {meta.state === 'upcoming'
+                          ? 'עוד לא התחיל'
+                          : meta.state === 'ended'
+                            ? 'הסתיים'
+                            : `${meta.percent}% עבר`}
+                        {meta.state === 'active' && typeof meta.daysRemaining === 'number'
+                          ? ` • נשארו ${meta.daysRemaining} ימים`
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                      <div
+                        className="h-2 bg-gradient-to-r from-green-600 to-emerald-600"
+                        style={{ width: `${meta.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Rocks */}
               {sprint.rocks && Array.isArray(sprint.rocks) && sprint.rocks.length > 0 && (
                 <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
@@ -321,63 +366,27 @@ export default function Sprints() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               {editingSprint ? 'עריכת ספרינט' : 'ספרינט חדש'}
             </h2>
-            
-            {/* Sprint Name Preview */}
-            <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <span className="text-xs text-green-600 dark:text-green-400">שם הספרינט:</span>
-              <span className="block text-lg font-semibold text-green-700 dark:text-green-300">
-                {sprintNamePreview}
-              </span>
-              <span className="text-xs text-green-600 dark:text-green-400">
-                (נוצר אוטומטית מהשנה, רבעון ומספר ספרינט)
-              </span>
-            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Year, Quarter, Sprint Number */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    שנה
-                  </label>
-                  <select
-                    value={formData.year}
-                    onChange={e => setFormData({...formData, year: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-sm"
-                  >
-                    {YEARS.map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    רבעון
-                  </label>
-                  <select
-                    value={formData.quarter}
-                    onChange={e => setFormData({...formData, quarter: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-sm"
-                  >
-                    {QUARTERS.map(q => (
-                      <option key={q.value} value={q.value}>{q.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    מספר
-                  </label>
-                  <select
-                    value={formData.sprintNumber}
-                    onChange={e => setFormData({...formData, sprintNumber: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-sm"
-                  >
-                    {SPRINT_NUMBERS.map(n => (
-                      <option key={n} value={n}>S{n}</option>
-                    ))}
-                  </select>
-                </div>
+              {/* Sprint code (sp-XX) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  קוד ספרינט (sp-XX)
+                </label>
+                <input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder={editingSprint ? 'sp-01' : 'ריק = יווצר אוטומטית'}
+                  className="w-full px-3 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  אם משאירים ריק—המערכת תבחר אוטומטית את הקוד הבא (sp-01, sp-02, ...). ניתן לשינוי ידני.
+                </p>
+                {editingSprint?.legacyName && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    שם ישן: <span className="font-mono">{editingSprint.legacyName}</span>
+                  </p>
+                )}
               </div>
 
               {/* Dates */}

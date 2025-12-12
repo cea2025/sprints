@@ -298,8 +298,12 @@ export default function Stories() {
   // Deep-link modal open: /stories?new=1 OR /stories?edit=<id>
   const { closeAndClear, replaceWithEdit } = useEntityModalQuery({
     isReady: !!currentOrganization?.id,
-    onNew: () => {
-      openNewModal();
+    getPrefillFromQuery: (params) => ({
+      sprintId: params.get('prefillSprintId') || '',
+      rockId: params.get('prefillRockId') || ''
+    }),
+    onNew: (prefill) => {
+      openNewModal(prefill);
     },
     onEdit: async (id) => {
       const existing = stories.find(s => s.id === id);
@@ -448,11 +452,12 @@ export default function Stories() {
     });
   };
 
-  const openNewModal = () => {
+  const openNewModal = (prefill = {}) => {
     resetForm();
-    // Set suggested next code
+    // Set suggested next code + allow prefill overrides (e.g., from SprintBoard)
     setFormData(prev => ({
       ...prev,
+      ...prefill,
       code: generateNextCode()
     }));
     setIsModalOpen(true);

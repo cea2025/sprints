@@ -1,188 +1,154 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowRight, Plus, GripVertical, X } from 'lucide-react';
-import { useToast } from '../components/ui/Toast';
-import { SkeletonKanban } from '../components/ui/Skeleton';
-import { BatteryCompact, ProgressInput } from '../components/ui/Battery';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowRight, ChevronDown, ChevronRight, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { BatteryCompact } from '../components/ui/Battery';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useOrganization } from '../context/OrganizationContext';
 import { apiFetch } from '../utils/api';
 
-// Columns based on progress ranges
-const columns = [
-  { id: 'todo', title: 'לביצוע', color: 'gray', gradient: 'from-gray-400 to-gray-500', filter: s => s.progress === 0 && !s.isBlocked },
-  { id: 'inProgress', title: 'בתהליך', color: 'blue', gradient: 'from-blue-400 to-blue-600', filter: s => s.progress > 0 && s.progress < 100 && !s.isBlocked },
-  { id: 'blocked', title: 'חסום', color: 'red', gradient: 'from-red-400 to-red-600', filter: s => s.isBlocked },
-  { id: 'done', title: 'הושלם', color: 'green', gradient: 'from-green-400 to-green-600', filter: s => s.progress === 100 }
-];
+function formatDateIL(dateStr) {
+  try {
+    return new Date(dateStr).toLocaleDateString('he-IL');
+  } catch {
+    return '';
+  }
+}
+
+function getSprintTimeMeta(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const now = new Date();
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return { percent: 0, daysRemaining: null, state: 'invalid' };
+  }
+
+  const totalMs = end.getTime() - start.getTime();
+  const elapsedMs = Math.min(totalMs, Math.max(0, now.getTime() - start.getTime()));
+  const percent = Math.round((elapsedMs / totalMs) * 100);
+
+  const msRemaining = end.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+
+  const state = now < start ? 'upcoming' : now > end ? 'ended' : 'active';
+  return { percent, daysRemaining, state };
+}
 
 function SprintBoard() {
-  const { id } = useParams();
-  const [sprint, setSprint] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [rocks, setRocks] = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [draggedStory, setDraggedStory] = useState(null);
-  const [dragOverColumn, setDragOverColumn] = useState(null);
-  const toast = useToast();
+  const { id, slug } = useParams();
   const { currentOrganization } = useOrganization();
   
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    progress: 0,
-    isBlocked: false,
-    rockId: '',
-    ownerId: ''
+  const [loading, setLoading] = useState(true);
+  const [loadingMoreStories, setLoadingMoreStories] = useState(false);
+  const [loadingMoreTasks, setLoadingMoreTasks] = useState(false);
+
+  const [sprint, setSprint] = useState(null);
+  const [sectionsOpen, setSectionsOpen] = useState({
+    rocks: true,
+    stories: true,
+    tasks: true
   });
+
+  const [expandedStoryIds, setExpandedStoryIds] = useState(() => new Set());
+  const [storyTasks, setStoryTasks] = useState({}); // storyId -> { loading, tasks }
+
+  const timeMeta = useMemo(() => {
+    if (!sprint?.startDate || !sprint?.endDate) return null;
+    return getSprintTimeMeta(sprint.startDate, sprint.endDate);
+  }, [sprint?.startDate, sprint?.endDate]);
+
+  const fetchSprint = async (opts = {}) => {
+    if (!currentOrganization?.id) return;
+
+    const params = new URLSearchParams();
+    if (opts.storiesLimit !== undefined) params.set('storiesLimit', String(opts.storiesLimit));
+    if (opts.storiesCursor) params.set('storiesCursor', String(opts.storiesCursor));
+    if (opts.tasksLimit !== undefined) params.set('tasksLimit', String(opts.tasksLimit));
+    if (opts.tasksCursor) params.set('tasksCursor', String(opts.tasksCursor));
+
+    const url = `/api/sprints/${id}${params.toString() ? `?${params.toString()}` : ''}`;
+    const res = await apiFetch(url, { organizationId: currentOrganization.id });
+    if (!res.ok) return null;
+    return res.json();
+  };
 
   useEffect(() => {
     if (!currentOrganization?.id) return;
-    
-    const orgId = currentOrganization.id;
-    Promise.all([
-      apiFetch(`/api/sprints/${id}`, { organizationId: orgId }).then(r => r.json()),
-      apiFetch('/api/rocks', { organizationId: orgId }).then(r => r.json()),
-      apiFetch('/api/team', { organizationId: orgId }).then(r => r.json())
-    ])
-      .then(([sprintData, rocksData, teamData]) => {
-        setSprint(sprintData);
-        setRocks(Array.isArray(rocksData) ? rocksData : []);
-        setTeamMembers(Array.isArray(teamData) ? teamData : []);
-      })
+    setLoading(true);
+    fetchSprint({ storiesLimit: 20, tasksLimit: 20 })
+      .then((data) => setSprint(data))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, currentOrganization?.id]);
 
-  const handleProgressChange = async (storyId, progress, isBlocked = false) => {
-    const res = await apiFetch(`/api/stories/${storyId}/progress`, {
-      method: 'PUT',
-      body: JSON.stringify({ progress, isBlocked })
+  const toggleSection = (key) => {
+    setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const loadMoreStories = async () => {
+    if (!sprint?.storiesNextCursor) return;
+    setLoadingMoreStories(true);
+    try {
+      const data = await fetchSprint({ storiesLimit: 20, storiesCursor: sprint.storiesNextCursor, tasksLimit: 0 });
+      if (!data) return;
+      setSprint((prev) => ({
+        ...prev,
+        stories: [...(prev?.stories || []), ...(data.stories || [])],
+        storiesNextCursor: data.storiesNextCursor ?? null
+      }));
+    } finally {
+      setLoadingMoreStories(false);
+    }
+  };
+
+  const loadMoreStandaloneTasks = async () => {
+    if (!sprint?.standaloneTasksNextCursor) return;
+    setLoadingMoreTasks(true);
+    try {
+      const data = await fetchSprint({ storiesLimit: 0, tasksLimit: 20, tasksCursor: sprint.standaloneTasksNextCursor });
+      if (!data) return;
+      setSprint((prev) => ({
+        ...prev,
+        standaloneTasks: [...(prev?.standaloneTasks || []), ...(data.standaloneTasks || [])],
+        standaloneTasksNextCursor: data.standaloneTasksNextCursor ?? null
+      }));
+    } finally {
+      setLoadingMoreTasks(false);
+    }
+  };
+
+  const toggleStoryExpanded = async (storyId) => {
+    setExpandedStoryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(storyId)) next.delete(storyId);
+      else next.add(storyId);
+      return next;
     });
 
-    if (res.ok) {
-      const updatedStory = await res.json();
-      const stories = Array.isArray(sprint?.stories) ? sprint.stories : [];
-      setSprint({
-        ...sprint,
-        stories: stories.map(s => 
-          s.id === storyId ? updatedStory : s
-        )
-      });
-      toast.success('התקדמות עודכנה');
-    } else {
-      toast.error('שגיאה בעדכון');
-    }
-  };
+    if (storyTasks[storyId]?.tasks || storyTasks[storyId]?.loading) return;
+    setStoryTasks((prev) => ({ ...prev, [storyId]: { loading: true, tasks: [] } }));
 
-  // Map column drops to progress changes
-  const handleColumnDrop = async (storyId, columnId) => {
-    let progress = 0;
-    let isBlocked = false;
-
-    switch (columnId) {
-      case 'todo':
-        progress = 0;
-        isBlocked = false;
-        break;
-      case 'inProgress':
-        progress = 50;
-        isBlocked = false;
-        break;
-      case 'blocked':
-        isBlocked = true;
-        break;
-      case 'done':
-        progress = 100;
-        isBlocked = false;
-        break;
-    }
-
-    await handleProgressChange(storyId, progress, isBlocked);
-  };
-
-  // Drag & Drop handlers
-  const handleDragStart = (e, story) => {
-    setDraggedStory(story);
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => {
-      e.target.classList.add('opacity-50');
-    }, 0);
-  };
-
-  const handleDragEnd = (e) => {
-    setDraggedStory(null);
-    setDragOverColumn(null);
-    e.target.classList.remove('opacity-50');
-  };
-
-  const handleDragOver = (e, columnId) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverColumn(columnId);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverColumn(null);
-  };
-
-  const handleDrop = (e, columnId) => {
-    e.preventDefault();
-    setDragOverColumn(null);
-    
-    if (draggedStory) {
-      handleColumnDrop(draggedStory.id, columnId);
-    }
-  };
-
-  const handleAddStory = async (e) => {
-    e.preventDefault();
-
-    if (!formData.ownerId) {
-      toast.error('אחראי הוא שדה חובה');
+    const res = await apiFetch(`/api/tasks/story/${storyId}`, { organizationId: currentOrganization.id });
+    if (!res.ok) {
+      setStoryTasks((prev) => ({ ...prev, [storyId]: { loading: false, tasks: [] } }));
       return;
     }
-    
-    const res = await apiFetch('/api/stories', {
-      method: 'POST',
-      body: JSON.stringify({
-        ...formData,
-        sprintId: id
-      })
-    });
-
-    if (res.ok) {
-      const story = await res.json();
-      setSprint({
-        ...sprint,
-        stories: [...sprint.stories, story]
-      });
-      setShowForm(false);
-      setFormData({
-        title: '',
-        description: '',
-        progress: 0,
-        isBlocked: false,
-        rockId: '',
-        ownerId: ''
-      });
-      toast.success('אבן הדרך נוצרה בהצלחה!');
-    } else {
-      const error = await res.json();
-      toast.error(error.error || 'שגיאה ביצירת אבן הדרך');
-    }
+    const tasks = await res.json();
+    setStoryTasks((prev) => ({ ...prev, [storyId]: { loading: false, tasks: Array.isArray(tasks) ? tasks : [] } }));
   };
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-          <div>
-            <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
-            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
           </div>
         </div>
-        <SkeletonKanban />
+        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-64 rounded-2xl" />
       </div>
     );
   }
@@ -191,268 +157,320 @@ function SprintBoard() {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500 dark:text-gray-400">ספרינט לא נמצא</p>
-        <Link to="/sprints" className="text-blue-600 hover:text-blue-700 mt-2 inline-block">
+        <Link to={slug ? `/${slug}/sprints` : '/select-organization'} className="text-blue-600 hover:text-blue-700 mt-2 inline-block">
           חזרה לרשימת ספרינטים
         </Link>
       </div>
     );
   }
 
-  const getStoriesByColumn = (column) => {
-    const stories = sprint?.stories || [];
-    return Array.isArray(stories) ? stories.filter(column.filter) : [];
-  };
+  const rocks = Array.isArray(sprint.rocks) ? sprint.rocks : [];
+  const stories = Array.isArray(sprint.stories) ? sprint.stories : [];
+  const standaloneTasks = Array.isArray(sprint.standaloneTasks) ? sprint.standaloneTasks : [];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
           <Link
-            to="/sprints"
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
+            to={slug ? `/${slug}/sprints` : '/select-organization'}
+            className="mt-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
           >
             <ArrowRight size={20} />
           </Link>
           <div>
+            <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{sprint.name}</h1>
+              <Link
+                to={slug ? `/${slug}/sprints?edit=${sprint.id}` : '/select-organization'}
+                className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                title="עריכת ספרינט"
+              >
+                <Pencil size={16} />
+              </Link>
+            </div>
+            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {formatDateIL(sprint.startDate)} - {formatDateIL(sprint.endDate)}
+            </div>
             {sprint.goal && (
-              <p className="text-gray-500 dark:text-gray-400 mt-1">{sprint.goal}</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-2 bg-gray-50 dark:bg-gray-800/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                🎯 {sprint.goal}
+              </p>
             )}
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            to={slug ? `/${slug}/stories?new=1&prefillSprintId=${sprint.id}` : '/select-organization'}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg hover:shadow-orange-500/25 transition-all"
+            title="אבן דרך חדשה"
+          >
+            <Plus size={18} />
+            <span className="font-medium">אבן דרך חדשה</span>
+          </Link>
         <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg hover:shadow-orange-500/25 transition-all transform hover:-translate-y-0.5"
-        >
-          <Plus size={20} />
-          <span className="font-medium">אבן דרך חדשה</span>
+            onClick={() => {
+              setLoading(true);
+              fetchSprint({ storiesLimit: 20, tasksLimit: 20 })
+                .then((data) => setSprint(data))
+                .finally(() => setLoading(false));
+            }}
+            className="p-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+            title="רענן"
+          >
+            <RefreshCw size={18} />
         </button>
+        </div>
       </div>
 
-      {/* Add Story Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg animate-scale-in">
-            <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-xl font-bold dark:text-white">אבן דרך חדשה</h2>
-              <button
-                onClick={() => setShowForm(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
+      {/* Time */}
+      {timeMeta && timeMeta.state !== 'invalid' && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-900 dark:text-white">זמן ספרינט</div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {timeMeta.state === 'upcoming'
+                ? 'עוד לא התחיל'
+                : timeMeta.state === 'ended'
+                  ? 'הסתיים'
+                  : `${timeMeta.percent}% עבר • נשארו ${timeMeta.daysRemaining} ימים`}
             </div>
-            <form onSubmit={handleAddStory} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  כותרת <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
-                  required
-                />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  תיאור
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  rows={2}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  אחראי <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.ownerId}
-                  onChange={e => setFormData({...formData, ownerId: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
-                  required
-                >
-                  <option value="">בחר אחראי</option>
-                  {teamMembers.map(member => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  סלע (אופציונלי)
-                </label>
-                <select
-                  value={formData.rockId}
-                  onChange={e => setFormData({...formData, rockId: e.target.value})}
-                  className="w-full px-4 py-2.5 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white transition-all"
-                >
-                  <option value="">ללא שיוך לסלע</option>
-                  {rocks.map(rock => (
-                    <option key={rock.id} value={rock.id}>
-                      {rock.code} - {rock.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  התקדמות התחלתית
-                </label>
-                <ProgressInput
-                  value={formData.progress}
-                  onChange={progress => setFormData({...formData, progress})}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                >
-                  צור אבן דרך
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2.5 border dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all dark:text-white"
-                >
-                  ביטול
-                </button>
-              </div>
-            </form>
+          <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+            <div
+              className="h-2 bg-gradient-to-r from-green-600 to-emerald-600"
+              style={{ width: `${timeMeta.percent}%` }}
+            />
           </div>
         </div>
       )}
 
-      {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {columns.map((column) => (
-          <div 
-            key={column.id} 
-            className={`
-              bg-gray-100 dark:bg-gray-800/50 rounded-2xl p-4 transition-all duration-200
-              ${dragOverColumn === column.id ? 'ring-2 ring-orange-500 ring-offset-2 dark:ring-offset-gray-900' : ''}
-            `}
-            onDragOver={(e) => handleDragOver(e, column.id)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, column.id)}
-          >
-            <div className="flex items-center justify-between mb-4">
+      {/* Rocks */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => toggleSection('rocks')}
+          className="w-full flex items-center justify-between px-5 py-4"
+        >
               <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${column.gradient}`} />
-                <h3 className="font-bold text-gray-700 dark:text-gray-200">{column.title}</h3>
+            {sectionsOpen.rocks ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            <span className="font-semibold text-gray-900 dark:text-white">סלעים</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">({rocks.length})</span>
               </div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 px-2 py-0.5 rounded-lg">
-                {getStoriesByColumn(column).length}
+          <div className="text-xs text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
+        </button>
+
+        {sectionsOpen.rocks && (
+          <div className="px-5 pb-5">
+            {rocks.length === 0 ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400">אין סלעים מקושרים לספרינט.</div>
+            ) : (
+              <div className="space-y-3">
+                {rocks.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                          {r.code}
               </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{r.name}</span>
+                      </div>
+                      {r.objective && (
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                          פרויקט: {r.objective.code} • {r.objective.name}
+                        </div>
+                      )}
             </div>
-            
-            <div className="space-y-3 min-h-[200px]">
-              {getStoriesByColumn(column).map((story) => (
-                <StoryCard
-                  key={story.id}
-                  story={story}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onProgressChange={handleProgressChange}
-                />
-              ))}
+                    <div className="flex items-center gap-3">
+                      <BatteryCompact progress={r.progress || 0} />
+                      <Link
+                        to={slug ? `/${slug}/rocks?edit=${r.id}` : '/select-organization'}
+                        className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                        title="עריכת סלע"
+                      >
+                        <Pencil size={16} />
+                      </Link>
             </div>
           </div>
         ))}
       </div>
+            )}
     </div>
-  );
-}
-
-function StoryCard({ story, onDragStart, onDragEnd, onProgressChange }) {
-  const [editingProgress, setEditingProgress] = useState(false);
-  const [tempProgress, setTempProgress] = useState(story.progress);
-
-  const handleProgressSubmit = () => {
-    if (tempProgress !== story.progress) {
-      onProgressChange(story.id, tempProgress);
-    }
-    setEditingProgress(false);
-  };
-
-  return (
-    <div 
-      draggable
-      onDragStart={(e) => onDragStart(e, story)}
-      onDragEnd={onDragEnd}
-      className={`bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group ${
-        story.isBlocked ? 'border-2 border-red-400 dark:border-red-500' : ''
-      }`}
-    >
-      <div className="flex items-start justify-between mb-2">
-        <h4 className={`font-medium text-sm flex-1 ${
-          story.isBlocked ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'
-        }`}>
-          {story.title}
-        </h4>
-        <GripVertical size={16} className="text-gray-300 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+        )}
       </div>
       
-      {story.description && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{story.description}</p>
-      )}
-
-      {/* Progress */}
-      <div className="mb-3">
-        {editingProgress ? (
+      {/* Stories */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => toggleSection('stories')}
+          className="w-full flex items-center justify-between px-5 py-4"
+        >
           <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={tempProgress}
-              onChange={e => setTempProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-              onBlur={handleProgressSubmit}
-              onKeyDown={e => e.key === 'Enter' && handleProgressSubmit()}
-              className="w-16 px-2 py-1 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-600 dark:text-white text-center"
-              autoFocus
-            />
-            <span className="text-xs text-gray-400">%</span>
+            {sectionsOpen.stories ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            <span className="font-semibold text-gray-900 dark:text-white">אבני דרך</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">({stories.length})</span>
           </div>
-        ) : (
-          <div 
-            onClick={() => setEditingProgress(true)}
-            className="cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <BatteryCompact progress={story.progress || 0} isBlocked={story.isBlocked} />
+          <div className="text-xs text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
+        </button>
+
+        {sectionsOpen.stories && (
+          <div className="px-5 pb-5 space-y-3">
+            {stories.length === 0 ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400">אין אבני דרך בספרינט.</div>
+            ) : (
+              stories.map((s) => {
+                const isExpanded = expandedStoryIds.has(s.id);
+                const tasksState = storyTasks[s.id];
+                return (
+                  <div key={s.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 p-4 bg-gray-50 dark:bg-gray-800/60">
+                      <button
+                        onClick={() => toggleStoryExpanded(s.id)}
+                        className="flex items-center gap-2 min-w-0 text-left"
+                        title="הצג/הסתר משימות"
+                      >
+                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.title}</span>
+                            {s.isBlocked && (
+                              <span className="text-xs px-2 py-0.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                                חסום
+                              </span>
+                            )}
+                            {s.rock && (
+                              <span className="text-xs px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                {s.rock.code}
+                              </span>
+                            )}
+                          </div>
+                          {s.description && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{s.description}</div>
+                          )}
+                        </div>
+                      </button>
+
+                      <div className="flex items-center gap-3">
+                        <BatteryCompact progress={s.progress || 0} isBlocked={s.isBlocked} />
+                        <Link
+                          to={slug ? `/${slug}/stories?edit=${s.id}` : '/select-organization'}
+                          className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                          title="עריכת אבן דרך"
+                        >
+                          <Pencil size={16} />
+                        </Link>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="p-4 bg-white dark:bg-gray-800">
+                        {tasksState?.loading ? (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">טוען משימות…</div>
+                        ) : (tasksState?.tasks || []).length === 0 ? (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות באבן דרך.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {(tasksState?.tasks || []).map((t) => (
+                              <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    {t.code && (
+                                      <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                                        {t.code}
+                                      </span>
+                                    )}
+                                    <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    סטטוס: {t.status}
+                                  </div>
+                                </div>
+                                <Link
+                                  to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                                  className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                                  title="עריכת משימה"
+                                >
+                                  <Pencil size={16} />
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+
+            {sprint.storiesNextCursor && (
+              <button
+                onClick={loadMoreStories}
+                disabled={loadingMoreStories}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+              >
+                {loadingMoreStories ? 'טוען…' : 'טען עוד אבני דרך'}
+              </button>
+            )}
           </div>
         )}
       </div>
       
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
-          {story.isBlocked && (
-            <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg">
-              🚫 חסום
+      {/* Tasks (standalone) */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => toggleSection('tasks')}
+          className="w-full flex items-center justify-between px-5 py-4"
+        >
+          <div className="flex items-center gap-2">
+            {sectionsOpen.tasks ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            <span className="font-semibold text-gray-900 dark:text-white">משימות עצמאיות בספרינט</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">({standaloneTasks.length})</span>
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
+        </button>
+
+        {sectionsOpen.tasks && (
+          <div className="px-5 pb-5 space-y-3">
+            {standaloneTasks.length === 0 ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400">אין משימות עצמאיות שמקושרות לספרינט.</div>
+            ) : (
+              standaloneTasks.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      {t.code && (
+                        <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                          {t.code}
             </span>
           )}
-          {story.rock && (
-            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
-              {story.rock.code}
-            </span>
-          )}
+                      <span className="text-sm text-gray-900 dark:text-white truncate">{t.title}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      סטטוס: {t.status}
+                    </div>
         </div>
-        {story.owner && (
-          <div className="flex items-center gap-1">
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
-              <span className="text-[10px] text-white font-bold">{story.owner.name?.charAt(0)}</span>
+                  <Link
+                    to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                    className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                    title="עריכת משימה"
+                  >
+                    <Pencil size={16} />
+                  </Link>
             </div>
+              ))
+            )}
+
+            {sprint.standaloneTasksNextCursor && (
+              <button
+                onClick={loadMoreStandaloneTasks}
+                disabled={loadingMoreTasks}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+              >
+                {loadingMoreTasks ? 'טוען…' : 'טען עוד משימות'}
+              </button>
+            )}
           </div>
         )}
       </div>

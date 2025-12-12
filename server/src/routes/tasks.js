@@ -341,6 +341,9 @@ router.get('/:id', async (req, res) => {
         owner: {
           select: { id: true, name: true }
         },
+        sprint: {
+          select: { id: true, name: true }
+        },
         labels: {
           select: { label: { select: { id: true, name: true, color: true } } }
         },
@@ -427,7 +430,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { code, title, description, storyId, ownerId, priority, dueDate, teamId } = req.body;
+    const { code, title, description, storyId, sprintId, ownerId, priority, dueDate, teamId } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'כותרת המשימה היא שדה חובה' });
@@ -437,8 +440,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'יש לבחור אחראי למשימה' });
     }
 
+    if (storyId && sprintId) {
+      return res.status(400).json({ error: 'אי אפשר לקשר משימה גם לאבן דרך וגם לספרינט' });
+    }
+
     // Determine teamId:
     // - If task is linked to a story, inherit its teamId
+    // - Else if task is linked to a sprint, inherit its teamId
     // - Else use provided teamId or principal default
     let inheritedTeamId = null;
     if (storyId) {
@@ -447,6 +455,13 @@ router.post('/', async (req, res) => {
         select: { teamId: true }
       });
       inheritedTeamId = story?.teamId || null;
+    } else if (sprintId) {
+      const sprint = await prisma.sprint.findFirst({
+        where: { id: sprintId, organizationId },
+        select: { teamId: true }
+      });
+      if (!sprint) return res.status(400).json({ error: 'ספרינט לא נמצא' });
+      inheritedTeamId = sprint?.teamId || null;
     }
     const validTeamId = inheritedTeamId || (await validateTeamId(organizationId, teamId)) || getDefaultTeamIdFromPrincipal(req);
 
@@ -475,6 +490,7 @@ router.post('/', async (req, res) => {
         title: title.trim(),
         description: description?.trim() || null,
         storyId: storyId || null,
+        sprintId: storyId ? null : (sprintId || null),
         ownerId,
         createdById: creator?.id || null,
         teamId: validTeamId || null,
@@ -485,6 +501,9 @@ router.post('/', async (req, res) => {
       },
       include: {
         owner: {
+          select: { id: true, name: true }
+        },
+        sprint: {
           select: { id: true, name: true }
         },
         story: {
@@ -516,7 +535,7 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'לא נבחר ארגון' });
     }
 
-    const { code, title, description, storyId, ownerId, priority, dueDate, status, teamId } = req.body;
+    const { code, title, description, storyId, sprintId, ownerId, priority, dueDate, status, teamId } = req.body;
 
     // Check task exists and belongs to organization
     const existingTask = await prisma.task.findFirst({
@@ -535,7 +554,32 @@ router.put('/:id', async (req, res) => {
     if (code !== undefined) updateData.code = code?.trim() || null;
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description?.trim() || null;
-    if (storyId !== undefined) updateData.storyId = storyId || null;
+
+    if (storyId !== undefined) {
+      updateData.storyId = storyId || null;
+      if (storyId) updateData.sprintId = null; // rule: story-linked tasks cannot have sprintId
+    }
+
+    if (sprintId !== undefined) {
+      const effectiveStoryId =
+        storyId !== undefined ? (storyId || null) : (existingTask.storyId || null);
+
+      if (effectiveStoryId) {
+        return res.status(400).json({ error: 'אי אפשר לקשר משימה גם לאבן דרך וגם לספרינט' });
+      }
+      if (sprintId) {
+        const sprint = await prisma.sprint.findFirst({
+          where: { id: sprintId, organizationId },
+          select: { id: true, teamId: true }
+        });
+        if (!sprint) return res.status(400).json({ error: 'ספרינט לא נמצא' });
+        updateData.sprintId = sprintId;
+        if (teamId === undefined) updateData.teamId = sprint.teamId || null;
+      } else {
+        updateData.sprintId = null;
+      }
+    }
+
     if (ownerId !== undefined) updateData.ownerId = ownerId;
     if (priority !== undefined) updateData.priority = priority;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
@@ -565,6 +609,9 @@ router.put('/:id', async (req, res) => {
       data: updateData,
       include: {
         owner: {
+          select: { id: true, name: true }
+        },
+        sprint: {
           select: { id: true, name: true }
         },
         story: {
