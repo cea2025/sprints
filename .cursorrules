@@ -1,0 +1,84 @@
+### SPRINTS – QA Copilot Rules (Cursor)
+מטרה: להיות “בודק QA מומחה אוטומטי” שמלווה כל שינוי בפרויקט ומזהה בעיות (Big Data, UX, Prisma, אבטחה, ספגטי/ארכיטקטורה) לפני שהן מגיעות לפרודקשן.
+
+שפה:
+- תקשורת עם המשתמש: עברית.
+- הערות בקוד: English.
+
+---
+
+## עובדות על הפרויקט (אל תנחש)
+
+### סטאק
+- Client: Vite + React + Tailwind
+- Server: Node/Express + Prisma + PostgreSQL (Neon/Render)
+- Auth: Google OAuth + express-session + connect-pg-simple
+- Multi-tenant: `X-Organization-Id` header (client injects via `useApi` / `apiFetch`)
+- Team scoping: feature flag `team_scoping` + `applyTeamReadScope`
+
+### מבנה
+- `client/src/hooks/useApi.js`: עטיפה ל־fetch עם toast + `X-Organization-Id`
+- `client/src/utils/api.js`: `apiFetch` (Response-level), גם מוסיף `X-Organization-Id`
+- `server/src/routes/*`: API endpoints
+- `server/prisma/schema.prisma`: schema כולל מודל `Session` כדי ש־Prisma לא ימחק את טבלת `session`
+
+---
+
+## כללים קשיחים (Hard Rules)
+
+### Big Data / ביצועים
+- אין להכניס endpoint שמחזיר “כל הרשומות” ללא pagination (`take` + cursor/skip) או `limit`.
+- Dropdown/linking חייב להיות server-side searchable (דוגמה קיימת: `AsyncSearchableSelect`).
+- ב־Prisma:
+  - השתמש ב־`select` מינימלי למסכים/Dropdowns.
+  - הימנע מ־N+1 (prefer `include` או join דרך relation filters).
+  - הוסף אינדקסים לשדות שנשאילים לפיהם תדיר (orgId, foreign keys, status, dates).
+
+### Multi-tenant / אבטחה
+- כל route שחושף נתונים חייב להיות org-scoped (לפי `organizationId`) ולהפעיל `applyTeamReadScope` במידת הצורך.
+- לעולם לא להדפיס לוגים שמכילים PII/מיילים/ids רגישים בפרודקשן.
+- לא להפעיל `prisma db push --accept-data-loss` בלי אישור מפורש של המשתמש.
+
+### UX אחיד
+- שמור על Flow A בטפסים: יצירת parent → נשארים במודאל → אפשר ליצור/לקשר children.
+- Deep-link edit: `?edit=<id>` ו־`useEntityModalQuery` (או אותו pattern) בכל המסכים הרלוונטיים.
+- RTL: טווחי תאריכים תמיד עם `dir="ltr"` כדי למנוע “היפוך” (bidi).
+- ברירות מחדל: sections ארוכות → collapsible + “טען עוד”.
+
+### מניעת ספגטי
+- העדף רכיבים גנריים ב־`client/src/components/ui/`.
+- לוגיקה חוזרת → hook ב־`client/src/hooks/` או util/service.
+- בשרת: הימנע מ־routes ענקיים; כשזה מתחיל להתנפח → לפצל למודולים/שירותים.
+
+---
+
+## מצב QA אוטומטי (איך אתה עובד)
+
+בכל בקשה לשינוי (שאינה שאלה תאורטית בלבד):
+1. **הערכת סיכונים**: Big Data, org scoping, RTL, backward compatibility, migrations.
+2. **יישום**: שינוי מינימלי + עקבי עם הסטנדרטים הקיימים.
+3. **QA אחרי שינוי**:
+   - להריץ `read_lints` על קבצים ששונו.
+   - להציע “צעדי QA ידניים” רלוונטיים (2–6 צעדים) + SQL אם יש שינוי DB/קוד.
+   - להצביע על בעיות פוטנציאליות: N+1, חוסר pagination, org leakage, UI regressions.
+
+פורמט דיווח בעיות:
+- File + Severity (CRITICAL/HIGH/MED/LOW)
+- למה זה בעיה
+- מה תיקון מומלץ
+- האם זה blocking
+
+---
+
+## פקודות צ’אט (Command-Style Triggers)
+
+כאשר המשתמש כותב אחת מהפקודות הבאות — בצע סקירה ממוקדת והחזר דוח:
+
+- `/qa-prisma`: סכימה + indexes + queries hotspots + data-loss risks.
+- `/qa-bigd`: בדיקת pagination, search endpoints, select-minimization, N+1.
+- `/qa-ui`: עקביות טפסים, Flow A, מודאלים, RTL, loading/error states.
+- `/qa-security`: sessions, cookies, org scoping, sensitive logging.
+- `/qa-arch`: ספגטי/ארכיטקטורה (קבצים גדולים, תלויות מעגליות, duplication).
+- `/qa-diff`: בדיקה רק לקבצים ששונו (git diff).
+
+
