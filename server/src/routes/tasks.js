@@ -484,35 +484,61 @@ router.post('/', async (req, res) => {
       }
     });
 
-    const task = await prisma.task.create({
-      data: {
-        code: code?.trim() || null,
-        title: title.trim(),
-        description: description?.trim() || null,
-        storyId: storyId || null,
-        sprintId: storyId ? null : (sprintId || null),
-        ownerId,
-        createdById: creator?.id || null,
-        teamId: validTeamId || null,
-        organizationId,
-        priority: priority || 0,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        sortOrder: (maxOrder._max.sortOrder || 0) + 1
-      },
-      include: {
-        owner: {
-          select: { id: true, name: true }
-        },
-        sprint: {
-          select: { id: true, name: true }
-        },
-        story: {
-          select: { id: true, title: true }
-        },
-        createdBy: {
-          select: { id: true, name: true }
+    const task = await prisma.$transaction(async (tx) => {
+      const trimmed = typeof code === 'string' ? code.trim() : '';
+      let finalCode = trimmed || null;
+
+      // Auto-generate sequential code if not provided
+      if (!finalCode) {
+        const rows = await tx.$queryRaw`
+          SELECT MAX(CAST(substring(code from 3) AS INT)) AS max_n
+          FROM "Task"
+          WHERE "organizationId" = ${organizationId}
+            AND code ~ '^m-[0-9]+$'
+        `;
+        const maxN = rows?.[0]?.max_n ? Number(rows[0].max_n) : 0;
+        const next = (Number.isFinite(maxN) ? maxN : 0) + 1;
+        finalCode = `m-${String(next).padStart(2, '0')}`;
+
+        // Best-effort collision avoidance (no unique constraint in schema)
+        // eslint-disable-next-line no-await-in-loop
+        while (await tx.task.findFirst({ where: { organizationId, code: finalCode }, select: { id: true } })) {
+          const n = parseInt(finalCode.slice(2), 10);
+          const bumped = (Number.isFinite(n) ? n : next) + 1;
+          finalCode = `m-${String(bumped).padStart(2, '0')}`;
         }
       }
+
+      return tx.task.create({
+        data: {
+          code: finalCode,
+          title: title.trim(),
+          description: description?.trim() || null,
+          storyId: storyId || null,
+          sprintId: storyId ? null : (sprintId || null),
+          ownerId,
+          createdById: creator?.id || null,
+          teamId: validTeamId || null,
+          organizationId,
+          priority: priority || 0,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          sortOrder: (maxOrder._max.sortOrder || 0) + 1
+        },
+        include: {
+          owner: {
+            select: { id: true, name: true }
+          },
+          sprint: {
+            select: { id: true, name: true }
+          },
+          story: {
+            select: { id: true, title: true }
+          },
+          createdBy: {
+            select: { id: true, name: true }
+          }
+        }
+      });
     });
 
     res.status(201).json(task);
