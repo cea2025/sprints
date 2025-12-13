@@ -7,6 +7,7 @@ import { Battery, BatteryCompact } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import ResizableTextarea from '../components/ui/ResizableTextarea';
+import { useEntityModalQuery } from '../hooks/useEntityModalQuery';
 
 const QUARTERS = [
   { value: 1, label: 'Q1' },
@@ -211,8 +212,7 @@ export default function Sprints() {
     });
 
     if (result) {
-      setIsModalOpen(false);
-      resetForm();
+      closeAndClear();
       fetchSprints();
     }
   };
@@ -257,6 +257,29 @@ export default function Sprints() {
     resetForm();
     setIsModalOpen(true);
   };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  // Deep-link modal open: /sprints?new=1 OR /sprints?edit=<id>
+  const { closeAndClear } = useEntityModalQuery({
+    isReady: !!currentOrganization?.id,
+    onNew: () => {
+      openNewModal();
+    },
+    onEdit: async (id) => {
+      const existing = sprints.find(s => s.id === id);
+      if (existing) {
+        handleEdit(existing);
+        return;
+      }
+      const fetched = await request(`/api/sprints/${id}?storiesLimit=0&linkedTasksLimit=0&tasksLimit=0`, { showToast: false });
+      if (fetched) handleEdit(fetched);
+    },
+    onClose: closeModal,
+  });
 
   const toggleRock = (rockId) => {
     setFormData(prev => ({
@@ -456,7 +479,7 @@ export default function Sprints() {
                 {openSectionsBySprint[sprint.id]?.rocks && (
                   <div className="px-3 pb-2">
                     {(Array.isArray(sprint.rocks) ? sprint.rocks : []).length === 0 ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400">לחץ כדי לפתוח/לסגור</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">אין סלעים מקושרים לספרינט.</div>
                     ) : (
                       <div className="space-y-2">
                         {(Array.isArray(sprint.rocks) ? sprint.rocks : []).map((r) => (
@@ -803,7 +826,7 @@ export default function Sprints() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); resetForm(); }}
+                  onClick={closeAndClear}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ביטול

@@ -1,8 +1,0 @@
-## Deprecated (kept for backward compatibility)
-
-החוקים המעודכנים של ה‑QA Copilot הועברו ל־`.cursorrules` (בשורש הפרויקט).
-
-למה? כי זה הפורמט ש‑Cursor קורא בצורה אמינה.
-
-פתח/ערוך את:
-- `.cursorrules`

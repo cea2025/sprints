@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowRight, ChevronDown, ChevronRight, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { BatteryCompact } from '../components/ui/Battery';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -36,7 +36,9 @@ function getSprintTimeMeta(startDate, endDate) {
 
 function SprintBoard() {
   const { id, slug } = useParams();
+  const location = useLocation();
   const { currentOrganization } = useOrganization();
+  const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
   
   const [loading, setLoading] = useState(true);
   const [loadingMoreStories, setLoadingMoreStories] = useState(false);
@@ -45,9 +47,9 @@ function SprintBoard() {
 
   const [sprint, setSprint] = useState(null);
   const [sectionsOpen, setSectionsOpen] = useState({
-    rocks: true,
-    stories: true,
-    tasks: true
+    rocks: false,
+    stories: false,
+    tasks: false
   });
 
   const [expandedStoryIds, setExpandedStoryIds] = useState(() => new Set());
@@ -208,7 +210,7 @@ function SprintBoard() {
             <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{sprint.name}</h1>
               <Link
-                to={slug ? `/${slug}/sprints?edit=${sprint.id}` : '/select-organization'}
+                to={slug ? `/${slug}/sprints?edit=${sprint.id}&returnTo=${returnTo}` : '/select-organization'}
                 className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                 title="עריכת ספרינט"
               >
@@ -230,7 +232,7 @@ function SprintBoard() {
 
         <div className="flex items-center gap-2">
           <Link
-            to={slug ? `/${slug}/stories?new=1&prefillSprintId=${sprint.id}` : '/select-organization'}
+            to={slug ? `/${slug}/stories?new=1&prefillSprintId=${sprint.id}&returnTo=${returnTo}` : '/select-organization'}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl hover:shadow-lg hover:shadow-orange-500/25 transition-all"
             title="אבן דרך חדשה"
           >
@@ -312,7 +314,7 @@ function SprintBoard() {
                     <div className="flex items-center gap-3">
                       <BatteryCompact progress={r.progress || 0} />
                       <Link
-                        to={slug ? `/${slug}/rocks?edit=${r.id}` : '/select-organization'}
+                        to={slug ? `/${slug}/rocks?edit=${r.id}&returnTo=${returnTo}` : '/select-organization'}
                         className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         title="עריכת סלע"
                       >
@@ -381,7 +383,7 @@ function SprintBoard() {
                       <div className="flex items-center gap-3">
                         <BatteryCompact progress={s.progress || 0} isBlocked={s.isBlocked} />
                         <Link
-                          to={slug ? `/${slug}/stories?edit=${s.id}` : '/select-organization'}
+                          to={slug ? `/${slug}/stories?edit=${s.id}&returnTo=${returnTo}` : '/select-organization'}
                           className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                           title="עריכת אבן דרך"
                         >
@@ -414,7 +416,7 @@ function SprintBoard() {
                                   </div>
                                 </div>
                                 <Link
-                                  to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                                  to={slug ? `/${slug}/tasks?edit=${t.id}&returnTo=${returnTo}` : '/select-organization'}
                                   className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                                   title="עריכת משימה"
                                 >
@@ -488,7 +490,7 @@ function SprintBoard() {
                         </div>
                       </div>
                       <Link
-                        to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                    to={slug ? `/${slug}/tasks?edit=${t.id}&returnTo=${returnTo}` : '/select-organization'}
                         className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         title="עריכת משימה"
                       >
@@ -533,7 +535,7 @@ function SprintBoard() {
                         </div>
                       </div>
                       <Link
-                        to={slug ? `/${slug}/tasks?edit=${t.id}` : '/select-organization'}
+                        to={slug ? `/${slug}/tasks?edit=${t.id}&returnTo=${returnTo}` : '/select-organization'}
                         className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         title="עריכת משימה"
                       >
