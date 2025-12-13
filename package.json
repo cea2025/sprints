@@ -15,7 +15,9 @@
     "db:push": "cd server && npx prisma db push",
     "db:seed": "cd server && npx prisma db seed",
     "db:studio": "cd server && npx prisma studio",
-    "set-super-admin": "cd server && node scripts/set-super-admin.js"
+    "set-super-admin": "cd server && node scripts/set-super-admin.js",
+    "migrate:task-codes": "cd server && npm run migrate:task-codes",
+    "migrate:sprint-codes": "cd server && npm run migrate:sprint-codes"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
